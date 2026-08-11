@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en" data-state="combat" data-motion="on">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · Lanternlight — Bold and Brave visual language (designer set)</title>
+<style>
+  :root {
+    --ink: #17120f; --ink-2: #241b15; --ink-3: #332419;
+    --ember: #f2a541; --ember-hot: #ffd98a;
+    --cloth-warm: #d9b26a; --cloak: #a06a35;
+    --steel-cold: #8b98a8; --steel-dim: #5f6875;
+    --danger: #c8442c; --bone: #f0e6d2; --bone-dim: #b9ab8f;
+    --panel: rgba(23,16,11,.78); --hairline: rgba(242,165,65,.38);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ink); color: var(--bone);
+    font: 15px/1.5 "Segoe UI","Helvetica Neue",Arial,sans-serif;
+    padding: 28px 20px 96px;
+  }
+  .page { max-width: 1120px; margin: 0 auto; }
+  .eyebrow { margin: 0 0 6px; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ember); }
+  h1 { margin: 0; font-family: Georgia,"Iowan Old Style","Times New Roman",serif; font-weight: 400; font-size: 40px; color: var(--bone); }
+  h1 .name { color: var(--ember-hot); font-style: italic; }
+  .lede { max-width: 70ch; color: var(--bone-dim); margin: 10px 0 0; }
+  .tradeoff { margin: 16px 0 22px; padding: 10px 14px; border-left: 2px solid var(--ember); background: var(--ink-2); max-width: 78ch; font-size: 14px; }
+  .tradeoff strong { color: var(--ember-hot); font-weight: 600; }
+  .stage { position: relative; border: 1px solid var(--hairline); background: var(--ink-2); }
+  .scene-svg { display: block; width: 100%; height: auto; }
+  .vignette { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 90% 78% at 46% 52%, transparent 52%, rgba(10,7,5,.58) 100%); }
+
+  /* HUD: sparse, thin-line, corner-anchored */
+  .hud { position: absolute; inset: 0; pointer-events: none; font-size: 12px; }
+  .hud-panel { background: var(--panel); border: 1px solid var(--hairline); padding: 8px 12px; }
+  .hud-label { display: block; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ember); margin-bottom: 2px; }
+  .hud-contract { position: absolute; top: 14px; left: 14px; max-width: 300px; }
+  .hud-contract .value { color: var(--bone); font-size: 13px; }
+  .oil-meter { margin-top: 8px; }
+  .oil-track { height: 5px; width: 180px; background: rgba(240,230,210,.14); position: relative; }
+  .oil-fill { position: absolute; inset: 0 42% 0 0; background: linear-gradient(90deg, var(--ember), var(--ember-hot)); }
+  [data-motion="on"] .oil-fill { animation: oilShimmer 2.6s ease-in-out infinite; }
+  @keyframes oilShimmer { 50% { filter: brightness(1.25); } }
+  .oil-note { color: var(--bone-dim); font-size: 11px; margin-top: 3px; }
+  .oil-note strong { color: var(--ember-hot); font-weight: 600; }
+  .hud-settlement { position: absolute; top: 14px; right: 14px; text-align: right; }
+  .hud-settlement .value { font-size: 13px; }
+  .hud-settlement .cond { color: var(--ember-hot); font-weight: 600; }
+  .hud-settlement .sub { color: var(--bone-dim); font-size: 11px; }
+  .hud-vitals { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 18px; align-items: center; }
+  .stamina-track { height: 5px; width: 150px; background: rgba(240,230,210,.14); position: relative; }
+  .stamina-fill { position: absolute; inset: 0 29% 0 0; background: var(--cloth-warm); }
+  .reticle { display: grid; grid-template-columns: repeat(3,18px); grid-auto-rows: 18px; gap: 2px;
+    align-items: center; justify-items: center; color: var(--bone-dim); font-size: 11px; }
+  .reticle .c { color: var(--bone); }
+  .reticle .on { color: var(--ink); background: var(--ember); width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; }
+  .reticle-label { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--bone-dim); margin-top: 4px; }
+  .state-banner { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--hairline); color: var(--bone);
+    padding: 6px 14px; font-size: 12px; max-width: 46ch; text-align: center; display: none; }
+  [data-state="downed"] .state-banner, [data-state="resolution"] .state-banner { display: block; }
+  .state-banner strong { color: var(--ember-hot); }
+
+  /* combatants & states */
+  .figure { fill: var(--cloak); }
+  .cloth { fill: var(--cloth-warm); }
+  .face { fill: var(--bone); }
+  .weapon { fill: var(--bone-dim); }
+  .enemy .figure { fill: var(--steel-cold); }
+  .enemy .sash { fill: var(--danger); }
+  .enemy.bandit .figure { fill: var(--steel-dim); }
+  .shadow { fill: rgba(8,5,3,.55); }
+  .lantern-flame { fill: var(--ember-hot); }
+  [data-motion="on"] .lantern-flame { animation: flame 1.1s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes flame { 50% { transform: scale(1.18,.86); } }
+  .light-pool { fill: url(#lanternPool); }
+  [data-motion="on"] .light-pool { animation: pool 2.2s ease-in-out infinite; }
+  @keyframes pool { 50% { opacity: .82; } }
+  .mote { fill: var(--ember-hot); opacity: 0; }
+  [data-motion="on"] .mote { animation: rise 5s linear infinite; }
+  [data-motion="on"] .mote.m2 { animation-delay: 1.6s; }
+  [data-motion="on"] .mote.m3 { animation-delay: 3.1s; }
+  @keyframes rise { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .9; } 70% { opacity: .35; } 100% { transform: translateY(-90px); opacity: 0; } }
+  [data-motion="on"] .idle { animation: breath 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes breath { 50% { transform: scaleY(1.018); } }
+  .hold-marker .diamond { fill: var(--ember); }
+  .hold-marker .ring { fill: none; stroke: var(--ember); stroke-width: 2; opacity: .75; }
+  [data-motion="on"] .hold-marker .ring { animation: holdPulse 2.4s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes holdPulse { 0% { transform: scale(.8); opacity: .8; } 100% { transform: scale(1.35); opacity: 0; } }
+  .hold-flag { fill: var(--cloth-warm); }
+  .telegraph { fill: none; stroke: var(--ember-hot); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 2 14; filter: url(#emberGlow); }
+  [data-motion="on"] .telegraph { animation: teleDash 1s linear infinite; }
+  @keyframes teleDash { to { stroke-dashoffset: -32; } }
+  .telegraph-sector { fill: rgba(242,165,65,.16); stroke: var(--ember); stroke-width: 1.5; }
+  .downed-body { fill: #241a13; stroke: rgba(242,165,65,.28); stroke-width: 1.5; }
+  .target-downed, .resolution-layer { display: none; }
+  [data-state="downed"] .target-live, [data-state="resolution"] .target-live { display: none; }
+  [data-state="downed"] .target-downed, [data-state="resolution"] .target-downed { display: block; }
+  [data-state="resolution"] .resolution-layer { display: block; }
+  [data-state="resolution"] .telegraph, [data-state="resolution"] .telegraph-sector,
+  [data-state="downed"] .telegraph, [data-state="downed"] .telegraph-sector { display: none; }
+  .id-tag { fill: var(--panel); stroke: var(--hairline); }
+  .id-text { fill: var(--bone); font: 600 13px "Segoe UI",Arial,sans-serif; letter-spacing: .04em; }
+  .id-sub { fill: var(--bone-dim); font: 11px "Segoe UI",Arial,sans-serif; }
+  .decision-chip { fill: var(--ink-3); stroke: var(--hairline); }
+  .decision-text { fill: var(--ember-hot); font: 600 12px "Segoe UI",Arial,sans-serif; letter-spacing: .1em; }
+  .decision-sub { fill: var(--bone-dim); font: 10px "Segoe UI",Arial,sans-serif; }
+  .light-cone { fill: url(#lanternCone); }
+
+  .below { display: grid; grid-template-columns: 1fr 320px; gap: 20px; margin-top: 20px; }
+  @media (max-width: 900px) { .below { grid-template-columns: 1fr; } }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; }
+  .controls .group-label { width: 100%; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--ember); margin: 6px 0 0; }
+  button { font: 600 13px "Segoe UI",Arial,sans-serif; color: var(--bone); background: var(--ink-2);
+    border: 1px solid var(--hairline); padding: 9px 14px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ember); color: var(--ink); border-color: var(--ember); }
+  button:hover { border-color: var(--ember-hot); }
+  button:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 2px; }
+  .readout { border: 1px solid var(--hairline); background: var(--ink-2); padding: 14px 16px; }
+  .readout h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ember); font-weight: 600; }
+  .readout dl { margin: 0; display: grid; gap: 8px; }
+  .readout dt { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--bone-dim); }
+  .readout dd { margin: 1px 0 0; font-size: 13px; color: var(--bone); }
+  .footnote { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--hairline); color: var(--bone-dim); font-size: 12px; }
+  .footnote strong { color: var(--ember-hot); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <p class="eyebrow">Throwaway prototype · issue 12 · designer set · not production UI</p>
+  <h1><span class="name">Lanternlight</span> — an ember-lit dusk defense</h1>
+  <p class="lede">The bridge Scene at nightfall. Warm lantern pools carve the Band out of the dark; the enemy stays cold steel until the ember telegraph announces the swing. Compare this treatment with the other designer versions before any direction is chosen.</p>
+  <p class="tradeoff"><strong>Intended tradeoff:</strong> darkness buys strong emotional focus and makes the ember telegraph the loudest signal on screen — but the world outside the lantern pools carries almost no information, so HUD elements must stay inside the light and resident protection needs an explicit readout.</p>
+
+  <section class="stage" aria-label="Lanternlight bridge-defense Scene">
+    <svg class="scene-svg" viewBox="0 0 1200 675" role="img" aria-label="Night bridge-defense Scene: the Band holds a lantern-lit bridge against a bandit Agent and two bandits">
+      <defs>
+        <linearGradient id="nightSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#141009"/><stop offset=".72" stop-color="#241a12"/><stop offset="1" stop-color="#3a2716"/>
+        </linearGradient>
+        <radialGradient id="lanternPool" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="rgba(242,165,65,.34)"/><stop offset=".6" stop-color="rgba(242,165,65,.12)"/><stop offset="1" stop-color="rgba(242,165,65,0)"/>
+        </radialGradient>
+        <radialGradient id="lanternCone" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="rgba(255,217,138,.5)"/><stop offset="1" stop-color="rgba(255,217,138,0)"/>
+        </radialGradient>
+        <filter id="emberGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <rect width="1200" height="675" fill="url(#nightSky)"/>
+      <circle cx="1010" cy="108" r="34" fill="#cfd6dd" opacity=".8"/>
+      <circle cx="1010" cy="108" r="60" fill="#cfd6dd" opacity=".1"/>
+      <polygon points="0,352 150,300 290,348 430,296 620,352 820,302 1000,350 1200,306 1200,460 0,460" fill="#1c150f"/>
+      <polygon points="0,420 1200,400 1200,675 0,675" fill="#20180f"/>
+      <polygon points="0,560 1200,540 1200,640 0,660" fill="#100c08"/>
+      <polygon points="0,588 1200,568 1200,576 0,596" fill="rgba(242,165,65,.10)"/>
+
+      <!-- settlement houses, lit windows: residents sheltered inside -->
+      <g>
+        <polygon points="70,352 152,318 232,346 232,424 70,432" fill="#241a11"/>
+        <polygon points="56,352 152,300 246,342 230,356 152,322 72,362" fill="#170f09"/>
+        <rect x="104" y="368" width="16" height="18" fill="var(--ember)" opacity=".9"/>
+        <rect x="176" y="362" width="14" height="16" fill="var(--ember)" opacity=".65"/>
+        <polygon points="950,356 1028,322 1104,348 1104,420 950,428" fill="#241a11"/>
+        <polygon points="936,354 1028,304 1118,344 1102,358 1028,326 952,364" fill="#170f09"/>
+        <rect x="1000" y="366" width="15" height="17" fill="var(--ember)" opacity=".85"/>
+        <polygon points="300,368 340,340 380,366 380,414 300,418" fill="#21170e"/>
+        <rect x="326" y="378" width="12" height="14" fill="var(--ember)" opacity=".55"/>
+      </g>
+
+      <!-- bridge deck -->
+      <polygon points="0,486 1200,458 1200,592 0,624" fill="#3a2b1c"/>
+      <polygon points="0,512 1200,484 1200,506 0,538" fill="#2c2013"/>
+      <g opacity=".5" fill="#241a10">
+        <polygon points="96,506 128,505 122,600 92,602"/>
+        <polygon points="320,498 352,497 346,592 316,594"/>
+        <polygon points="560,490 592,489 586,584 556,586"/>
+        <polygon points="812,482 844,481 838,576 808,578"/>
+        <polygon points="1040,474 1072,473 1066,568 1036,570"/>
+      </g>
+
+      <!-- lantern light pools -->
+      <ellipse class="light-pool" cx="452" cy="556" rx="240" ry="72"/>
+      <ellipse class="light-pool" cx="252" cy="580" rx="170" ry="52" opacity=".8"/>
+      <ellipse class="light-pool" cx="330" cy="470" rx="120" ry="90" opacity=".7"/>
+
+      <!-- contact shadows -->
+      <ellipse class="shadow" cx="430" cy="566" rx="58" ry="11"/>
+      <ellipse class="shadow" cx="318" cy="576" rx="48" ry="9"/>
+      <ellipse class="shadow" cx="238" cy="588" rx="40" ry="8"/>
+      <ellipse class="shadow" cx="560" cy="582" rx="38" ry="8"/>
+      <ellipse class="shadow" cx="806" cy="552" rx="56" ry="11"/>
+      <ellipse class="shadow" cx="936" cy="540" rx="40" ry="8"/>
+      <ellipse class="shadow" cx="1010" cy="534" rx="36" ry="7"/>
+
+      <!-- Hold position marker -->
+      <g class="hold-marker" transform="translate(470 468)">
+        <ellipse class="ring" cx="0" cy="0" rx="34" ry="12"/>
+        <polygon class="diamond" points="0,-9 16,0 0,9 -16,0"/>
+        <line x1="0" y1="-9" x2="0" y2="-58" stroke="var(--ember)" stroke-width="3"/>
+        <polygon class="hold-flag" points="0,-58 34,-50 0,-42"/>
+      </g>
+
+      <!-- directional attack telegraph: enemy Agent swings at the player's right sector -->
+      <polygon class="telegraph-sector" points="700,470 800,392 850,440 758,512"/>
+      <path class="telegraph" d="M724 486 Q792 428 846 380"/>
+
+      <!-- Band: player, Companion with lantern staff, two Troops -->
+      <g class="combatant idle" transform="translate(430 366)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <polygon class="cloth" points="-19,74 -28,112 26,113 18,72"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="figure" points="-21,44 0,24 23,44 18,53 -17,53"/>
+        <polygon class="cloth" points="-38,92 -64,108 -56,160 -30,166 -18,126"/>
+        <polygon class="weapon" points="24,88 96,20 104,26 33,104"/>
+      </g>
+      <g class="combatant idle" transform="translate(318 402) scale(.8)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <polygon class="cloth" points="-19,74 -28,112 26,113 18,72"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="figure" points="-21,44 0,24 23,44 18,53 -17,53"/>
+        <line x1="30" y1="120" x2="30" y2="-26" stroke="var(--bone-dim)" stroke-width="6"/>
+        <rect x="20" y="-58" width="20" height="30" fill="#170f09" stroke="var(--bone-dim)" stroke-width="2"/>
+        <polygon class="lantern-flame" points="30,-52 36,-40 30,-34 24,-40"/>
+      </g>
+      <g class="combatant idle" transform="translate(238 432) scale(.62)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="cloth" points="-19,44 0,25 20,44 15,53 -16,53"/>
+        <polygon class="weapon" points="22,94 92,10 98,15 30,104"/>
+      </g>
+      <g class="combatant idle" transform="translate(560 440) scale(.58)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="cloth" points="-19,44 0,25 20,44 15,53 -16,53"/>
+        <polygon class="weapon" points="22,94 92,10 98,15 30,104"/>
+      </g>
+
+      <!-- enemy Agent, live -->
+      <g class="target-live">
+        <g class="combatant enemy idle" transform="translate(806 344)">
+          <polygon class="figure" points="-23,98 -36,204 32,204 21,96"/>
+          <polygon class="sash" points="-20,96 20,110 18,122 -22,108"/>
+          <circle class="face" cx="0" cy="55" r="20"/>
+          <polygon class="figure" points="-24,45 0,18 26,45 18,55 -19,55"/>
+          <polygon class="figure" points="-40,92 -66,110 -58,160 -31,166 -18,124"/>
+          <polygon class="weapon" points="22,88 88,22 96,28 31,104"/>
+          <polygon class="weapon" points="88,22 110,2 96,28"/>
+        </g>
+      </g>
+      <!-- ordinary bandits -->
+      <g class="combatant enemy bandit idle" transform="translate(936 396) scale(.64)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="figure" points="-20,44 0,24 21,44 15,53 -16,53"/>
+        <polygon class="weapon" points="22,94 90,12 96,17 30,104"/>
+      </g>
+      <g class="combatant enemy bandit idle" transform="translate(1010 408) scale(.56)">
+        <polygon class="figure" points="-22,96 -34,200 30,200 20,94"/>
+        <circle class="face" cx="0" cy="54" r="19"/>
+        <polygon class="figure" points="-20,44 0,24 21,44 15,53 -16,53"/>
+        <polygon class="weapon" points="22,94 90,12 96,17 30,104"/>
+      </g>
+      <!-- Downed: inert non-identifying heap at the edge of the light -->
+      <g class="target-downed" transform="translate(806 528)">
+        <ellipse class="shadow" cx="0" cy="22" rx="66" ry="13"/>
+        <polygon class="downed-body" points="-68,6 -44,-16 46,-12 70,8 44,28 -46,30"/>
+        <circle class="downed-body" cx="62" cy="8" r="17"/>
+      </g>
+
+      <!-- post-battle: lantern cone reveals identity; decisions appear -->
+      <g class="resolution-layer">
+        <ellipse class="light-cone" cx="806" cy="540" rx="150" ry="60"/>
+        <g transform="translate(806 416)">
+          <rect class="id-tag" x="-96" y="-30" width="192" height="46" rx="2"/>
+          <text class="id-text" x="0" y="-10" text-anchor="middle">Marta Vane — enemy Agent</text>
+          <text class="id-sub" x="0" y="7" text-anchor="middle">Downed · survived the battle</text>
+        </g>
+        <g transform="translate(806 606)">
+          <g transform="translate(-150 0)">
+            <rect class="decision-chip" x="-62" y="-16" width="124" height="34" rx="2"/>
+            <text class="decision-text" x="0" y="-1" text-anchor="middle">RELEASE</text>
+            <text class="decision-sub" x="0" y="12" text-anchor="middle">walks away · Disposition shift</text>
+          </g>
+          <g>
+            <rect class="decision-chip" x="-62" y="-16" width="124" height="34" rx="2"/>
+            <text class="decision-text" x="0" y="-1" text-anchor="middle">CAPTURE</text>
+            <text class="decision-sub" x="0" y="12" text-anchor="middle">becomes a Captive</text>
+          </g>
+          <g transform="translate(150 0)">
+            <rect class="decision-chip" x="-62" y="-16" width="124" height="34" rx="2"/>
+            <text class="decision-text" x="0" y="-1" text-anchor="middle">EXECUTE</text>
+            <text class="decision-sub" x="0" y="12" text-anchor="middle">Agent fate: Executed</text>
+          </g>
+        </g>
+      </g>
+
+      <!-- drifting embers -->
+      <circle class="mote" cx="336" cy="420" r="2.4"/>
+      <circle class="mote m2" cx="356" cy="440" r="1.8"/>
+      <circle class="mote m3" cx="452" cy="470" r="2"/>
+    </svg>
+    <div class="vignette"></div>
+
+    <div class="hud">
+      <div class="hud-panel hud-contract">
+        <span class="hud-label">Local Contract · Accepted</span>
+        <span class="value">Defend the bridge at Miller's Ford</span>
+        <div class="oil-meter">
+          <span class="hud-label">Raid deadline · lantern oil</span>
+          <div class="oil-track"><div class="oil-fill"></div></div>
+          <div class="oil-note" id="deadlineNote">Raid at dusk's end · <strong>08:42</strong> left</div>
+        </div>
+      </div>
+      <div class="hud-panel hud-settlement">
+        <span class="hud-label">Settlement condition</span>
+        <span class="value"><span class="cond" id="settlementCond">Safe</span> <span id="settlementTail">— if the bridge holds</span></span>
+        <div class="sub" id="residentNote">Residents sheltered · 3 of 3</div>
+        <div class="sub" id="bandNote">Band 4 standing · Companion + 2 Troops on Hold position</div>
+        <div class="sub" id="enemyNote">Enemy Agent + 2 ordinary bandits across the bridge</div>
+      </div>
+      <div class="hud-vitals">
+        <div class="hud-panel">
+          <span class="hud-label">Stamina · 71%</span>
+          <div class="stamina-track"><div class="stamina-fill"></div></div>
+        </div>
+        <div class="hud-panel">
+          <div class="reticle" aria-hidden="true">
+            <span></span><span>&#8593;</span><span></span>
+            <span>&#8592;</span><span class="c">+</span><span class="on">&#8594;</span>
+            <span></span><span>&#8595;</span><span></span>
+          </div>
+          <div class="reticle-label">Directional Guard · hold right</div>
+        </div>
+      </div>
+      <div class="state-banner" id="stateBanner"></div>
+    </div>
+  </section>
+  <div class="below">
+    <div>
+      <div class="controls" role="group" aria-label="Battle state">
+        <span class="group-label">Battle state (keys: C / D / R)</span>
+        <button class="state-btn" data-state="combat" aria-pressed="true">Combat read</button>
+        <button class="state-btn" data-state="downed" aria-pressed="false">Downed in battle</button>
+        <button class="state-btn" data-state="resolution" aria-pressed="false">Post-battle resolution</button>
+        <span class="group-label">Motion (key: M)</span>
+        <button id="motionBtn" aria-pressed="true">Motion on</button>
+      </div>
+      <p class="footnote"><strong>Human decision needed.</strong> This file is one of three throwaway designer treatments of the same bridge-defense Scene. No direction has been selected; nothing here is production UI. Open the sibling prototypes to compare.</p>
+    </div>
+    <aside class="readout" aria-label="Treatment readout">
+      <h2>What to inspect</h2>
+      <dl>
+        <div><dt>Silhouette</dt><dd>Mid-height, near-real proportions. Rank reads through gear: the Companion's lantern staff, the enemy Agent's cleaver and crimson sash.</dd></div>
+        <div><dt>Palette</dt><dd>Warm umber dark against cold steel; ember orange reserved for input, commands, and lit windows.</dd></div>
+        <div><dt>Lighting</dt><dd>Two lantern pools do the composition work; a vignette hides the unplayed edges of the Scene.</dd></div>
+        <div><dt>Motion language</dt><dd>Slow sine breath, flame flicker, rising embers; the dashed telegraph is the only fast element.</dd></div>
+        <div><dt>HUD density</dt><dd>Sparse — contract, deadline, stamina, guard sector, settlement chip; nothing else competes with the light.</dd></div>
+        <div><dt>Downed language</dt><dd>A Downed combatant drops into shadow as an unmarked heap — indistinguishable from dead until the lantern cone reveals identity after the battle.</dd></div>
+      </dl>
+    </aside>
+  </div>
+</main>
+
+<script>
+  const root = document.documentElement;
+  const banner = document.getElementById("stateBanner");
+  const deadline = document.getElementById("deadlineNote");
+  const cond = document.getElementById("settlementCond");
+  const tail = document.getElementById("settlementTail");
+  const residents = document.getElementById("residentNote");
+  const bandNote = document.getElementById("bandNote");
+  const enemyNote = document.getElementById("enemyNote");
+  const copy = {
+    combat: { banner: "",
+      deadline: "Raid at dusk's end · <strong>08:42</strong> left",
+      cond: "Safe", tail: "— if the bridge holds", residents: "Residents sheltered · 3 of 3",
+      band: "Band 4 standing · Companion + 2 Troops on Hold position",
+      enemy: "Enemy Agent + 2 ordinary bandits across the bridge" },
+    downed: { banner: "<strong>Downed in battle.</strong> The enemy Agent lies inert and non-identifying — presented exactly like a dead combatant until the fight ends.",
+      deadline: "Raid at dusk's end · <strong>04:10</strong> left",
+      cond: "Safe", tail: "— if the bridge holds", residents: "Residents sheltered · 3 of 3",
+      band: "Band 4 standing · Companion + 2 Troops on Hold position",
+      enemy: "Enemy Agent Downed · 2 bandits faltering" },
+    resolution: { banner: "<strong>Post-battle resolution.</strong> The lantern turns on the survivor: Release, Capture, or Execute is now a separate decision.",
+      deadline: "Deadline met · raid broken",
+      cond: "Safe", tail: "— the bridge held", residents: "Residents unharmed · 3 of 3",
+      band: "Band 4 standing · unbloodied",
+      enemy: "Agent survived · bandits fled" }
+  };
+  let state = "combat";
+  let motion = true;
+  function render() {
+    root.dataset.state = state;
+    root.dataset.motion = motion ? "on" : "off";
+    banner.innerHTML = copy[state].banner;
+    deadline.innerHTML = copy[state].deadline;
+    cond.textContent = copy[state].cond;
+    tail.textContent = copy[state].tail;
+    residents.textContent = copy[state].residents;
+    bandNote.textContent = copy[state].band;
+    enemyNote.textContent = copy[state].enemy;
+    document.querySelectorAll(".state-btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.state === state)));
+    const mb = document.getElementById("motionBtn");
+    mb.textContent = motion ? "Motion on" : "Motion off";
+    mb.setAttribute("aria-pressed", String(motion));
+  }
+  document.querySelectorAll(".state-btn").forEach(b => b.addEventListener("click", () => { state = b.dataset.state; render(); }));
+  document.getElementById("motionBtn").addEventListener("click", () => { motion = !motion; render(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "c") state = "combat";
+    else if (e.key === "d") state = "downed";
+    else if (e.key === "r") state = "resolution";
+    else if (e.key === "m") motion = !motion;
+    else return;
+    render();
+  });
+  render();
+</script>
+</body>
+</html>

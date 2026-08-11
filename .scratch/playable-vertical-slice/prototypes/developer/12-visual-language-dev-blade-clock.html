@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · Blade Clock — Bold and Brave bridge defense (developer set)</title>
+<style>
+  :root {
+    --ink: #2b2520;
+    --paper: #efe6d2;
+    --muted: #6f675c;
+    --line: #c9bd9f;
+    --gold: #e0a83c;
+    --gold-deep: #b57f1d;
+    --teal: #3f8f8b;
+    --slate: #5a6b7a;
+    --crimson: #a6342c;
+    --rust: #b5683f;
+    --grey: #8a857c;
+    --green: #3d7a4e;
+    --red: #b23b30;
+    --panel: #faf4e4;
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 20px 40px; }
+
+  .kicker {
+    margin: 0 0 2px;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 { margin: 0 0 6px; font-size: 30px; line-height: 1.1; }
+  .tradeoff {
+    margin: 0 0 14px;
+    padding: 8px 10px;
+    background: #f0e4c4;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--gold-deep);
+    font-size: 13px;
+  }
+  .tradeoff strong { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-deep); }
+
+  .scene-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  svg { display: block; width: 100%; height: auto; }
+
+  /* ---- figures: flat low-poly, role colors via classes ---- */
+  .fig .body { fill: var(--slate); stroke: var(--ink); stroke-width: 1.5; }
+  .fig .head { fill: var(--slate); stroke: var(--ink); stroke-width: 1.5; }
+  .fig .weapon { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+  .fig-player .body, .fig-player .head { fill: var(--gold); }
+  .fig-companion .body, .fig-companion .head { fill: var(--teal); }
+  .fig-troop .body, .fig-troop .head { fill: var(--slate); }
+  .fig-agent .body, .fig-agent .head { fill: var(--crimson); }
+  .fig-bandit .body, .fig-bandit .head { fill: var(--rust); }
+  .fig.downed .body, .fig.downed .head { fill: var(--grey); }
+  .fig.downed { filter: grayscale(1); opacity: .8; }
+  .fig.downed .weapon { stroke: #57534c; }
+  .fig .name-tag { display: none; }
+
+  /* fall + downed presentation: rotate the figure onto its side, translate down */
+  .fig.falling { animation: fall .5s ease-in forwards; }
+  @keyframes fall {
+    to { transform: translate(24px, 40px) rotate(88deg); }
+  }
+  .fig.downed { transform: translate(24px, 40px) rotate(88deg); }
+  .fig.downed .tag { display: block; }
+
+  .tag {
+    display: none;
+    font-size: 15px;
+    fill: #4c463c;
+  }
+  .tag circle { fill: #fff; stroke: var(--muted); }
+  .tag text { font-size: 17px; font-weight: 700; fill: #4c463c; }
+
+  /* ---- hold position marker ---- */
+  .hold-ring { fill: none; stroke: var(--green); stroke-width: 2; stroke-dasharray: 6 5; }
+  .hold-pole { stroke: #4c3b21; stroke-width: 3; }
+  .hold-pennant { fill: var(--green); stroke: var(--ink); stroke-width: 1; }
+  .hold-label { font-size: 11px; font-weight: 700; fill: var(--green); }
+
+  /* ---- directional telegraph ---- */
+  .telegraph {
+    stroke: var(--crimson);
+    stroke-width: 4;
+    fill: none;
+    stroke-linecap: round;
+    animation: pulse 0.5s ease-in-out infinite alternate;
+  }
+  .telegraph.parried { stroke: var(--gold-deep); animation: none; }
+  .telegraph-head { fill: var(--crimson); }
+  .telegraph-head.parried { fill: var(--gold-deep); }
+  @keyframes pulse { from { opacity: .45; } to { opacity: 1; } }
+  .wedge { fill: var(--crimson); opacity: .12; }
+  .wedge.active { fill: var(--crimson); opacity: .45; }
+  .wedge.parried { fill: var(--gold-deep); opacity: .5; }
+  .wedge.held { fill: var(--teal); opacity: .35; }
+  .hand {
+    stroke: var(--gold-deep);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    transform-origin: 250px 225px;
+    transition: transform .18s ease-out;
+  }
+
+  .fx-flash {
+    fill: none;
+    stroke: var(--gold-deep);
+    stroke-width: 3;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .fx-flash.on { animation: fxparry .45s ease-out; }
+  @keyframes fxparry { 0% { opacity: 1; r: 34; } 100% { opacity: 0; r: 84; } }
+  .hit-ring {
+    fill: none;
+    stroke: var(--red);
+    stroke-width: 3;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .hit-ring.on { animation: fxhit .4s ease-out; }
+  @keyframes fxhit { 0% { opacity: 1; } 100% { opacity: 0; } }
+  .stumble { animation: stumble .4s ease-in; }
+  @keyframes stumble { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(-7px); } }
+
+  .shake { animation: shake .3s ease-in; }
+  @keyframes shake {
+    0%, 100% { transform: translate(0); }
+    25% { transform: translate(-6px, 2px); }
+    50% { transform: translate(5px, -2px); }
+    75% { transform: translate(-3px, 1px); }
+  }
+  .recoil { animation: recoil .45s ease-out; }
+  @keyframes recoil { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-26px); } }
+
+  /* ---- panels ---- */
+  .deck {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .meter { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .meter .label { width: 92px; font-size: 12px; color: var(--muted); }
+  .bar {
+    flex: 1;
+    height: 12px;
+    background: #e2d7ba;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: var(--gold-deep);
+    transition: width .15s linear;
+  }
+  .bar.stamina i { background: var(--teal); }
+  .bar.deadline i { background: var(--crimson); }
+  .chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid transparent;
+  }
+  .chip.active { background: #dcead0; color: var(--green); border-color: var(--green); }
+  .chip.pending { background: #ece5d2; color: var(--muted); border-color: var(--line); }
+  .chip.down { background: #e7e2d8; color: #57534c; border-color: var(--grey); }
+  .chip.bad { background: #f0d9d4; color: var(--red); border-color: var(--red); }
+
+  .guard-pad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin: 6px 0;
+  }
+  .guard-btn {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 4px;
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    background: #fffdf5;
+    cursor: pointer;
+    color: var(--ink);
+    transition: transform .06s ease, border-color .06s ease, background .06s ease;
+  }
+  .guard-btn:hover { border-color: var(--gold-deep); }
+  .guard-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .guard-btn[aria-pressed="true"] {
+    background: #fbeed0;
+    border-color: var(--gold-deep);
+    transform: translateY(1px);
+  }
+  .guard-btn kbd {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: inherit;
+  }
+  .orders { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button.action {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 2px solid var(--ink);
+    background: var(--ink);
+    color: #f5eeda;
+    cursor: pointer;
+  }
+  button.action:hover { background: #40382f; }
+  button.action:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  button.action[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); }
+  button.action:disabled { opacity: .45; cursor: not-allowed; }
+
+  .rail { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .rail .step {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    background: #fffdf5;
+    cursor: pointer;
+  }
+  .rail .step[aria-current="true"] { border-color: var(--gold-deep); background: #fbeed0; font-weight: 700; }
+  .rail .step:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+  ul.status-list { list-style: none; margin: 4px 0; padding: 0; }
+  ul.status-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 0; border-bottom: 1px dotted var(--line); }
+  ul.status-list li:last-child { border-bottom: none; }
+
+  .fate-row { display: flex; gap: 8px; margin: 6px 0 4px; flex-wrap: wrap; }
+  .fate-btn {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 2px solid var(--line);
+    background: #fffdf5;
+    cursor: pointer;
+  }
+  .fate-btn[aria-pressed="true"] { border-color: var(--crimson); background: #f7e3dd; }
+  .fate-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+  .note {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .hidden { display: none !important; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">Throwaway developer prototype · Bold and Brave · issue 12 · developer set</p>
+  <h1>Blade Clock</h1>
+  <p class="tradeoff"><strong>Tradeoff</strong>
+    Readability of guard timing over art: one inline SVG, one scripted telegraph sequence (identical timing for every reviewer), and one animation loop that runs <em>only</em> during combat. Directional Guard input is the whole interaction; the clock hand around the player shows the Band's current guard sector at a glance.</p>
+
+  <section class="scene-card" aria-label="Bridge defense scene — Blade Clock">
+    <svg id="scene" viewBox="0 0 960 420" role="img" aria-labelledby="sceneTitle">
+      <title id="sceneTitle">Bridge defense: the Band holds the bridge against an enemy Agent and bandits.</title>
+      <!-- sky + hills + river: flat planes, small palette -->
+      <rect x="0" y="0" width="960" height="200" fill="#d8cba8"/>
+      <rect x="0" y="200" width="960" height="60" fill="#c9b98f"/>
+      <polygon points="0,190 150,120 300,190" fill="#b3a47e"/>
+      <polygon points="240,190 420,110 620,190" fill="#a08e68"/>
+      <polygon points="560,190 760,130 960,190" fill="#b3a47e"/>
+      <rect x="0" y="260" width="960" height="160" fill="#7fa3a8"/>
+      <polygon points="0,260 180,260 120,300 0,300" fill="#6c8f94"/>
+      <polygon points="780,260 960,260 960,300 840,300" fill="#6c8f94"/>
+
+      <!-- bridge: posts + planks -->
+      <g stroke="#4c3b21" stroke-width="4">
+        <line x1="160" y1="280" x2="160" y2="330"/>
+        <line x1="800" y1="280" x2="800" y2="330"/>
+        <line x1="400" y1="272" x2="400" y2="322"/>
+        <line x1="620" y1="272" x2="620" y2="322"/>
+      </g>
+      <g fill="#a8894f" stroke="#7c6433" stroke-width="1.5">
+        <rect x="140" y="272" width="36" height="10" rx="2"/>
+        <rect x="185" y="270" width="36" height="10" rx="2"/>
+        <rect x="230" y="268" width="36" height="10" rx="2"/>
+        <rect x="275" y="267" width="36" height="10" rx="2"/>
+        <rect x="320" y="266" width="36" height="10" rx="2"/>
+        <rect x="365" y="265" width="36" height="10" rx="2"/>
+        <rect x="410" y="265" width="36" height="10" rx="2"/>
+        <rect x="455" y="265" width="36" height="10" rx="2"/>
+        <rect x="500" y="265" width="36" height="10" rx="2"/>
+        <rect x="545" y="266" width="36" height="10" rx="2"/>
+        <rect x="590" y="267" width="36" height="10" rx="2"/>
+        <rect x="635" y="268" width="36" height="10" rx="2"/>
+        <rect x="680" y="270" width="36" height="10" rx="2"/>
+        <rect x="725" y="272" width="36" height="10" rx="2"/>
+      </g>
+
+      <!-- Hold position marker: pennant + dashed ring on the bridge -->
+      <g id="holdMarker" aria-label="Hold position marker at the bridge center">
+        <line class="hold-pole" x1="470" y1="262" x2="470" y2="225"/>
+        <polygon class="hold-pennant" points="470,225 505,234 470,243"/>
+        <circle class="hold-ring" cx="470" cy="278" r="26"/>
+        <text class="hold-label" x="486" y="282">HOLD</text>
+      </g>
+
+      <!-- ===== Band (left) ===== -->
+      <g id="player" class="fig fig-player" aria-label="Player character">
+        <polygon class="body" points="250,258 238,236 244,210 256,210 262,236"/>
+        <circle class="head" cx="250" cy="202" r="9"/>
+        <line class="weapon" x1="263" y1="232" x2="286" y2="208"/>
+      </g>
+      <g id="companion" class="fig fig-companion" aria-label="Companion">
+        <polygon class="body" points="300,262 288,240 294,214 306,214 312,240"/>
+        <circle class="head" cx="300" cy="206" r="9"/>
+        <line class="weapon" x1="289" y1="230" x2="262" y2="218"/>
+      </g>
+      <g id="troopA" class="fig fig-troop" aria-label="Troop">
+        <polygon class="body" points="205,262 195,244 200,222 210,222 215,244"/>
+        <circle class="head" cx="205" cy="214" r="8"/>
+        <line class="weapon" x1="218" y1="238" x2="240" y2="216"/>
+      </g>
+      <g id="troopB" class="fig fig-troop" aria-label="Troop">
+        <polygon class="body" points="163,266 153,248 158,226 168,226 173,248"/>
+        <circle class="head" cx="163" cy="218" r="8"/>
+        <line class="weapon" x1="176" y1="242" x2="198" y2="220"/>
+      </g>
+
+      <!-- guard clock around the player -->
+      <g id="guardClock" aria-hidden="true">
+        <circle cx="250" cy="225" r="34" fill="none" stroke="#d9ccae" stroke-width="1"/>
+        <circle cx="250" cy="225" r="46" fill="none" stroke="#d9ccae" stroke-width="1"/>
+        <line class="hand" id="clockHand" x1="250" y1="225" x2="250" y2="185"/>
+      </g>
+
+      <!-- ===== enemies (right + flanks) ===== -->
+      <g id="agent" class="fig fig-agent" aria-label="Enemy Agent — hostile">
+        <polygon class="body" points="690,262 676,234 682,204 698,204 704,234"/>
+        <circle class="head" cx="690" cy="194" r="10"/>
+        <polygon class="body" points="682,196 698,196 694,180 686,180"/>
+        <line class="weapon" x1="677" y1="226" x2="650" y2="206"/>
+      </g>
+      <g id="bandit1" class="fig fig-bandit" aria-label="Bandit">
+        <polygon class="body" points="640,168 630,150 635,130 645,130 650,150"/>
+        <circle class="head" cx="640" cy="122" r="8"/>
+        <line class="weapon" x1="652" y1="144" x2="672" y2="128"/>
+      </g>
+      <g id="bandit2" class="fig fig-bandit" aria-label="Bandit">
+        <polygon class="body" points="120,168 110,150 115,130 125,130 130,150"/>
+        <circle class="head" cx="120" cy="122" r="8"/>
+        <line class="weapon" x1="108" y1="144" x2="88" y2="128"/>
+      </g>
+      <g id="bandit3" class="fig fig-bandit" aria-label="Bandit">
+        <polygon class="body" points="640,340 630,322 635,302 645,302 650,322"/>
+        <circle class="head" cx="640" cy="294" r="8"/>
+        <line class="weapon" x1="628" y1="316" x2="608" y2="300"/>
+      </g>
+
+      <!-- telegraph arrow + head -->
+      <g id="telegraphGroup" class="hidden">
+        <path class="telegraph" id="telegraphPath"/>
+        <polygon class="telegraph-head" id="telegraphHead"/>
+      </g>
+      <circle id="fxParry" class="fx-flash" cx="250" cy="225" r="34"/>
+      <circle id="fxHit" class="hit-ring" cx="250" cy="225" r="40"/>
+
+      <!-- non-identifying tags shown only for Downed figures -->
+      <g id="tagAgent" class="tag"><circle cx="668" cy="322" r="11"/><text x="668" y="326" text-anchor="middle">?</text></g>
+      <g id="tagTroop" class="tag"><circle cx="196" cy="312" r="11"/><text x="196" y="316" text-anchor="middle">?</text></g>
+    </svg>
+  </section>
+
+  <section class="deck">
+    <div class="panel" aria-label="Combat console">
+      <h2>Directional Guard — Command groups</h2>
+      <div class="guard-pad" id="guardPad">
+        <button class="guard-btn" data-sector="N" aria-pressed="false">North<kbd>↑ / W</kbd></button>
+        <button class="guard-btn" data-sector="E" aria-pressed="false">East<kbd>→ / D</kbd></button>
+        <button class="guard-btn" data-sector="S" aria-pressed="false">South<kbd>↓ / S</kbd></button>
+        <button class="guard-btn" data-sector="W" aria-pressed="false">West<kbd>← / A</kbd></button>
+      </div>
+      <div class="orders">
+        <button class="action" id="shieldBtn" aria-pressed="false">Shield Block (Space, hold)</button>
+        <button class="action" id="startBtn">Start the raid</button>
+      </div>
+      <p class="note">Guard order applies to both Command groups: Companion and grouped Troops. Matching the telegraph sector fully negates it and opens a recoil window. Shield Block covers every sector while held but drains stamina.</p>
+    </div>
+
+    <div class="panel" aria-label="Local Contract journal">
+      <h2>Journal — Local Contract · bridge watch</h2>
+      <div class="meter">
+        <span class="label">Contract</span>
+        <span id="contractChip" class="chip pending">Available</span>
+      </div>
+      <div class="meter">
+        <span class="label">Raid deadline</span>
+        <span id="deadlineTxt" class="label" style="width:auto;font-weight:700;">—</span>
+      </div>
+      <div class="meter">
+        <span class="label">Settlement</span>
+        <span id="settlementChip" class="chip pending">—</span>
+      </div>
+      <div class="meter">
+        <span class="label">Residents</span>
+        <span id="residentTxt" style="font-size:12px;">Sheltered behind the barricade</span>
+      </div>
+      <div class="meter">
+        <span class="label">Stamina</span>
+        <span class="bar stamina"><i id="staminaFill"></i></span>
+        <span id="staminaTxt" style="font-size:12px;width:2.4em;text-align:right;">60</span>
+      </div>
+      <ul class="status-list" id="bandList" aria-label="Band status">
+        <li><span>Player</span><span class="chip active">Active</span></li>
+        <li><span>Companion</span><span class="chip active">Active</span></li>
+        <li><span>Troops (2)</span><span class="chip active">Active</span></li>
+        <li><span>Enemy Agent</span><span class="chip active" style="color:var(--crimson);border-color:var(--crimson);background:#f7e3dd;">Hostile</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Battle states">
+    <h2>Deterministic state rail — buttons and URL both switch state</h2>
+    <div class="rail">
+      <button class="step" data-step="idle" aria-current="true">Idle</button>
+      <button class="step" data-step="combat">Combat</button>
+      <button class="step" data-step="downed">Downed in battle</button>
+      <button class="step" id="resolveStep" data-step="resolved" disabled>Post-battle resolution</button>
+    </div>
+    <div id="resolutionPanel" class="hidden">
+      <h2>Post-battle survivor resolution</h2>
+      <p style="font-size:13px;margin:4px 0;">
+        The Downed figure is revealed: <strong>Agent Mara Voss</strong> — Disposition <em>Hostile</em>.
+        Stage a fate for the former enemy below. Downed Band members remain casualties; they are not offered for Release, Capture, or Execute.
+      </p>
+      <div class="fate-row" role="group" aria-label="Agent fate decision">
+        <button class="fate-btn" data-fate="Active" aria-pressed="false">Release</button>
+        <button class="fate-btn" data-fate="Captive" aria-pressed="false">Capture</button>
+        <button class="fate-btn" data-fate="Executed" aria-pressed="false">Execute</button>
+      </div>
+      <p id="fateTxt" style="font-size:13px;">Agent fate: <strong>undecided</strong></p>
+      <p class="note">Fate staged here for comparison only — a human decides the disposition direction. This artifact implies no decision.</p>
+    </div>
+  </section>
+
+  <div id="announcer" class="visually-hidden" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+"use strict";
+/* Throwaway prototype logic — deterministic script, small and discardable. */
+
+var SECTORS = ["N", "E", "S", "W"];
+var SECTOR_ANGLE = { N: -90, E: 0, S: 90, W: 180 }; // screen degrees, 0 = East
+
+var ATTACKS = [
+  { t: 60,  sector: "E", attacker: "agent",   anchor: [690, 214] },
+  { t: 150, sector: "N", attacker: "bandit1", anchor: [640, 128] },
+  { t: 240, sector: "W", attacker: "bandit2", anchor: [120, 128] },
+  { t: 330, sector: "E", attacker: "agent",   anchor: [690, 214] },
+  { t: 420, sector: "S", attacker: "bandit3", anchor: [640, 300] },
+  { t: 510, sector: "N", attacker: "bandit2", anchor: [120, 128] },
+  { t: 600, sector: "W", attacker: "bandit1", anchor: [640, 128] },
+  { t: 690, sector: "E", attacker: "agent",   anchor: [690, 214] }
+];
+var TELEGRAPH_FRAMES = 110;   // ~1.8 s at 60 fps to answer
+var TOTAL_FRAMES = 780;       // ~13 s battle
+var MAX_STAMINA = 60;
+var PARRY_THRESHOLD = 5;      // parries >= threshold => settlement Safe
+
+var PHASES = ["idle", "combat", "downed", "resolved"];
+
+var scene = document.getElementById("scene");
+var telegraphGroup = document.getElementById("telegraphGroup");
+var telegraphPath = document.getElementById("telegraphPath");
+var telegraphHead = document.getElementById("telegraphHead");
+var announcer = document.getElementById("announcer");
+var guardButtons = Array.prototype.slice.call(document.querySelectorAll(".guard-btn"));
+var shieldBtn = document.getElementById("shieldBtn");
+var startBtn = document.getElementById("startBtn");
+
+// ---- build the four guard wedges around the player ----
+function pt(cx, cy, r, deg) {
+  var a = (deg * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function wedgePath(cx, cy, r1, r2, fromDeg, toDeg) {
+  var p1 = pt(cx, cy, r2, fromDeg), p2 = pt(cx, cy, r2, toDeg);
+  var p3 = pt(cx, cy, r1, toDeg), p4 = pt(cx, cy, r1, fromDeg);
+  return "M" + p1.join(",") + " A" + r2 + "," + r2 + " 0 0 1 " + p2.join(",") +
+         " L" + p3.join(",") + " A" + r1 + "," + r1 + " 0 0 0 " + p4.join(",") + " Z";
+}
+var wedgeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+guardButtons.forEach(function (btn) {
+  var w = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  var mid = SECTOR_ANGLE[btn.dataset.sector];
+  w.setAttribute("d", wedgePath(250, 225, 34, 46, mid - 45, mid + 45));
+  w.setAttribute("class", "wedge");
+  w.dataset.sector = btn.dataset.sector;
+  wedgeLayer.appendChild(w);
+});
+scene.insertBefore(wedgeLayer, document.getElementById("telegraphGroup"));
+
+// ---- state ----
+var phase = "idle";
+var frame = 0;
+var stamina = MAX_STAMINA;
+var parries = 0;
+var wounds = 0;               // unparried, unblocked hits
+var shieldHeld = false;
+var shieldBlocked = false;    // set when the last telegraph was Shield Blocked
+var currentTelegraph = null;  // { sector, attacker, anchor, deadline }
+var rafId = null;
+var lastTs = 0;
+var outcome = null;           // { settlement: 'Safe'|'Damaged', reason }
+
+var figIds = ["player", "companion", "troopA", "troopB", "agent", "bandit1", "bandit2", "bandit3"];
+var figs = {};
+figIds.forEach(function (id) { figs[id] = document.getElementById(id); });
+
+function announce(msg) { announcer.textContent = msg; }
+
+function setPhase(p, viaUrl) {
+  phase = p;
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  document.querySelectorAll(".step").forEach(function (b) {
+    b.setAttribute("aria-current", b.dataset.step === p ? "true" : "false");
+  });
+  document.getElementById("resolveStep").disabled = p !== "downed";
+  var url = new URL(location.href);
+  url.searchParams.set("state", p);
+  if (!viaUrl) history.replaceState(null, "", url);
+  render();
+}
+
+function resetScene() {
+  figIds.forEach(function (id) {
+    var f = figs[id];
+    f.classList.remove("downed", "falling", "stumble", "recoil", "shake");
+    f.style.transform = "";
+  });
+  document.getElementById("tagAgent").style.display = "none";
+  document.getElementById("tagTroop").style.display = "none";
+  telegraphGroup.classList.add("hidden");
+  guardButtons.forEach(function (b) {
+    b.setAttribute("aria-pressed", "false");
+    b.classList.remove("wedge-on");
+  });
+  wedgeLayer.querySelectorAll(".wedge").forEach(function (w) { w.setAttribute("class", "wedge"); });
+  document.getElementById("clockHand").style.transform = "rotate(0deg)";
+  document.getElementById("fxParry").classList.remove("on");
+  document.getElementById("fxHit").classList.remove("on");
+}
+
+function render() {
+  var st = {};
+  st.idle = phase === "idle";
+  st.combat = phase === "combat";
+  st.downed = phase === "downed";
+  st.resolved = phase === "resolved";
+  document.getElementById("resolutionPanel").classList.toggle("hidden", !st.resolved);
+  startBtn.textContent = st.combat ? "Restart raid" : "Start the raid";
+  startBtn.disabled = false;
+
+  // contract / settlement chips
+  var contractChip = document.getElementById("contractChip");
+  if (phase === "idle") { contractChip.textContent = "Available"; contractChip.className = "chip pending"; }
+  else if (phase === "combat") { contractChip.textContent = "Accepted"; contractChip.className = "chip active"; }
+  else if (phase === "resolved") {
+    contractChip.textContent = outcome && outcome.settlement === "Safe" ? "Resolved" : "Failed";
+    contractChip.className = outcome && outcome.settlement === "Safe" ? "chip active" : "chip bad";
+  } else { // downed
+    contractChip.textContent = "Accepted (contested)"; contractChip.className = "chip pending";
+  }
+
+  var settlementChip = document.getElementById("settlementChip");
+  if (phase === "idle" || phase === "combat") {
+    settlementChip.textContent = "—"; settlementChip.className = "chip pending";
+  } else if (outcome && outcome.settlement === "Safe") {
+    settlementChip.textContent = "Safe"; settlementChip.className = "chip active";
+  } else {
+    settlementChip.textContent = "Damaged"; settlementChip.className = "chip bad";
+  }
+
+  var residentTxt = document.getElementById("residentTxt");
+  if (phase === "combat") residentTxt.textContent = "Defending — residents behind the barricade";
+  else if (phase === "resolved" && outcome && outcome.settlement === "Safe") residentTxt.textContent = "No resident losses";
+  else if (phase === "resolved") residentTxt.textContent = "Watchtower burning; two residents carried to safety";
+  else if (phase === "downed") residentTxt.textContent = "Under fire — residents behind the barricade";
+  else residentTxt.textContent = "Sheltered behind the barricade";
+
+  if (phase === "downed" || phase === "resolved") {
+    // the Downed combatant stays inert and non-identifying; post-battle only
+    // the panel exposes identity and the fate decision
+    var casualtyFig = outcome && outcome.casualty ? outcome.casualty : null;
+    if (casualtyFig && figs[casualtyFig]) {
+      figs[casualtyFig].classList.add("downed");
+      var tag = casualtyFig === "agent" ? "tagAgent" : "tagTroop";
+      document.getElementById(tag).style.display = "inline";
+    }
+  }
+  updateBandList();
+  updateStaminaBar();
+}
+
+function updateBandList() {
+  var list = document.getElementById("bandList");
+  var rows = [
+    ["Player", "active"],
+    ["Companion", "active"],
+    ["Troops (2)", "active"]
+  ];
+  if (phase === "downed" || phase === "resolved") {
+    var idx = outcome && outcome.casualty === "agent" ? -1 : 2;
+    if (idx >= 0) rows[idx] = [rows[idx][0], "down"];
+  }
+  list.innerHTML = "";
+  rows.forEach(function (r) {
+    var li = document.createElement("li");
+    var span = document.createElement("span");
+    span.textContent = r[0];
+    var chip = document.createElement("span");
+    chip.className = r[1] === "down" ? "chip down" : "chip active";
+    chip.textContent = r[1] === "down" ? "Downed" : "Active";
+    li.appendChild(span); li.appendChild(chip);
+    list.appendChild(li);
+  });
+}
+
+function updateStaminaBar() {
+  var pct = Math.max(0, Math.min(100, (stamina / MAX_STAMINA) * 100));
+  document.getElementById("staminaFill").style.width = pct + "%";
+  document.getElementById("staminaTxt").textContent = Math.round(stamina);
+}
+
+// ---- combat engine (deterministic script) ----
+function startCombat() {
+  resetScene();
+  ATTACKS.forEach(function (a) { a.done = false; });
+  frame = 0; parries = 0; wounds = 0; outcome = null;
+  stamina = MAX_STAMINA; shieldHeld = false;
+  currentTelegraph = null;
+  shieldBtn.setAttribute("aria-pressed", "false");
+  setPhase("combat");
+  announce("Raid begun. Guard the telegraphs.");
+  lastTs = performance.now();
+  rafId = requestAnimationFrame(tick);
+}
+
+function endCombat(settlement, casualty) {
+  outcome = { settlement: settlement, casualty: casualty };
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  telegraphGroup.classList.add("hidden");
+  currentTelegraph = null;
+  if (settlement === "Safe") {
+    announce("Bridge held. Settlement condition: Safe.");
+    setPhase("downed"); // Agent Downed in the final clash — survivor resolution pending
+  } else {
+    announce("The Band is pushed back. Settlement condition: Damaged.");
+    setPhase("downed");
+  }
+}
+
+function tick(ts) {
+  if (phase !== "combat") return; // battle already ended (e.g. wounds) — stop the loop
+  var dt = Math.min(50, ts - lastTs);
+  lastTs = ts;
+  frame += dt / (1000 / 60);
+
+  // stamina
+  if (shieldHeld) {
+    stamina -= 1.2 * (dt / (1000 / 60));
+    if (stamina <= 0) { stamina = 0; shieldHeld = false; shieldBtn.setAttribute("aria-pressed", "false"); announce("Exhausted — Shield Block drops."); }
+  } else if (stamina < MAX_STAMINA) {
+    stamina += 0.6 * (dt / (1000 / 60));
+  }
+  updateStaminaBar();
+
+  // deadline
+  var left = Math.max(0, TOTAL_FRAMES - frame);
+  document.getElementById("deadlineTxt").textContent = Math.ceil(left / 60 * 10) / 10 + " s";
+
+  // telegraph lifecycle
+  if (currentTelegraph && frame >= currentTelegraph.deadline) {
+    resolveTelegraph();
+  }
+  if (!currentTelegraph) {
+    for (var i = 0; i < ATTACKS.length; i++) {
+      var a = ATTACKS[i];
+      if (!a.done && frame >= a.t && frame < a.t + TELEGRAPH_FRAMES) {
+        showTelegraph(a);
+        break;
+      }
+    }
+  }
+
+  if (frame >= TOTAL_FRAMES) {
+    // script complete: final clash downs the Agent when parried well enough
+    if (parries >= PARRY_THRESHOLD) {
+      figs.agent.classList.add("falling");
+      endCombat("Safe", "agent");
+    } else {
+      figs.troopA.classList.add("falling");
+      endCombat("Damaged", "troopA");
+    }
+    return;
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+function showTelegraph(a) {
+  currentTelegraph = { sector: a.sector, attacker: a.attacker, anchor: a.anchor, deadline: frame + TELEGRAPH_FRAMES, event: a };
+  // arrow from the attacker toward the player, with a head at the player end
+  var dx = 250 - a.anchor[0], dy = 225 - a.anchor[1];
+  var len = Math.sqrt(dx * dx + dy * dy);
+  var ux = dx / len, uy = dy / len;
+  var tip = [250 - ux * 26, 225 - uy * 26];
+  var tail = [a.anchor[0] + ux * 8, a.anchor[1] + uy * 8];
+  var n = len > 0 ? 1 : 0; // perpendicular for the arrowhead
+  var px = -uy * 7, py = ux * 7;
+  telegraphPath.setAttribute("d", "M" + tail.join(",") + " L" + tip.join(","));
+  telegraphPath.classList.remove("parried");
+  telegraphHead.setAttribute("points", [tip[0], tip[1], tip[0] - ux * 16 + px, tip[1] - uy * 16 + py, tip[0] - ux * 16 - px, tip[1] - uy * 16 - py].join(","));
+  telegraphHead.classList.remove("parried");
+  telegraphGroup.classList.remove("hidden");
+  // highlight the matching wedge
+  wedgeLayer.querySelectorAll(".wedge").forEach(function (w) {
+    w.setAttribute("class", "wedge" + (w.dataset.sector === a.sector ? " active" : ""));
+  });
+  var hand = document.getElementById("clockHand");
+  hand.style.transform = "rotate(" + SECTOR_ANGLE[a.sector] + "deg)";
+  announce("Telegraph: " + sectorName(a.sector) + " guard needed.");
+}
+
+function sectorName(s) { return { N: "North", E: "East", S: "South", W: "West" }[s]; }
+
+function resolveTelegraph() {
+  var t = currentTelegraph;
+  var attacker = figs[t.attacker];
+  t.event.done = true;
+  currentTelegraph = null;
+  telegraphGroup.classList.add("hidden");
+  wedgeLayer.querySelectorAll(".wedge").forEach(function (w) { w.setAttribute("class", "wedge"); });
+
+  if (shieldHeld) {
+    // Shield Block: negated, but no recoil window
+    document.getElementById("fxHit").classList.remove("on");
+    void document.getElementById("fxHit").offsetWidth;
+    document.getElementById("fxHit").classList.add("on");
+    document.getElementById("fxHit").style.stroke = "#3f8f8b";
+    announce("Shield Block holds — attack negated.");
+    return;
+  }
+  // guard sector matched?
+  var pressed = guardButtons.find(function (b) { return b.getAttribute("aria-pressed") === "true"; });
+  if (pressed && pressed.dataset.sector === t.sector) {
+    parries++;
+    document.getElementById("fxParry").classList.remove("on");
+    void document.getElementById("fxParry").offsetWidth;
+    document.getElementById("fxParry").classList.add("on");
+    telegraphPath.classList.add("parried");
+    telegraphHead.classList.add("parried");
+    attacker.classList.remove("recoil");
+    void attacker.offsetWidth;
+    attacker.classList.add("recoil");
+    announce("Directional Guard matched — " + sectorName(t.sector) + " parried, recoil window open.");
+  } else {
+    wounds++;
+    document.getElementById("fxHit").classList.remove("on");
+    void document.getElementById("fxHit").offsetWidth;
+    document.getElementById("fxHit").classList.add("on");
+    document.getElementById("fxHit").style.stroke = "#b23b30";
+    var target = ["troopB", "troopA", "companion"][Math.min(wounds - 1, 2)];
+    figs[target].classList.remove("stumble");
+    void figs[target].offsetWidth;
+    figs[target].classList.add("stumble");
+    stamina = Math.max(0, stamina - 12);
+    announce("Guard missed — " + sectorName(t.sector) + " hits the Band. Wound " + wounds + " of 3.");
+    if (wounds >= 3) {
+      figs.troopB.classList.add("falling");
+      endCombat("Damaged", "troopB");
+      return;
+    }
+  }
+  updateStaminaBar();
+}
+
+// ---- input: keys + guard pad ----
+var KEY_SECTOR = { ArrowUp: "N", ArrowRight: "E", ArrowDown: "S", ArrowLeft: "W", w: "N", d: "E", s: "S", a: "W", W: "N", D: "E", S: "S", A: "W" };
+
+function pressGuard(sector) {
+  if (phase !== "combat") return;
+  if (stamina <= 2) { announce("Exhausted — no stamina for a guard."); return; }
+  guardButtons.forEach(function (b) {
+    var on = b.dataset.sector === sector;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  if (currentTelegraph && currentTelegraph.sector === sector) {
+    // answered early: resolve immediately as a parry
+    resolveTelegraph();
+    return;
+  }
+  wedgeLayer.querySelectorAll(".wedge").forEach(function (w) {
+    if (w.dataset.sector === sector) w.setAttribute("class", "wedge held");
+    else w.setAttribute("class", "wedge");
+  });
+  document.getElementById("clockHand").style.transform = "rotate(" + SECTOR_ANGLE[sector] + "deg)";
+  stamina = Math.max(0, stamina - 5);
+  updateStaminaBar();
+}
+
+window.addEventListener("keydown", function (e) {
+  if (e.repeat) return;
+  if (e.code === "Space") {
+    e.preventDefault();
+    if (phase !== "combat") return;
+    shieldHeld = true;
+    shieldBtn.setAttribute("aria-pressed", "true");
+    announce("Shield Block raised.");
+    return;
+  }
+  if (KEY_SECTOR[e.key]) { e.preventDefault(); pressGuard(KEY_SECTOR[e.key]); }
+});
+window.addEventListener("keyup", function (e) {
+  if (e.code === "Space" && shieldHeld) {
+    shieldHeld = false;
+    shieldBtn.setAttribute("aria-pressed", "false");
+  }
+});
+
+guardButtons.forEach(function (b) {
+  b.addEventListener("click", function () { pressGuard(b.dataset.sector); });
+});
+startBtn.addEventListener("click", startCombat);
+shieldBtn.addEventListener("click", function () {
+  if (phase !== "combat") return;
+  shieldHeld = !shieldHeld;
+  shieldBtn.setAttribute("aria-pressed", shieldHeld ? "true" : "false");
+  announce(shieldHeld ? "Shield Block raised." : "Shield Block lowered.");
+});
+
+// shield intercepts the next telegraph
+// ---- state rail: buttons + URL ----
+document.querySelectorAll(".step").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var target = b.dataset.step;
+    if (target === "combat") { startCombat(); return; }
+    if (target === "downed") {
+      if (!outcome) outcome = { settlement: "Damaged", casualty: "troopA" };
+      setPhase("downed");
+      return;
+    }
+    if (target === "resolved") { setPhase("resolved"); return; }
+    resetScene(); setPhase("idle");
+  });
+});
+
+document.querySelectorAll(".fate-btn").forEach(function (b) {
+  b.addEventListener("click", function () {
+    document.querySelectorAll(".fate-btn").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    var fate = b.dataset.fate;
+    document.getElementById("fateTxt").innerHTML = "Agent fate (staged): <strong>" + fate + "</strong>";
+    announce("Staged Agent fate: " + fate + ". Human decision required for the actual disposition.");
+  });
+});
+
+// URL state entry
+(function () {
+  var params = new URLSearchParams(location.search);
+  var st = params.get("state");
+  if (st === "combat") { startCombat(); return; }
+  if (st === "downed") { outcome = { settlement: "Damaged", casualty: "troopA" }; setPhase("downed", true); return; }
+  if (st === "resolved") { outcome = { settlement: "Safe", casualty: "agent" }; setPhase("resolved", true); return; }
+  resetScene();
+  setPhase("idle", true);
+})();
+</script>
+</body>
+</html>

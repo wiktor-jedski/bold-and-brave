@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en" data-state="combat">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROTOTYPE — Ironbridge Ink</title>
+  <style>
+    :root { color-scheme: dark; --page:#111417; --panel:#1d2225; --paper:#e8dfc5; --muted:#9da49f; --line:#465055; --sky:#62747b; --hill:#39484d; --ground:#5c5849; --wood:#826347; --ally:#82b8ad; --player:#e7c56f; --enemy:#ce6655; --telegraph:#f6dd6d; --danger:#f26f58; --safe:#8fce9b; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--page); color:var(--paper); font-family:ui-sans-serif,system-ui,sans-serif; }
+    .page { width:min(1240px,100%); margin:auto; padding:24px 18px 38px; }
+    .eyebrow { margin:0 0 8px; color:var(--telegraph); font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,4vw,46px); letter-spacing:-.04em; }
+    .intro { max-width:750px; margin:0 0 20px; color:var(--muted); font-size:14px; line-height:1.5; }
+    .board { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:14px; }
+    .frame,.panel { border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 18px 45px #0008; }
+    .frame { padding:10px; }
+    .scene { position:relative; overflow:hidden; border:1px solid #ffffff2b; border-radius:8px; background:var(--sky); }
+    svg { display:block; width:100%; aspect-ratio:16/9; }
+    .sky { fill:var(--sky); } .hill { fill:var(--hill); } .ground { fill:var(--ground); } .wood { fill:var(--wood); }
+    .figure { stroke:var(--paper); stroke-width:2.5; stroke-linejoin:round; } .player { fill:var(--player); } .ally { fill:var(--ally); } .foe { fill:var(--enemy); }
+    .weapon { stroke:var(--paper); stroke-width:6; stroke-linecap:round; } .shield { fill:#3b4c4d; stroke:var(--paper); stroke-width:2; }
+    .telegraph { fill:none; stroke:var(--telegraph); stroke-width:7; stroke-linecap:round; stroke-dasharray:13 11; animation:dash 1.2s linear infinite; }
+    .hold { fill:var(--telegraph); stroke:var(--page); stroke-width:3; } .reticle { fill:none; stroke:var(--paper); stroke-width:2; stroke-dasharray:4 8; }
+    .downed { display:none; } .downed-shape { fill:var(--enemy); stroke:var(--paper); stroke-width:2; }
+    html[data-state="downed"] .live, html[data-state="resolution"] .live { display:none; }
+    html[data-state="downed"] .downed, html[data-state="resolution"] .downed { display:block; }
+    .execution { display:none; fill:var(--danger); } html[data-state="resolution"] .execution { display:block; }
+    .hud { position:absolute; inset:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; }
+    .hud-card { padding:8px 10px; border:1px solid #ffffff44; border-radius:6px; background:#111a; backdrop-filter:blur(3px); }
+    .label { color:var(--muted); font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; } .value { margin-top:3px; font-size:12px; font-weight:750; }
+    .value b { color:var(--telegraph); } .meter { width:160px; height:7px; margin-top:6px; border-radius:99px; background:#ffffff25; } .meter i { display:block; width:72%; height:100%; border-radius:inherit; background:var(--telegraph); }
+    .status { position:absolute; left:50%; bottom:14px; width:min(430px,72%); transform:translateX(-50%); padding:8px 10px; border:1px solid var(--danger); border-radius:6px; background:#111d; color:var(--paper); font-size:11px; line-height:1.35; text-align:center; }
+    html[data-state="combat"] .status { display:none; } html[data-state="downed"] .status { border-color:var(--telegraph); } html[data-state="resolution"] .status { border-color:var(--safe); }
+    .caption { display:flex; justify-content:space-between; gap:12px; padding:9px 2px 0; color:var(--muted); font-size:11px; line-height:1.4; } .caption strong { color:var(--paper); }
+    .panel { padding:16px; } h2 { margin:0 0 6px; font-size:17px; } .panel p { margin:0 0 16px; color:var(--muted); font-size:12px; line-height:1.45; }
+    fieldset { margin:0 0 16px; padding:0; border:0; } legend { margin-bottom:8px; color:var(--telegraph); font-size:10px; font-weight:850; letter-spacing:.13em; text-transform:uppercase; }
+    .states { display:grid; gap:7px; } button { width:100%; padding:9px; border:1px solid var(--line); border-radius:7px; background:#ffffff08; color:var(--paper); cursor:pointer; font:inherit; text-align:left; } button:hover,button:focus-visible { border-color:var(--telegraph); outline:none; } button[aria-pressed="true"] { border-color:var(--telegraph); background:#f6dd6d18; }
+    button b { display:block; font-size:12px; } button span { display:block; margin-top:3px; color:var(--muted); font-size:10px; line-height:1.35; }
+    dl { display:grid; gap:9px; margin:0; } dl div { display:grid; grid-template-columns:74px 1fr; gap:8px; padding-top:8px; border-top:1px solid #ffffff18; } dt { color:var(--telegraph); font-size:9px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; } dd { margin:0; color:var(--paper); font-size:11px; line-height:1.35; }
+    .footer { margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:10px; line-height:1.4; } .footer strong { color:var(--paper); }
+    @keyframes dash { to { stroke-dashoffset:-48; } } @media (prefers-reduced-motion:reduce) { .telegraph { animation:none; } }
+    @media (max-width:800px) { .board { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">Throwaway visual prototype · own version 1</p>
+    <h1>Ironbridge Ink</h1>
+    <p class="intro">A high-contrast ink-and-clay treatment. Large role silhouettes and one yellow interaction language keep a bridge exchange readable before the player studies detail.</p>
+    <section class="board" aria-label="Ironbridge Ink bridge defense">
+      <div class="frame">
+        <div class="scene">
+          <svg viewBox="0 0 1000 560" role="img" aria-label="Ironbridge bridge defense with player Band and enemy Agent">
+            <rect class="sky" width="1000" height="560"/><polygon class="hill" points="0,280 130,180 275,275 430,160 590,270 760,170 1000,270 1000,360 0,360"/><polygon class="ground" points="0,330 1000,310 1000,560 0,560"/><polygon class="wood" points="0,382 1000,360 1000,465 0,492"/><g opacity=".45"><path class="wood" d="M80 380h22v100H80zM280 376h22v100h-22zM520 370h22v100h-22zM790 365h22v100h-22z"/></g>
+            <polygon class="hold" points="305,354 319,364 305,375 291,364"/><path d="M305 354v-35" stroke="var(--telegraph)" stroke-width="3"/><circle class="reticle" cx="575" cy="330" r="39"/><path class="telegraph" d="M597 316l76-66"/>
+            <g class="live" transform="translate(335 270)"><path class="figure player" d="M-22 79l-16 116h74L22 79z"/><circle class="figure player" cx="0" cy="50" r="21"/><path class="figure player" d="M-21 44L0 20l22 24-7 10h-30z"/><path class="shield" d="M-42 82l-24 18 8 59 27 8 14-45z"/><path class="weapon" d="M22 83l76-71"/></g>
+            <g class="live" transform="translate(225 310) scale(.72)"><path class="figure ally" d="M-22 79l-16 116h74L22 79z"/><circle class="figure ally" cx="0" cy="50" r="21"/><path class="figure ally" d="M-21 44L0 20l22 24-7 10h-30z"/><path class="weapon" d="M22 83l76-71"/></g>
+            <g class="live" transform="translate(440 323) scale(.56)"><path class="figure ally" d="M-22 79l-16 116h74L22 79z"/><circle class="figure ally" cx="0" cy="50" r="21"/><path class="figure ally" d="M-21 44L0 20l22 24-7 10h-30z"/><path class="weapon" d="M22 83l76-71"/></g>
+            <g class="live" transform="translate(670 245)"><path class="figure foe" d="M-22 79l-16 116h74L22 79z"/><circle class="figure foe" cx="0" cy="50" r="21"/><path class="figure foe" d="M-21 44L0 20l22 24-7 10h-30z"/><path class="shield" d="M-42 82l-24 18 8 59 27 8 14-45z"/><path class="weapon" d="M22 83l76-71"/></g>
+            <g class="live" transform="translate(800 312) scale(.62)"><path class="figure foe" d="M-22 79l-16 116h74L22 79z"/><circle class="figure foe" cx="0" cy="50" r="21"/><path class="figure foe" d="M-21 44L0 20l22 24-7 10h-30z"/><path class="weapon" d="M22 83l76-71"/></g>
+            <g class="downed" transform="translate(670 474)"><ellipse fill="#1119" cx="0" cy="7" rx="57" ry="10"/><path class="downed-shape" d="M-58 0l27-18 79 6 28 16-26 18-77 2z"/><circle class="downed-shape" cx="65" cy="5" r="17"/><path class="execution" d="M-4-10h8v15h8l-12 13-12-13h8z"/></g>
+          </svg>
+          <div class="hud"><div class="hud-card"><div class="label">Local Contract</div><div class="value">Defend the bridge · <b>08:42</b></div></div><div class="hud-card"><div class="label">Settlement</div><div class="value"><b>Safe</b> while residents hold</div></div></div>
+          <div class="status" id="status"></div>
+        </div>
+        <div class="caption"><span><strong>Read first:</strong> yellow telegraph, Hold position marker, player and enemy role colors.</span><span>Mouse drag vocabulary</span></div>
+      </div>
+      <aside class="panel">
+        <h2>Readability bar</h2><p>One color is reserved for player intent. Enemy pressure stays red; the Band stays pale blue or gold.</p>
+        <fieldset><legend>Inspect battle state</legend><div class="states"><button data-state="combat" aria-pressed="true"><b>Combat read</b><span>All silhouettes and the directional threat are active.</span></button><button data-state="downed" aria-pressed="false"><b>Downed in battle</b><span>The enemy becomes an inert floor shape with identity hidden.</span></button><button data-state="resolution" aria-pressed="false"><b>Post-battle resolution</b><span>The outcome marker appears only after the exchange ends.</span></button></div></fieldset>
+        <dl><div><dt>Shape</dt><dd>Broad triangular bodies and short weapon lines read at distance.</dd></div><div><dt>Lighting</dt><dd>Flat sky and ground values avoid expensive dynamic shadows.</dd></div><div><dt>Motion</dt><dd>Only the threat telegraph animates; the world stays calm.</dd></div><div><dt>HUD</dt><dd>Two translucent cards plus one stamina meter do not cover the scene.</dd></div></dl>
+        <div class="footer"><strong>Human review:</strong> judge whether the yellow interaction layer is strong enough without making the scene feel gamey.</div>
+      </aside>
+    </section>
+  </main>
+  <script>
+    const stateText = { combat: '', downed: '<strong>Downed in battle.</strong> The inert presentation does not identify the combatant until post-battle resolution.', resolution: '<strong>Post-battle resolution.</strong> Release, Capture, or Execute is now a separate survivor decision.' };
+    const render = (state) => { document.documentElement.dataset.state = state; document.querySelectorAll('[data-state]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.state === state))); document.querySelector('#status').innerHTML = stateText[state]; };
+    document.querySelectorAll('[data-state]').forEach((b) => b.addEventListener('click', () => render(b.dataset.state)));
+    render('combat');
+  </script>
+</body>
+</html>

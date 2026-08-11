@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en" data-state="combat">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROTOTYPE — Bold and Brave visual language</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      --page: #111417;
+      --panel: #1a1f22;
+      --panel-2: #22292d;
+      --ink: #f3efe2;
+      --muted: #aab0ab;
+      --line: #3c4548;
+      --safe: #98d4a3;
+      --danger: #f07458;
+      --gold: #e4be6b;
+      --sky: #71838a;
+      --sky-light: #bac4bf;
+      --far: #566466;
+      --ground: #746d59;
+      --ground-light: #a69a77;
+      --bridge: #625445;
+      --wood: #8f6d4f;
+      --stone: #9a9686;
+      --player: #e2c47c;
+      --companion: #73a7a0;
+      --troop: #b5b7a0;
+      --enemy: #a85d50;
+      --enemy-light: #db8a65;
+      --telegraph: #ffcf65;
+      --focus: #f2e1a4;
+      --shadow: rgba(4, 6, 7, .58);
+    }
+
+    body[data-variant="slate"] {
+      --page: #0e141a;
+      --panel: #17212a;
+      --panel-2: #20303b;
+      --ink: #eef5f3;
+      --muted: #a8b9bd;
+      --line: #3c525d;
+      --safe: #77dbbf;
+      --danger: #ff806a;
+      --gold: #f0c76d;
+      --sky: #3f596b;
+      --sky-light: #9eb9c4;
+      --far: #314755;
+      --ground: #4f5e61;
+      --ground-light: #728a89;
+      --bridge: #3d4e59;
+      --wood: #607d82;
+      --stone: #8da4a6;
+      --player: #efd17e;
+      --companion: #83d0c4;
+      --troop: #bdc9bc;
+      --enemy: #d5685c;
+      --enemy-light: #f0a06f;
+      --telegraph: #ffdc68;
+      --focus: #a9e6db;
+      --shadow: rgba(0, 9, 16, .68);
+    }
+
+    body[data-variant="woodcut"] {
+      --page: #171511;
+      --panel: #28231b;
+      --panel-2: #332d21;
+      --ink: #f2e7c9;
+      --muted: #c0b18e;
+      --line: #665a43;
+      --safe: #adca7f;
+      --danger: #e87852;
+      --gold: #e1b84f;
+      --sky: #8d896c;
+      --sky-light: #d3c89b;
+      --far: #6d7258;
+      --ground: #6e654d;
+      --ground-light: #9f8f63;
+      --bridge: #4f4435;
+      --wood: #785a3b;
+      --stone: #a49874;
+      --player: #e9c45f;
+      --companion: #a9bd75;
+      --troop: #d3bd80;
+      --enemy: #934b3d;
+      --enemy-light: #d9704c;
+      --telegraph: #f5d45f;
+      --focus: #eacb70;
+      --shadow: rgba(24, 16, 7, .62);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--panel-2) 70%, transparent), var(--page) 62%);
+      color: var(--ink);
+    }
+    button { font: inherit; }
+    .page { width: min(1480px, 100%); margin: 0 auto; padding: 28px 24px 106px; }
+    .eyebrow { margin: 0 0 8px; color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1, h2, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 10px; font-size: clamp(25px, 3.2vw, 44px); line-height: 1.02; letter-spacing: -.035em; }
+    .lede { max-width: 850px; margin-bottom: 24px; color: var(--muted); font-size: 15px; line-height: 1.55; }
+    .prototype-note { display: inline-flex; gap: 8px; align-items: center; margin-bottom: 22px; padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--gold) 52%, var(--line)); border-radius: 999px; color: var(--focus); background: color-mix(in srgb, var(--gold) 9%, transparent); font-size: 12px; }
+    .prototype-note::before { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); content: ""; }
+
+    .workbench { display: grid; grid-template-columns: minmax(0, 1fr) 306px; gap: 18px; align-items: start; }
+    .scene-card, .readout { border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: 0 22px 65px var(--shadow); }
+    .scene-card { min-width: 0; padding: 12px; }
+    .scene-wrap { position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 11px; background: var(--sky); }
+    .scene { display: block; width: 100%; aspect-ratio: 16 / 9; }
+    .scene-svg { display: block; width: 100%; height: 100%; }
+    .scene-svg text { font-family: inherit; }
+    .scene-svg .sky { fill: var(--sky); }
+    .scene-svg .sky-light { fill: var(--sky-light); opacity: .34; }
+    .scene-svg .far { fill: var(--far); }
+    .scene-svg .ground { fill: var(--ground); }
+    .scene-svg .ground-light { fill: var(--ground-light); opacity: .42; }
+    .scene-svg .bridge { fill: var(--bridge); }
+    .scene-svg .wood { fill: var(--wood); }
+    .scene-svg .stone { fill: var(--stone); }
+    .scene-svg .shadow { fill: var(--shadow); }
+    .scene-svg .player { --figure: var(--player); }
+    .scene-svg .companion { --figure: var(--companion); }
+    .scene-svg .troop { --figure: var(--troop); }
+    .scene-svg .enemy { --figure: var(--enemy); }
+    .scene-svg .enemy-light { fill: var(--enemy-light); }
+    .scene-svg .figure { fill: var(--figure); stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: 3; stroke-linejoin: round; }
+    .scene-svg .face { fill: color-mix(in srgb, var(--figure) 55%, var(--ink)); }
+    .scene-svg .weapon { fill: var(--ink); stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: 2; }
+    .scene-svg .shield { fill: color-mix(in srgb, var(--figure) 55%, var(--bridge)); stroke: var(--ink); stroke-width: 3; }
+    .scene-svg .weapon-glint { fill: var(--focus); opacity: .86; }
+    .scene-svg .telegraph { fill: none; stroke: var(--telegraph); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 18 12; opacity: .95; animation: telegraph 1.5s linear infinite; }
+    .scene-svg .reticle { fill: none; stroke: var(--focus); stroke-width: 3; stroke-dasharray: 5 7; opacity: .78; }
+    .scene-svg .marker { fill: var(--focus); stroke: var(--page); stroke-width: 4; }
+    .scene-svg .downed-body { display: none; fill: var(--enemy); stroke: color-mix(in srgb, var(--ink) 28%, transparent); stroke-width: 2; }
+    .scene-svg .executed-mark { display: none; fill: var(--danger); }
+    .scene-svg .target-live { display: block; }
+    .scene-svg .target-downed { display: none; }
+    html[data-state="downed"] .scene-svg .target-live { display: none; }
+    html[data-state="downed"] .scene-svg .target-downed { display: block; }
+    html[data-state="resolution"] .scene-svg .target-live { display: none; }
+    html[data-state="resolution"] .scene-svg .target-downed { display: block; }
+    html[data-state="resolution"] .scene-svg .executed-mark { display: block; }
+    .scene-svg .animate { animation: breathe 3.8s ease-in-out infinite; }
+    .scene-svg .enemy.animate { animation-delay: -.9s; }
+    .scene-svg .troop.animate:nth-child(2) { animation-delay: -.45s; }
+    html[data-motion="off"] .scene-svg .animate,
+    html[data-motion="off"] .scene-svg .telegraph { animation: none; }
+
+    .scene-hud { position: absolute; inset: 12px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+    .hud-row { display: flex; justify-content: space-between; gap: 12px; }
+    .hud-block { min-width: 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--page) 68%, transparent); backdrop-filter: blur(5px); }
+    .hud-title { margin-bottom: 3px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .hud-value { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+    .hud-value strong { color: var(--gold); }
+    .hud-bottom { display: flex; align-items: end; justify-content: space-between; gap: 14px; }
+    .stamina { width: min(260px, 38%); }
+    .meter { height: 8px; margin-top: 6px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+    .meter > span { display: block; width: 71%; height: 100%; border-radius: inherit; background: var(--gold); }
+    .direction-reticle { display: grid; grid-template-columns: repeat(3, 24px); grid-template-rows: repeat(3, 24px); gap: 3px; padding: 6px; border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--page) 72%, transparent); }
+    .direction-reticle span { display: grid; place-items: center; border-radius: 4px; color: var(--muted); font-size: 12px; }
+    .direction-reticle .active { background: var(--focus); color: var(--page); font-weight: 900; }
+    .direction-reticle .center { border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); color: var(--ink); }
+
+    .state-banner { position: absolute; left: 50%; bottom: 18px; width: min(420px, 70%); transform: translateX(-50%); padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--danger) 65%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--page) 78%, transparent); color: var(--ink); font-size: 12px; line-height: 1.35; text-align: center; box-shadow: 0 9px 22px var(--shadow); }
+    html[data-state="combat"] .state-banner { display: none; }
+    html[data-state="downed"] .state-banner { border-color: color-mix(in srgb, var(--gold) 60%, transparent); }
+    html[data-state="resolution"] .state-banner { border-color: color-mix(in srgb, var(--safe) 60%, transparent); }
+    .state-banner strong { color: var(--gold); }
+
+    .scene-caption { display: flex; justify-content: space-between; gap: 12px; padding: 12px 4px 2px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .scene-caption strong { color: var(--ink); }
+    .scene-caption span:last-child { flex: 0 0 auto; color: var(--gold); font-weight: 750; }
+
+    .readout { padding: 18px; }
+    .readout h2 { margin-bottom: 6px; font-size: 17px; letter-spacing: -.02em; }
+    .readout-intro { margin-bottom: 17px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .control-group { margin: 0 0 18px; padding: 0; border: 0; }
+    .control-group legend { margin-bottom: 8px; color: var(--ink); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .choice-row { display: grid; gap: 7px; }
+    .choice { display: flex; gap: 9px; align-items: flex-start; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel-2) 55%, transparent); color: var(--ink); cursor: pointer; text-align: left; }
+    .choice:hover, .choice:focus-visible { border-color: var(--focus); outline: none; }
+    .choice[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, var(--panel-2)); }
+    .choice .swatch { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; border-radius: 4px; background: var(--gold); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent); }
+    .choice[data-variant="earthbound"] .swatch { background: #bd9670; }
+    .choice[data-variant="slate"] .swatch { background: #80b8be; }
+    .choice[data-variant="woodcut"] .swatch { background: #d2a545; }
+    .choice-copy { min-width: 0; }
+    .choice-title { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 780; }
+    .choice-detail { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .readout-list { display: grid; gap: 10px; margin: 0; }
+    .readout-row { display: grid; grid-template-columns: 75px 1fr; gap: 10px; padding-top: 9px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+    .readout-row dt { color: var(--gold); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .readout-row dd { margin: 0; color: var(--ink); font-size: 11px; line-height: 1.4; }
+    .readout-footer { margin-top: 18px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .readout-footer strong { color: var(--ink); }
+
+    .variant-dock { position: fixed; z-index: 10; right: 50%; bottom: 18px; display: flex; gap: 7px; align-items: center; max-width: calc(100% - 28px); padding: 7px; transform: translateX(50%); border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 14px 34px var(--shadow); backdrop-filter: blur(12px); }
+    .dock-label { padding: 0 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+    .dock-button { border: 1px solid transparent; border-radius: 7px; padding: 8px 10px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 760; white-space: nowrap; }
+    .dock-button:hover, .dock-button:focus-visible { border-color: var(--focus); color: var(--ink); outline: none; }
+    .dock-button[aria-current="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 13%, transparent); color: var(--ink); }
+    .motion-button { margin-left: 3px; border-left: 1px solid var(--line); padding-left: 12px; }
+
+    @keyframes breathe { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
+    @keyframes telegraph { to { stroke-dashoffset: -60; } }
+    @media (max-width: 960px) {
+      .workbench { grid-template-columns: 1fr; }
+      .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+      .readout h2, .readout-intro, .readout-footer { grid-column: 1 / -1; }
+    }
+    @media (max-width: 620px) {
+      .page { padding: 20px 12px 100px; }
+      .hud-block:nth-child(2) { display: none; }
+      .hud-value { font-size: 11px; }
+      .scene-caption { display: block; }
+      .scene-caption span:last-child { display: block; margin-top: 3px; }
+      .readout { display: block; }
+      .variant-dock { bottom: 10px; }
+      .dock-label { display: none; }
+      .dock-button { padding: 8px 7px; }
+    }
+  </style>
+</head>
+<body data-variant="earthbound">
+  <main class="page">
+    <p class="eyebrow">Throwaway comparison prototype · issue 12</p>
+    <h1>Find the visual language and readability bar</h1>
+    <p class="lede">Three deliberately different treatments use the same bridge encounter. Compare silhouette, value separation, telegraphs, interface density, and post-battle survivor presentation before choosing a direction for the Playable Vertical Slice.</p>
+    <div class="prototype-note">No external assets, textures, or runtime dependencies. Flat SVG geometry and CSS motion only.</div>
+
+    <section class="workbench" aria-label="Visual language comparison">
+      <div class="scene-card">
+        <div class="scene-wrap">
+          <svg class="scene-svg" viewBox="0 0 1200 675" role="img" aria-label="Low-poly settlement bridge combat scene">
+            <rect class="sky" width="1200" height="675" />
+            <circle class="sky-light" cx="900" cy="130" r="150" />
+            <polygon class="far" points="0,330 160,250 300,325 450,215 650,325 840,240 1020,315 1200,230 1200,430 0,430" />
+            <polygon class="far" points="0,385 220,300 370,360 550,286 730,370 930,290 1200,365 1200,480 0,480" opacity=".72" />
+            <polygon class="ground" points="0,405 1200,386 1200,675 0,675" />
+            <polygon class="ground-light" points="0,490 1200,454 1200,500 0,545" />
+            <polygon class="bridge" points="0,474 1200,447 1200,580 0,612" />
+            <polygon class="wood" points="0,505 1200,478 1200,501 0,531" />
+            <g opacity=".52">
+              <polygon class="wood" points="90,494 122,493 117,587 88,590" />
+              <polygon class="wood" points="280,487 312,486 306,582 278,584" />
+              <polygon class="wood" points="496,481 530,480 524,573 493,576" />
+              <polygon class="wood" points="733,474 766,473 761,565 731,568" />
+              <polygon class="wood" points="976,468 1008,467 1004,558 974,560" />
+            </g>
+            <g class="settlement" opacity=".88">
+              <polygon class="stone" points="78,343 150,311 218,337 218,410 78,421" />
+              <polygon class="wood" points="62,343 150,292 233,338 217,351 150,317 81,357" />
+              <polygon class="stone" points="934,347 1010,315 1080,339 1080,405 934,416" />
+              <polygon class="wood" points="917,345 1008,294 1096,337 1080,351 1009,318 934,358" />
+              <rect class="stone" x="312" y="349" width="58" height="62" />
+              <polygon class="wood" points="298,349 342,317 385,349" />
+            </g>
+            <g class="scene-shadow">
+              <ellipse class="shadow" cx="318" cy="568" rx="64" ry="13" />
+              <ellipse class="shadow" cx="454" cy="567" rx="56" ry="11" />
+              <ellipse class="shadow" cx="564" cy="565" rx="51" ry="10" />
+              <ellipse class="shadow" cx="686" cy="559" rx="53" ry="11" />
+              <ellipse class="shadow" cx="817" cy="554" rx="62" ry="12" />
+            </g>
+
+            <g class="command-marker">
+              <polygon class="marker" points="470,464 488,476 470,489 452,476" />
+              <line x1="470" y1="464" x2="470" y2="420" stroke="var(--focus)" stroke-width="3" />
+              <polygon class="marker" points="470,420 483,430 470,439 457,430" />
+            </g>
+            <circle class="reticle" cx="668" cy="443" r="45" />
+            <path class="telegraph" d="M690 428 Q745 385 788 343" />
+
+            <g class="combatant player animate" transform="translate(430 366)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <polygon class="figure" points="-19,72 -30,110 25,111 17,70" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="figure" points="-20,42 0,22 22,42 18,51 -16,51" />
+              <polygon class="shield" points="-39,89 -68,105 -60,161 -31,168 -18,125" />
+              <polygon class="weapon" points="22,85 93,18 101,24 31,101" />
+              <polygon class="weapon-glint" points="93,18 116,0 101,24" />
+            </g>
+            <g class="combatant companion animate" transform="translate(335 397) scale(.82)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <polygon class="figure" points="-19,72 -30,110 25,111 17,70" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="figure" points="-20,42 0,22 22,42 18,51 -16,51" />
+              <polygon class="shield" points="-37,90 -62,106 -57,157 -28,164 -17,124" />
+              <polygon class="weapon" points="21,89 88,28 94,34 31,102" />
+            </g>
+            <g class="combatant troop animate" transform="translate(270 425) scale(.62)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="figure" points="-18,42 0,23 19,42 14,51 -15,51" />
+              <polygon class="weapon" points="21,91 90,8 96,13 30,102" />
+            </g>
+            <g class="combatant troop animate" transform="translate(550 433) scale(.58)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="figure" points="-18,42 0,23 19,42 14,51 -15,51" />
+              <polygon class="weapon" points="21,91 90,8 96,13 30,102" />
+            </g>
+
+            <g class="target-live combatant enemy animate" transform="translate(785 337)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <polygon class="figure" points="-19,72 -30,110 25,111 17,70" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="enemy-light" points="-24,43 0,17 25,43 17,52 -18,52" />
+              <polygon class="shield" points="-40,90 -66,108 -58,159 -30,164 -17,123" />
+              <polygon class="weapon" points="21,85 87,19 95,25 30,101" />
+              <polygon class="weapon-glint" points="87,19 108,0 95,25" />
+            </g>
+            <g class="target-downed" transform="translate(785 526)">
+              <ellipse class="shadow" cx="0" cy="22" rx="64" ry="13" />
+              <polygon class="downed-body" points="-67,5 -42,-18 48,-12 70,8 43,28 -44,29" />
+              <circle class="downed-body" cx="61" cy="8" r="18" />
+              <polygon class="executed-mark" points="-5,-7 5,-7 5,13 15,13 0,29 -15,13 -5,13" />
+            </g>
+            <g class="combatant enemy animate" transform="translate(892 392) scale(.67)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="enemy-light" points="-18,42 0,23 19,42 14,51 -15,51" />
+              <polygon class="weapon" points="21,91 90,8 96,13 30,102" />
+            </g>
+            <g class="combatant enemy animate" transform="translate(965 408) scale(.59)">
+              <polygon class="figure" points="-22,94 -35,198 28,198 19,92" />
+              <circle class="face" cx="0" cy="52" r="20" />
+              <polygon class="enemy-light" points="-18,42 0,23 19,42 14,51 -15,51" />
+              <polygon class="weapon" points="21,91 90,8 96,13 30,102" />
+            </g>
+          </svg>
+
+          <div class="scene-hud" aria-hidden="true">
+            <div class="hud-row">
+              <div class="hud-block"><div class="hud-title">Local Contract</div><div class="hud-value">Defend the bridge · <strong>08:42</strong></div></div>
+              <div class="hud-block"><div class="hud-title">Settlement</div><div class="hud-value"><strong>Safe</strong> if residents hold</div></div>
+            </div>
+            <div class="hud-bottom">
+              <div class="hud-block stamina"><div class="hud-title">Player stamina · 71%</div><div class="meter"><span></span></div></div>
+              <div class="direction-reticle" title="Four-sector drag preview"><span></span><span>↑</span><span></span><span>←</span><span class="center">+</span><span class="active">→</span><span></span><span>↓</span><span></span></div>
+            </div>
+          </div>
+          <div class="state-banner" id="stateBanner"></div>
+        </div>
+        <div class="scene-caption">
+          <span><strong>Same encounter, three treatments.</strong> The player reads the yellow telegraph, the visible Hold marker, and the enemy silhouettes before acting.</span>
+          <span id="variantCaption">Warm earthbound</span>
+        </div>
+      </div>
+
+      <aside class="readout">
+        <h2 id="variantTitle">Earthbound</h2>
+        <p class="readout-intro" id="variantIntro">Warm clay, pale cloth, and ink-dark silhouettes. The broadest value separation and most familiar frontier mood.</p>
+
+        <fieldset class="control-group">
+          <legend>Battle state</legend>
+          <div class="choice-row">
+            <button class="choice state-choice" data-state="combat" aria-pressed="true"><span class="swatch"></span><span class="choice-copy"><span class="choice-title">Combat read</span><span class="choice-detail">Telegraphs and roles are visible at a glance.</span></span></button>
+            <button class="choice state-choice" data-state="downed" aria-pressed="false"><span class="swatch"></span><span class="choice-copy"><span class="choice-title">Downed in battle</span><span class="choice-detail">Same inert presentation as a dead combatant; no identity reveal yet.</span></span></button>
+            <button class="choice state-choice" data-state="resolution" aria-pressed="false"><span class="swatch"></span><span class="choice-copy"><span class="choice-title">Post-battle resolution</span><span class="choice-detail">A discrete outcome marker appears for Release, Capture, or Execute.</span></span></button>
+          </div>
+        </fieldset>
+
+        <dl class="readout-list">
+          <div class="readout-row"><dt>Silhouette</dt><dd id="silhouetteReadout">Wide shoulders, short weapons, and clear role colors survive distance.</dd></div>
+          <div class="readout-row"><dt>Palette</dt><dd id="paletteReadout">Warm earth tones with yellow input and red danger accents.</dd></div>
+          <div class="readout-row"><dt>Lighting</dt><dd id="lightingReadout">Soft sky fill; no dynamic shadow required for role readability.</dd></div>
+          <div class="readout-row"><dt>Motion</dt><dd id="motionReadout">Small idle breath; dashed telegraph carries the action signal.</dd></div>
+          <div class="readout-row"><dt>Interface</dt><dd id="interfaceReadout">Compact glass-dark HUD keeps the scene dominant.</dd></div>
+        </dl>
+        <p class="readout-footer"><strong>Human decision needed:</strong> choose one treatment, or name a combination to carry into the next prototype. This artifact is not production UI.</p>
+      </aside>
+    </section>
+  </main>
+
+  <nav class="variant-dock" aria-label="Visual language variants">
+    <span class="dock-label">Variant</span>
+    <button class="dock-button" data-variant="earthbound" aria-current="true">1 · Earthbound</button>
+    <button class="dock-button" data-variant="slate" aria-current="false">2 · Slate</button>
+    <button class="dock-button" data-variant="woodcut" aria-current="false">3 · Woodcut</button>
+    <button class="dock-button motion-button" id="motionButton" aria-pressed="false">Motion on</button>
+  </nav>
+
+  <script>
+    const variants = {
+      earthbound: {
+        title: 'Earthbound',
+        caption: 'Warm earthbound',
+        intro: 'Warm clay, pale cloth, and ink-dark silhouettes. The broadest value separation and most familiar frontier mood.',
+        silhouette: 'Wide shoulders, short weapons, and clear role colors survive distance.',
+        palette: 'Warm earth tones with yellow input and red danger accents.',
+        lighting: 'Soft sky fill; no dynamic shadow required for role readability.',
+        motion: 'Small idle breath; dashed telegraph carries the action signal.',
+        interface: 'Compact glass-dark HUD keeps the scene dominant.'
+      },
+      slate: {
+        title: 'Slate',
+        caption: 'Cold slate readability',
+        intro: 'Cool stone and teal cloth with a gold interaction layer. The strongest contrast against the bridge and sky.',
+        silhouette: 'Angular capes and a bright player rim keep agents distinct in the busiest view.',
+        palette: 'Blue-gray world values; teal ally language; orange-red enemy language.',
+        lighting: 'Cool ambient fill with a single warm key that points to the active exchange.',
+        motion: 'Sharper telegraph dash and smaller idle motion make attack intent the loudest signal.',
+        interface: 'Cool panels recede; gold input marks remain stable across the scene.'
+      },
+      woodcut: {
+        title: 'Woodcut',
+        caption: 'Flat woodcut frontier',
+        intro: 'Olive, ochre, and burgundy shapes with a printed-poster attitude. The lowest rendering cost and strongest authored mood.',
+        silhouette: 'Large two-tone shapes read quickly, but close role colors need careful testing.',
+        palette: 'Restricted olive and ochre field with burgundy enemies and yellow commands.',
+        lighting: 'Flat graphic light; depth comes from overlap, scale, and cast shape rather than shading.',
+        motion: 'Minimal idle motion and a thick telegraph protect the poster-like composition.',
+        interface: 'Opaque parchment-like blocks fit the style but occupy more visual weight.'
+      }
+    };
+
+    const params = new URLSearchParams(location.search);
+    let currentVariant = variants[params.get('variant')] ? params.get('variant') : 'earthbound';
+    let currentState = ['combat', 'downed', 'resolution'].includes(params.get('state')) ? params.get('state') : 'combat';
+    let motionOn = params.get('motion') !== 'off';
+
+    const setQuery = () => {
+      const next = new URLSearchParams({ variant: currentVariant, state: currentState });
+      if (!motionOn) next.set('motion', 'off');
+      history.replaceState(null, '', `${location.pathname}?${next}`);
+    };
+
+    const render = () => {
+      const variant = variants[currentVariant];
+      document.body.dataset.variant = currentVariant;
+      document.documentElement.dataset.state = currentState;
+      document.documentElement.dataset.motion = motionOn ? 'on' : 'off';
+      document.getElementById('variantTitle').textContent = variant.title;
+      document.getElementById('variantCaption').textContent = variant.caption;
+      document.getElementById('variantIntro').textContent = variant.intro;
+      document.getElementById('silhouetteReadout').textContent = variant.silhouette;
+      document.getElementById('paletteReadout').textContent = variant.palette;
+      document.getElementById('lightingReadout').textContent = variant.lighting;
+      document.getElementById('motionReadout').textContent = variant.motion;
+      document.getElementById('interfaceReadout').textContent = variant.interface;
+      document.querySelectorAll('[data-variant]').forEach((button) => {
+        if (button.classList.contains('dock-button')) button.setAttribute('aria-current', String(button.dataset.variant === currentVariant));
+      });
+      document.querySelectorAll('.state-choice').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.state === currentState)));
+      document.getElementById('motionButton').textContent = motionOn ? 'Motion on' : 'Motion off';
+      document.getElementById('motionButton').setAttribute('aria-pressed', String(!motionOn));
+      document.getElementById('stateBanner').innerHTML = currentState === 'downed'
+        ? '<strong>Downed in battle.</strong> The body is deliberately inert and non-identifying until the fight ends.'
+        : '<strong>Post-battle resolution.</strong> The outcome marker now distinguishes the survivor decision from the battle presentation.';
+      setQuery();
+    };
+
+    document.querySelectorAll('.dock-button[data-variant]').forEach((button) => button.addEventListener('click', () => {
+      currentVariant = button.dataset.variant;
+      render();
+    }));
+    document.querySelectorAll('.state-choice').forEach((button) => button.addEventListener('click', () => {
+      currentState = button.dataset.state;
+      render();
+    }));
+    document.getElementById('motionButton').addEventListener('click', () => {
+      motionOn = !motionOn;
+      render();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === '1') currentVariant = 'earthbound';
+      if (event.key === '2') currentVariant = 'slate';
+      if (event.key === '3') currentVariant = 'woodcut';
+      if (event.key === 'd') currentState = 'downed';
+      if (event.key === 'r') currentState = 'resolution';
+      if (event.key === 'c') currentState = 'combat';
+      if (['1', '2', '3', 'd', 'r', 'c'].includes(event.key)) render();
+    });
+    render();
+  </script>
+</body>
+</html>

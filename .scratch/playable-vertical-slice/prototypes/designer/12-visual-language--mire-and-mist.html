@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en" data-state="combat" data-motion="on">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · Mire and Mist — Bold and Brave visual language (designer set)</title>
+<style>
+  :root {
+    --fog: #b9beb0; --fog-deep: #9aa294; --sky: #c6cab9;
+    --peat: #2f352e; --peat-2: #3a4038; --peat-soft: #57604f;
+    --water: #5c6a60; --moss: #6d7a5e;
+    --bone: #ece9dd; --bone-dim: #cfcaba;
+    --ally: #43584a; --ally-mark: #ece9dd;
+    --foe: #6e4a41; --foe-dim: #82645c;
+    --crimson: #96423a;
+    --paper: #ece9dd; --hairline: rgba(47,53,46,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--fog); color: var(--peat);
+    font: 15px/1.55 "Segoe UI","Helvetica Neue",Arial,sans-serif;
+    padding: 30px 22px 96px;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+  .eyebrow { margin: 0 0 6px; font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--peat-soft); }
+  h1 { margin: 0; font-family: Georgia,"Iowan Old Style",serif; font-weight: 400; font-size: 38px; font-style: italic; color: var(--peat); }
+  h1 .name { font-style: normal; border-bottom: 1px solid var(--peat); }
+  .lede { max-width: 66ch; color: var(--peat-2); margin: 10px 0 0; }
+  .tradeoff { margin: 16px 0 24px; padding: 10px 16px; background: var(--paper); border-top: 1px solid var(--peat); border-bottom: 1px solid var(--peat); max-width: 82ch; font-size: 14px; }
+  .tradeoff strong { color: var(--crimson); }
+
+  /* asymmetric editorial: journal margin left, Scene right */
+  .spread { display: grid; grid-template-columns: 296px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 940px) { .spread { grid-template-columns: 1fr; } }
+
+  .journal { background: var(--paper); border: 1px solid var(--hairline); padding: 16px 16px 12px; }
+  .journal h2 { margin: 0 0 10px; font-family: Georgia,serif; font-style: italic; font-weight: 400; font-size: 20px; border-bottom: 1px solid var(--hairline); padding-bottom: 8px; }
+  .entry { margin: 0 0 14px; }
+  .entry-label { display: block; font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--peat-soft); margin-bottom: 3px; }
+  .entry .value { font-size: 14px; }
+  .entry .value strong { font-weight: 600; }
+  .entry .sub { color: var(--peat-soft); font-size: 12px; }
+  .contract-line { display: flex; gap: 8px; align-items: baseline; }
+  .tick { width: 11px; height: 11px; border: 1px solid var(--peat); flex: 0 0 auto; transform: translateY(1px); position: relative; }
+  .tick.done::after { content: ""; position: absolute; inset: 2px; background: var(--peat); }
+
+  .gauge-row { display: flex; gap: 14px; align-items: flex-end; }
+  .tide { width: 18px; height: 92px; border: 1px solid var(--peat); position: relative; background: var(--paper); }
+  .tide-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; background: var(--water); }
+  [data-motion="on"] .tide-fill { animation: tide 6s ease-in-out infinite; }
+  @keyframes tide { 50% { height: 60.5%; } }
+  .tide-note { font-size: 12px; color: var(--peat-soft); }
+  .tide-note strong { display: block; font-size: 16px; color: var(--peat); font-weight: 600; }
+
+  .band-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+  .band-list li { display: flex; gap: 8px; align-items: baseline; }
+  .band-list .mark { width: 14px; height: 3px; background: var(--ally); flex: 0 0 auto; transform: translateY(-3px); }
+  .band-list .mark.foe { background: var(--foe); }
+  .band-list .mark.down { background: var(--bone-dim); }
+  .band-list .stat { margin-left: auto; color: var(--peat-soft); font-size: 11px; }
+
+  .reeds { display: flex; gap: 4px; align-items: flex-end; height: 34px; margin-top: 4px; }
+  .reeds span { width: 5px; background: var(--ally); }
+  .reeds span:nth-child(1) { height: 60%; } .reeds span:nth-child(2) { height: 75%; }
+  .reeds span:nth-child(3) { height: 90%; } .reeds span:nth-child(4) { height: 70%; }
+  .reeds span:nth-child(5) { height: 82%; } .reeds span:nth-child(6) { height: 55%; }
+  .reeds span:nth-child(7) { height: 68%; }
+  .reeds span.spent { background: var(--bone-dim); height: 22%; }
+
+  .cond-line { font-size: 13px; }
+  .cond-line .cond { font-weight: 600; }
+  .cond-line .cond.safe { color: var(--ally); }
+  /* Scene */
+  .stage { position: relative; border: 1px solid var(--hairline); background: var(--sky); }
+  .scene-svg { display: block; width: 100%; height: auto; }
+  .stage-caption { border-top: 1px solid var(--hairline); background: var(--paper); padding: 8px 14px; font-size: 12.5px; color: var(--peat-2); }
+  .stage-caption strong { color: var(--crimson); }
+
+  .compass { position: absolute; right: 12px; bottom: 12px; background: rgba(236,233,221,.85); border: 1px solid var(--hairline); padding: 6px 8px; }
+  .compass .grid { display: grid; grid-template-columns: repeat(3,16px); grid-auto-rows: 16px; gap: 2px; align-items: center; justify-items: center; font-size: 10px; color: var(--peat-soft); }
+  .compass .on { background: var(--peat); color: var(--bone); width: 16px; height: 16px; line-height: 16px; text-align: center; }
+  .compass .lbl { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--peat-soft); margin-top: 3px; text-align: center; }
+
+  /* tall thin figures */
+  .ally-body { fill: var(--ally); }
+  .ally-trim { fill: var(--ally-mark); }
+  .foe-body { fill: var(--foe); }
+  .bandit-body { fill: var(--foe-dim); }
+  .face { fill: var(--bone); }
+  .iron { fill: #55584e; }
+  .soft-shadow { fill: rgba(47,53,46,.22); }
+
+  [data-motion="on"] .sway { animation: sway 5.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes sway { 50% { transform: skewX(1.6deg); } }
+  [data-motion="on"] .heavy { animation: heavy 4.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes heavy { 50% { transform: scaleY(.985) translateY(2px); } }
+  [data-motion="on"] .reed { animation: reedSway 4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  [data-motion="on"] .reed.r2 { animation-delay: 1.3s; }
+  [data-motion="on"] .reed.r3 { animation-delay: 2.4s; }
+  @keyframes reedSway { 50% { transform: skewX(-4deg); } }
+
+  .fog-band { fill: var(--fog); opacity: .55; }
+  .fog-band.deep { fill: var(--fog-deep); opacity: .5; }
+  [data-motion="on"] .drift { animation: drift 22s ease-in-out infinite alternate; }
+  [data-motion="on"] .drift.d2 { animation-duration: 30s; animation-delay: -8s; }
+  @keyframes drift { from { transform: translateX(-46px); } to { transform: translateX(46px); } }
+  .fog-patch { fill: var(--fog); opacity: .92; transition: transform 1.2s ease-in-out; }
+  [data-state="resolution"] .fog-patch { transform: translateX(190px); opacity: .45; }
+
+  .hold-marker .diamond { fill: var(--bone); stroke: var(--peat); stroke-width: 2; }
+  .hold-marker .stake { stroke: var(--peat); stroke-width: 3.5; }
+  .hold-tag { fill: var(--bone); stroke: var(--hairline); }
+  .hold-text { fill: var(--peat); font: 600 10px "Segoe UI",Arial,sans-serif; letter-spacing: .18em; }
+
+  .telegraph { fill: none; stroke: var(--bone); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 26 10; }
+  [data-motion="on"] .telegraph { animation: condense 1.8s ease-in-out infinite; }
+  @keyframes condense { 0% { stroke-dashoffset: 36; opacity: .35; } 60% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: .35; } }
+  .telegraph-core { fill: none; stroke: var(--crimson); stroke-width: 2; stroke-dasharray: 26 10; }
+  [data-motion="on"] .telegraph-core { animation: condense 1.8s ease-in-out infinite; }
+
+  /* downed: swallowed by fog, marker stake only */
+  .downed-body { fill: var(--peat-soft); opacity: .85; }
+  .downed-stake { stroke: var(--peat); stroke-width: 3; }
+  .downed-cloth { fill: var(--bone-dim); }
+  .target-downed, .resolution-layer { display: none; }
+  [data-state="downed"] .target-live, [data-state="resolution"] .target-live { display: none; }
+  [data-state="downed"] .target-downed, [data-state="resolution"] .target-downed { display: block; }
+  [data-state="resolution"] .resolution-layer { display: block; }
+  [data-state="downed"] .telegraph, [data-state="downed"] .telegraph-core,
+  [data-state="resolution"] .telegraph, [data-state="resolution"] .telegraph-core { display: none; }
+  [data-state="downed"] .downed-id, [data-state="combat"] .downed-id { display: none; }
+
+  .name-tag { fill: var(--paper); stroke: var(--hairline); }
+  .name-text { fill: var(--peat); font: 600 13px Georgia,serif; }
+  .name-sub { fill: var(--peat-soft); font: 11px "Segoe UI",Arial,sans-serif; }
+  .chip { fill: var(--paper); stroke: var(--peat); stroke-width: 1.5; }
+  .chip-text { fill: var(--peat); font: 600 11px "Segoe UI",Arial,sans-serif; letter-spacing: .12em; }
+  .chip-sub { fill: var(--peat-soft); font: 9.5px "Segoe UI",Arial,sans-serif; }
+
+  .below { display: grid; grid-template-columns: 1fr 320px; gap: 20px; margin-top: 22px; }
+  @media (max-width: 900px) { .below { grid-template-columns: 1fr; } }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; }
+  .controls .group-label { width: 100%; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--peat-soft); margin: 6px 0 0; }
+  button { font: 600 13px "Segoe UI",Arial,sans-serif; color: var(--peat); background: var(--paper);
+    border: 1px solid var(--peat); padding: 8px 14px; cursor: pointer; border-radius: 999px; }
+  button[aria-pressed="true"] { background: var(--peat); color: var(--bone); }
+  button:hover { border-color: var(--crimson); }
+  button:focus-visible { outline: 2px solid var(--crimson); outline-offset: 2px; }
+  .readout { background: var(--paper); border: 1px solid var(--hairline); padding: 14px 16px; }
+  .readout h2 { margin: 0 0 8px; font-family: Georgia,serif; font-style: italic; font-weight: 400; font-size: 18px; }
+  .readout dl { margin: 0; display: grid; gap: 8px; }
+  .readout dt { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--peat-soft); }
+  .readout dd { margin: 1px 0 0; font-size: 13px; }
+  .footnote { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--peat); color: var(--peat-soft); font-size: 12px; }
+  .footnote strong { color: var(--crimson); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <p class="eyebrow">Throwaway prototype · issue 12 · designer set · not production UI</p>
+  <h1><span class="name">Mire and Mist</span> — a fog-drowned dawn at the bridge</h1>
+  <p class="lede">Cold morning fog over low water. The Band stands tall and reed-thin; the enemy comes hunched and wide through the mist. The interface leaves the Scene and lives in the margin as a field Journal. Compare with the other designer versions before any direction is chosen.</p>
+  <p class="tradeoff"><strong>Intended tradeoff:</strong> the strongest grounded-frontier mood of the three — oppressive quiet, figures half-lost in fog — but the lowest raw contrast, so readability is carried by shape language (upright versus hunched), bone-white marks, and motion rather than value separation.</p>
+  <div class="spread">
+    <aside class="journal" aria-label="Field journal interface">
+      <h2>Field Journal</h2>
+      <div class="entry">
+        <span class="entry-label">Local Contract · Accepted</span>
+        <div class="contract-line"><span class="tick done"></span><span class="value"><strong>Defend the bridge at Miller's Ford</strong></span></div>
+        <div class="contract-line"><span class="tick done"></span><span class="sub">Band mustered · Hold position set on the west end</span></div>
+        <div class="contract-line"><span class="tick" id="resolveTick"></span><span class="sub" id="resolveLine">Raiders not yet broken</span></div>
+      </div>
+      <div class="entry">
+        <span class="entry-label">Raid deadline · tide gauge</span>
+        <div class="gauge-row">
+          <div class="tide" aria-hidden="true"><div class="tide-fill" id="tideFill"></div></div>
+          <div class="tide-note">water falls to the mark<strong id="deadlineNote">08:42 left</strong>raid comes at low water</div>
+        </div>
+      </div>
+      <div class="entry">
+        <span class="entry-label">Band status</span>
+        <ul class="band-list">
+          <li><span class="mark"></span>Player <span class="stat">fighting</span></li>
+          <li><span class="mark"></span>Companion <span class="stat">holding</span></li>
+          <li><span class="mark"></span>Troop · spear <span class="stat">holding</span></li>
+          <li><span class="mark"></span>Troop · spear <span class="stat">holding</span></li>
+          <li><span class="mark foe" id="agentMark"></span>Enemy Agent <span class="stat" id="agentStat">in the mist</span></li>
+          <li><span class="mark foe"></span>Bandits ×2 <span class="stat">closing</span></li>
+        </ul>
+      </div>
+      <div class="entry">
+        <span class="entry-label">Stamina · 7 of 10</span>
+        <div class="reeds" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="spent"></span><span class="spent"></span><span class="spent"></span></div>
+      </div>
+      <div class="entry">
+        <span class="entry-label">Settlement condition</span>
+        <div class="cond-line"><span class="cond safe" id="settlementCond">Safe</span> <span id="settlementTail">while the mist holds</span></div>
+        <div class="sub" id="residentNote">Residents sheltered · 3 of 3</div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="stage" aria-label="Mire and Mist bridge-defense Scene">
+        <svg class="scene-svg" viewBox="0 0 1200 675" role="img" aria-label="Foggy dawn bridge-defense Scene: tall thin defenders face hunched bandits through drifting mist">
+          <rect width="1200" height="675" fill="#c6cab9"/>
+          <polygon points="0,360 200,318 380,356 560,314 760,358 960,318 1200,352 1200,470 0,470" fill="#aab3a0"/>
+          <rect x="0" y="400" width="1200" height="275" fill="#9aa294"/>
+          <polygon points="0,540 1200,522 1200,640 0,660" fill="#5c6a60"/>
+          <polygon points="0,540 1200,522 1200,536 0,554" fill="#6c7a6e"/>
+
+          <!-- far fog drift -->
+          <g class="drift d2">
+            <ellipse class="fog-band deep" cx="260" cy="380" rx="330" ry="46"/>
+            <ellipse class="fog-band deep" cx="880" cy="360" rx="380" ry="52"/>
+          </g>
+
+          <!-- low mossy settlement -->
+          <g>
+            <polygon points="86,366 158,336 228,362 228,428 86,436" fill="#8b937f"/>
+            <polygon points="72,366 158,320 244,358 226,372 158,342 88,376" fill="#6d7a5e"/>
+            <rect x="140" y="382" width="24" height="34" fill="#57604f"/>
+            <polygon points="958,368 1032,338 1102,362 1102,424 958,432" fill="#8b937f"/>
+            <polygon points="944,366 1032,322 1118,358 1100,372 1032,344 960,376" fill="#6d7a5e"/>
+            <rect x="1016" y="382" width="24" height="32" fill="#57604f"/>
+          </g>
+          <!-- residents: small quiet shapes at the doors -->
+          <g>
+            <g transform="translate(284 428) scale(.4)">
+              <polygon points="-12,40 -18,140 18,140 12,40" fill="#57604f"/>
+              <circle cx="0" cy="26" r="14" fill="#cfcaba"/>
+            </g>
+            <g transform="translate(918 430) scale(.38)">
+              <polygon points="-12,40 -18,140 18,140 12,40" fill="#57604f"/>
+              <circle cx="0" cy="26" r="14" fill="#cfcaba"/>
+            </g>
+          </g>
+
+          <!-- sagging mossy bridge -->
+          <polygon points="0,470 1200,448 1200,584 0,616" fill="#7b8468"/>
+          <polygon points="0,470 600,458 1200,448 1200,470 600,482 0,494" fill="#8f9a76"/>
+          <g fill="#57604f" opacity=".7">
+            <polygon points="120,492 146,491 140,592 112,594"/>
+            <polygon points="380,484 406,483 400,584 372,586"/>
+            <polygon points="640,476 666,475 660,576 632,578"/>
+            <polygon points="900,468 926,467 920,568 892,570"/>
+          </g>
+
+          <!-- reeds in the shallows -->
+          <g stroke="#43584a" stroke-width="4" fill="none">
+            <path class="reed" d="M120 640 Q118 590 124 552"/>
+            <path class="reed r2" d="M148 644 Q150 596 142 560"/>
+            <path class="reed r3" d="M1090 630 Q1088 584 1096 548"/>
+            <path class="reed r2" d="M1120 634 Q1124 590 1114 556"/>
+            <path class="reed" d="M700 648 Q698 604 706 572"/>
+          </g>
+
+          <!-- soft diffuse shadows -->
+          <g class="soft-shadow">
+            <ellipse cx="430" cy="560" rx="46" ry="8"/><ellipse cx="322" cy="570" rx="40" ry="7"/>
+            <ellipse cx="240" cy="582" rx="34" ry="6"/><ellipse cx="562" cy="578" rx="32" ry="6"/>
+            <ellipse cx="806" cy="548" rx="48" ry="8"/><ellipse cx="938" cy="538" rx="36" ry="6"/>
+            <ellipse cx="1012" cy="532" rx="32" ry="6"/>
+          </g>
+
+          <!-- Hold position marker: bone diamond on a peat stake, tagged -->
+          <g class="hold-marker" transform="translate(470 466)">
+            <line class="stake" x1="0" y1="0" x2="0" y2="-56"/>
+            <polygon class="downed-cloth" points="0,-56 30,-48 0,-40"/>
+            <polygon class="diamond" points="0,-10 15,0 0,10 -15,0"/>
+            <g transform="translate(0 26)">
+              <rect class="hold-tag" x="-26" y="-10" width="52" height="18" rx="2"/>
+              <text class="hold-text" x="0" y="3" text-anchor="middle">HOLD</text>
+            </g>
+          </g>
+
+          <!-- directional telegraph: bone-white arc condensing toward the swing, crimson core -->
+          <path class="telegraph" d="M730 500 Q796 434 852 386"/>
+          <path class="telegraph-core" d="M730 500 Q796 434 852 386"/>
+          <!-- Band: tall, thin, upright, bone woad marks -->
+          <g class="combatant sway" transform="translate(430 350)">
+            <polygon class="ally-body" points="-13,70 -20,212 20,212 13,70"/>
+            <polygon class="ally-trim" points="-13,70 13,70 12,84 -12,84"/>
+            <circle class="face" cx="0" cy="52" r="15"/>
+            <polygon class="ally-body" points="-15,44 0,26 15,44 11,52 -11,52"/>
+            <line x1="20" y1="200" x2="52" y2="10" stroke="#55584e" stroke-width="5"/>
+            <polygon class="iron" points="52,10 60,-14 58,12"/>
+          </g>
+          <g class="combatant sway" transform="translate(322 384) scale(.86)">
+            <polygon class="ally-body" points="-13,70 -20,212 20,212 13,70"/>
+            <polygon class="ally-trim" points="-13,70 13,70 12,84 -12,84"/>
+            <circle class="face" cx="0" cy="52" r="15"/>
+            <polygon class="ally-body" points="-15,44 0,26 15,44 11,52 -11,52"/>
+            <line x1="-20" y1="200" x2="-20" y2="6" stroke="#55584e" stroke-width="5"/>
+            <polygon class="ally-trim" points="-20,6 -34,32 -20,26 -6,32"/>
+          </g>
+          <g class="combatant sway" transform="translate(240 420) scale(.68)">
+            <polygon class="ally-body" points="-12,70 -19,204 19,204 12,70"/>
+            <circle class="face" cx="0" cy="53" r="14"/>
+            <polygon class="ally-trim" points="-13,44 0,28 13,44 10,51 -10,51"/>
+            <line x1="18" y1="192" x2="48" y2="16" stroke="#55584e" stroke-width="5"/>
+          </g>
+          <g class="combatant sway" transform="translate(562 426) scale(.64)">
+            <polygon class="ally-body" points="-12,70 -19,204 19,204 12,70"/>
+            <circle class="face" cx="0" cy="53" r="14"/>
+            <polygon class="ally-trim" points="-13,44 0,28 13,44 10,51 -10,51"/>
+            <line x1="18" y1="192" x2="48" y2="16" stroke="#55584e" stroke-width="5"/>
+          </g>
+
+          <!-- enemy Agent live: hunched, wide, low head, dull crimson rag -->
+          <g class="target-live">
+            <g class="combatant heavy" transform="translate(806 366)">
+              <polygon class="foe-body" points="-34,96 -40,188 40,188 34,96 14,72 -14,72"/>
+              <polygon class="crimson" fill="#96423a" points="-34,96 34,96 30,112 -30,112"/>
+              <circle class="face" cx="-6" cy="60" r="14"/>
+              <polygon class="foe-body" points="-24,52 -6,36 12,52 8,60 -20,60"/>
+              <polygon class="iron" points="30,120 84,84 90,92 38,134"/>
+              <polygon class="iron" points="84,84 98,60 90,92"/>
+            </g>
+          </g>
+          <!-- ordinary bandits: hunched, duller -->
+          <g class="combatant heavy" transform="translate(938 404) scale(.68)">
+            <polygon class="bandit-body" points="-30,92 -36,180 36,180 30,92 12,70 -12,70"/>
+            <circle class="face" cx="-5" cy="58" r="13"/>
+            <polygon class="bandit-body" points="-21,50 -5,36 10,50 7,58 -18,58"/>
+            <polygon class="iron" points="26,114 76,82 82,90 34,128"/>
+          </g>
+          <g class="combatant heavy" transform="translate(1012 412) scale(.6)">
+            <polygon class="bandit-body" points="-30,92 -36,180 36,180 30,92 12,70 -12,70"/>
+            <circle class="face" cx="-5" cy="58" r="13"/>
+            <polygon class="bandit-body" points="-21,50 -5,36 10,50 7,58 -18,58"/>
+            <polygon class="iron" points="26,114 76,82 82,90 34,128"/>
+          </g>
+
+          <!-- Downed: shape sinking under a fog patch, marker stake only, non-identifying -->
+          <g class="target-downed" transform="translate(806 524)">
+            <ellipse class="soft-shadow" cx="0" cy="22" rx="58" ry="9"/>
+            <polygon class="downed-body" points="-60,10 -38,-6 44,-4 62,12 40,26 -40,26"/>
+            <line class="downed-stake" x1="-30" y1="14" x2="-30" y2="-46"/>
+            <polygon class="downed-cloth" points="-30,-46 -6,-38 -30,-30"/>
+            <ellipse class="fog-patch" cx="10" cy="8" rx="120" ry="34"/>
+            <g class="downed-id" transform="translate(0 -84)">
+              <rect class="name-tag" x="-92" y="-24" width="184" height="44" rx="2"/>
+              <text class="name-text" x="0" y="-5" text-anchor="middle">Marta Vane — enemy Agent</text>
+              <text class="name-sub" x="0" y="11" text-anchor="middle">Downed · survived the battle</text>
+            </g>
+          </g>
+
+          <!-- post-battle decisions, set on the near fog line -->
+          <g class="resolution-layer" transform="translate(806 606)">
+            <g transform="translate(-150 0)">
+              <rect class="chip" x="-60" y="-15" width="120" height="32" rx="16"/>
+              <text class="chip-text" x="0" y="-1" text-anchor="middle">RELEASE</text>
+              <text class="chip-sub" x="0" y="11" text-anchor="middle">walks away · Disposition shift</text>
+            </g>
+            <g>
+              <rect class="chip" x="-60" y="-15" width="120" height="32" rx="16"/>
+              <text class="chip-text" x="0" y="-1" text-anchor="middle">CAPTURE</text>
+              <text class="chip-sub" x="0" y="11" text-anchor="middle">becomes a Captive</text>
+            </g>
+            <g transform="translate(150 0)">
+              <rect class="chip" x="-60" y="-15" width="120" height="32" rx="16"/>
+              <text class="chip-text" x="0" y="-1" text-anchor="middle">EXECUTE</text>
+              <text class="chip-sub" x="0" y="11" text-anchor="middle">Agent fate: Executed</text>
+            </g>
+          </g>
+
+          <!-- near fog drift over the deck -->
+          <g class="drift">
+            <ellipse class="fog-band" cx="220" cy="520" rx="300" ry="34"/>
+            <ellipse class="fog-band" cx="1020" cy="500" rx="330" ry="38"/>
+          </g>
+        </svg>
+        <div class="compass">
+          <div class="grid" aria-hidden="true">
+            <span></span><span>&#8593;</span><span></span>
+            <span>&#8592;</span><span>+</span><span class="on">&#8594;</span>
+            <span></span><span>&#8595;</span><span></span>
+          </div>
+          <div class="lbl">Guard · right</div>
+        </div>
+      </div>
+      <p class="stage-caption" id="stateBanner"><strong>Combat read.</strong> Bone-white telegraph condensing from the right sector; the Band holds the west end behind the HOLD stake.</p>
+    </section>
+  </div>
+  <div class="below">
+    <div>
+      <div class="controls" role="group" aria-label="Battle state">
+        <span class="group-label">Battle state (keys: C / D / R)</span>
+        <button class="state-btn" data-state="combat" aria-pressed="true">Combat read</button>
+        <button class="state-btn" data-state="downed" aria-pressed="false">Downed in battle</button>
+        <button class="state-btn" data-state="resolution" aria-pressed="false">Post-battle resolution</button>
+        <span class="group-label">Motion (key: M)</span>
+        <button id="motionBtn" aria-pressed="true">Motion on</button>
+      </div>
+      <p class="footnote"><strong>Human decision needed.</strong> This file is one of three throwaway designer treatments of the same bridge-defense Scene. No direction has been selected; nothing here is production UI. Open the sibling prototypes to compare.</p>
+    </div>
+    <aside class="readout" aria-label="Treatment readout">
+      <h2>What to inspect</h2>
+      <dl>
+        <div><dt>Silhouette</dt><dd>Tall, reed-thin uprights for the Band against wide, hunched enemies — allegiance reads from posture before color. Rank by headgear and the Companion's forked standard.</dd></div>
+        <div><dt>Palette</dt><dd>Desaturated peat, moss, and fog green-gray; bone white reserved for marks, the Hold stake, and the telegraph; one dull crimson rag on the enemy Agent.</dd></div>
+        <div><dt>Lighting</dt><dd>Fully diffuse dawn — no cast shadows worth reading, only soft ground patches; depth comes from drifting fog bands and overlap.</dd></div>
+        <div><dt>Motion language</dt><dd>Slow and heavy: grass sway, breath-weight sag, twenty-second fog drift; the condensing telegraph arc is the only quickening beat.</dd></div>
+        <div><dt>HUD density</dt><dd>Medium, and moved out of the Scene: a field-journal margin carries contract, deadline, Band status, stamina, and settlement condition; only a guard compass stays on the picture.</dd></div>
+        <div><dt>Downed language</dt><dd>A Downed combatant sinks under a fog patch with an unmarked stake — indistinguishable from dead until the mist parts on the name tag after the battle.</dd></div>
+      </dl>
+    </aside>
+  </div>
+</main>
+
+<script>
+  const root = document.documentElement;
+  const $ = (id) => document.getElementById(id);
+  const copy = {
+    combat: {
+      banner: "<strong>Combat read.</strong> Bone-white telegraph condensing from the right sector; the Band holds the west end behind the HOLD stake.",
+      deadline: "08:42 left", tide: "62%", resolved: false,
+      agentStat: "in the mist", agentDown: false,
+      cond: "Safe", tail: "while the mist holds", residents: "Residents sheltered · 3 of 3" },
+    downed: {
+      banner: "<strong>Downed in battle.</strong> The enemy Agent sinks under the fog with an unmarked stake — presented exactly like a dead combatant until the fight ends.",
+      deadline: "04:10 left", tide: "34%", resolved: false,
+      agentStat: "Downed", agentDown: true,
+      cond: "Safe", tail: "while the mist holds", residents: "Residents sheltered · 3 of 3" },
+    resolution: {
+      banner: "<strong>Post-battle resolution.</strong> The mist parts on a name: Release, Capture, or Execute is now a separate decision.",
+      deadline: "low water passed", tide: "8%", resolved: true,
+      agentStat: "survived", agentDown: true,
+      cond: "Safe", tail: "— the bridge held", residents: "Residents unharmed · 3 of 3" }
+  };
+  let state = "combat";
+  let motion = true;
+  function render() {
+    root.dataset.state = state;
+    root.dataset.motion = motion ? "on" : "off";
+    const c = copy[state];
+    $("stateBanner").innerHTML = c.banner;
+    $("deadlineNote").textContent = c.deadline;
+    $("tideFill").style.height = c.tide;
+    $("resolveTick").classList.toggle("done", c.resolved);
+    $("resolveLine").textContent = c.resolved ? "Raiders broken · contract Resolved" : "Raiders not yet broken";
+    $("agentStat").textContent = c.agentStat;
+    $("agentMark").classList.toggle("down", c.agentDown);
+    $("agentMark").classList.toggle("foe", !c.agentDown);
+    $("settlementCond").textContent = c.cond;
+    $("settlementTail").textContent = c.tail;
+    $("residentNote").textContent = c.residents;
+    document.querySelectorAll(".state-btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.state === state)));
+    const mb = $("motionBtn");
+    mb.textContent = motion ? "Motion on" : "Motion off";
+    mb.setAttribute("aria-pressed", String(motion));
+  }
+  document.querySelectorAll(".state-btn").forEach(b => b.addEventListener("click", () => { state = b.dataset.state; render(); }));
+  $("motionBtn").addEventListener("click", () => { motion = !motion; render(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "c") state = "combat";
+    else if (e.key === "d") state = "downed";
+    else if (e.key === "r") state = "resolution";
+    else if (e.key === "m") motion = !motion;
+    else return;
+    render();
+  });
+  render();
+</script>
+</body>
+</html>
