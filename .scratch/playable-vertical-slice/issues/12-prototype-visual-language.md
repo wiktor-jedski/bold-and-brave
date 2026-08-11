@@ -1,5 +1,5 @@
 Type: prototype
-Status: open
+Status: resolved
 Assignee: Codex
 
 # Find the visual language and readability bar
@@ -12,7 +12,7 @@ Which concrete low-poly shapes, proportions, palette, lighting, animation treatm
 
 ### 2026-08-11 — Prototype assets
 
-The comparison artifacts are ready for human review. No visual direction is selected.
+The first comparison artifacts were rejected during human review. The final decision is recorded below.
 
 #### Parent comparison
 
@@ -40,4 +40,19 @@ The comparison artifacts are ready for human review. No visual direction is sele
 
 - [Visual-language prototype prompt](../prompts/12-visual-language-prototype-prompt.md)
 
-The parent session smoke-checked all nine HTML artifacts locally. The ticket remains open for the human visual-language choice.
+The parent session smoke-checked all nine HTML artifacts locally. The first visual direction was rejected; the final decision is recorded below.
+
+### 2026-08-11 — Resolution
+
+**Decision:** Use a restrained third-person woodcut presentation with no explanatory HUD copy.
+
+- **Camera:** Use a third-person view of the player character in the Scene.
+- **Health:** Place a red health bar at the bottom of the screen. Show no label or explanation beside it.
+- **Contract and time:** Keep only `Defend the settlement` and the active time at the top-left of the screen.
+- **Directional action:** When Attack or Block is triggered, show the four-sector directional control in the center of the screen. Render the control white and semi-transparent; render the chosen direction opaque.
+- **Stamina:** Place a small white, semi-transparent stamina bar directly below the directional control.
+- **HUD discipline:** Do not add explanatory text or additional status panels.
+- **Post-battle resolution:** Show the enemy Agent kneeling in an open field, with an adjacent option box for Release, Capture, or Execute.
+- **Palette:** Use woodcut colors with strong silhouettes and restrained flat shading.
+
+This closes the visual-language decision. Production implementation remains out of scope for the map.
