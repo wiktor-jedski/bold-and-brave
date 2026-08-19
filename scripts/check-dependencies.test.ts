@@ -367,6 +367,102 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
+  it('fails on a core-to-browser dynamic import nested inside template interpolation', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), "const hint = `prefix ${import('../browser/main.js')} suffix`\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-to-browser')
+      expect(violations[0].imported).toBe('browser/main.ts')
+      expect(violations[0].specifier).toBe('../browser/main.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a browser dynamic import of a private Simulation implementation file nested inside template interpolation', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), "const hint = `prefix ${import('../core/simulation/implementation.js')} suffix`\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+      expect(violations[0].specifier).toBe('../core/simulation/implementation.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a browser dynamic import with an options argument nested inside template interpolation', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), "const hint = `prefix ${import('../core/simulation/implementation.js', { with: { type: 'json' } })} suffix`\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+      expect(violations[0].specifier).toBe('../core/simulation/implementation.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a core-to-browser dynamic import nested inside nested template interpolations', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), "const hint = `outer ${`inner ${import('../browser/main.js')} inner`} outer`\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-to-browser')
+      expect(violations[0].imported).toBe('browser/main.ts')
+      expect(violations[0].specifier).toBe('../browser/main.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a browser dynamic import of the public Simulation entry nested inside template interpolation', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'main.ts'), "const hint = `prefix ${import('../core/simulation/index.js')} suffix`\n")
+
+      expect(checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps an interpolated import argument non-static even inside template interpolation', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), 'const hint = `prefix ${import(`../${zone}/main.js`)} suffix`\n')
+
+      expect(checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('ignores import-like text inside multiline template literals', () => {
     const root = makeFixtureProject()
     try {
@@ -509,6 +605,43 @@ describe('import extraction (parser regression)', () => {
     ].join('\n')
 
     expect(extractImports(content)).toEqual([])
+  })
+
+  it('detects real dynamic imports inside template interpolation code', () => {
+    const content = [
+      "const a = `prefix ${import('./inside.js')} suffix`",
+      "const b = `prefix ${import(`./static-template.js`)} suffix`",
+      "const c = `prefix ${import('./opt.js', { with: { type: 'json' } })} suffix`",
+      "const d = `outer ${`inner ${import('./deep.js')} inner`} outer`",
+      "const e = `outer ${`inner ${import(`./deep-template.js`)} inner`} outer`",
+    ].join('\n')
+
+    expect(extractImports(content)).toEqual([
+      { specifier: './inside.js', line: 1 },
+      { specifier: './static-template.js', line: 2 },
+      { specifier: './opt.js', line: 3 },
+      { specifier: './deep.js', line: 4 },
+      { specifier: './deep-template.js', line: 5 },
+    ])
+  })
+
+  it('keeps interpolated import arguments non-static inside template interpolation', () => {
+    const content = [
+      "const a = `prefix ${import(`./${name}.js`)} suffix`",
+      "const b = `prefix ${import('./prefix' + suffix)} suffix`",
+      "const c = `prefix ${import(variable)} suffix`",
+    ].join('\n')
+
+    expect(extractImports(content)).toEqual([])
+  })
+
+  it('keeps import-like template text opaque alongside real interpolation imports', () => {
+    const content = [
+      "const s = `import { x } from './fake.js'`",
+      "const t = `text ${import('./real.js')} more`",
+    ].join('\n')
+
+    expect(extractImports(content)).toEqual([{ specifier: './real.js', line: 2 }])
   })
 
   it('preserves clause state across newlines and comments for every clause shape', () => {

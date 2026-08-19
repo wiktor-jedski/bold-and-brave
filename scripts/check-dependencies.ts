@@ -25,7 +25,8 @@
  * side-effect imports, and `import x = require('...')` assignments; any
  * token sequence outside that grammar is ignored. An interpolated template
  * specifier opens with a TemplateHead and is therefore never recorded as a
- * static import.
+ * static import. Template text stays opaque, but interpolation code inside
+ * `${...}` is real code, so dynamic imports nested there are detected.
  *
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
@@ -95,13 +96,13 @@ export function extractImports(content: string): ImportSpecifier[] {
 
   while (token.kind !== END_OF_FILE) {
     if (templateFrames.length > 0) {
-      token = scanTemplateInterpolation(scanner, token, templateFrames)
+      token = scanTemplateInterpolation(scanner, token, templateFrames, found, content)
     } else if (token.kind === SyntaxKind.ImportKeyword) {
       token = scanImport(scanner, found, content)
     } else if (token.kind === SyntaxKind.ExportKeyword) {
       token = scanExport(scanner, found, content)
     } else if (token.kind === SyntaxKind.TemplateHead) {
-      // An interpolated template literal begins; its content is opaque.
+      // An interpolated template literal begins; its text stays opaque.
       templateFrames.push(0)
       token = scanToken(scanner)
     } else {
@@ -113,13 +114,20 @@ export function extractImports(content: string): ImportSpecifier[] {
 }
 
 /**
- * Scan one token position inside a template interpolation. A closing brace
- * at depth zero ends the interpolation, so the scanner re-scans the
+ * Scan one token position inside a template interpolation. Template text is
+ * opaque, but interpolation code is real code: `import(...)` calls (and any
+ * import or export syntax present) inside `${...}` are detected. A closing
+ * brace at depth zero ends the interpolation, so the scanner re-scans the
  * template continuation (`reScanTemplateToken`) instead of tokenizing the
- * template text as code. Template text and interpolated expressions never
- * produce imports. Returns the next token to process.
+ * template text as code. Returns the next token to process.
  */
-function scanTemplateInterpolation(scanner: Scanner, token: Token, templateFrames: number[]): Token {
+function scanTemplateInterpolation(
+  scanner: Scanner,
+  token: Token,
+  templateFrames: number[],
+  found: ImportSpecifier[],
+  content: string,
+): Token {
   if (token.kind === SyntaxKind.OpenBraceToken) {
     templateFrames[templateFrames.length - 1] += 1
     return scanToken(scanner)
@@ -136,6 +144,12 @@ function scanTemplateInterpolation(scanner: Scanner, token: Token, templateFrame
     // A nested template literal inside the interpolation.
     templateFrames.push(0)
     return scanToken(scanner)
+  }
+  if (token.kind === SyntaxKind.ImportKeyword) {
+    return scanImport(scanner, found, content)
+  }
+  if (token.kind === SyntaxKind.ExportKeyword) {
+    return scanExport(scanner, found, content)
   }
   return scanToken(scanner)
 }
