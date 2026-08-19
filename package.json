@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "typecheck:core": "tsc -b tsconfig.core.json",
     "typecheck:browser": "tsc -b tsconfig.browser.json",
-    "test:simulation": "vitest run src/core/simulation"
+    "test:simulation": "vitest run src/core/simulation",
+    "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
+    "test:browser": "playwright test",
+    "check:dependencies": "bun scripts/check-dependencies.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
