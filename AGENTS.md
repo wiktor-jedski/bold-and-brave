@@ -33,6 +33,22 @@ Requirements - `docs/requirements.md`
 
 ## Testing
 
+### CI
+
+Check required dependencies and run all project tests - `scripts/ci-check.py`
+
 ### Planning
 
 Task list validation script - `scripts/validate-task-list.py`
+
+### Project scripts
+
+- Start the Vite development server - `bun run dev`
+- Build the browser application - `bun run build`
+- Preview the production build - `bun run preview`
+- Type-check platform-neutral core code - `bun run typecheck:core`
+- Type-check browser code - `bun run typecheck:browser`
+- Test the Simulation - `bun run test:simulation`
+- Test architecture boundaries - `bun run test:architecture`
+- Test the built browser application - `bun run test:browser`
+- Check dependency direction - `bun run check:dependencies`
