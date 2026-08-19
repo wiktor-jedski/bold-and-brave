@@ -29,6 +29,10 @@
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
  * violation.
+ *
+ * Each public operation (`extractImports`, `checkProject`) owns its own
+ * compiler-server instance and closes it before the operation settles, so
+ * a standalone process that awaits either helper can exit.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -83,102 +87,79 @@ const CONFIG_CONTENT = JSON.stringify({
   include: ['src'],
 })
 
-/** Module-level virtual filesystem; repopulated for every checked project. */
-const virtualFiles = new Map<string, string>()
-
-const virtualFileSystem: FileSystem = {
-  fileExists(fileName) {
-    return virtualFiles.has(fileName)
-  },
-  readFile(fileName) {
-    return virtualFiles.get(fileName)
-  },
-  realpath: (path) => path,
-  directoryExists(dir) {
-    for (const key of virtualFiles.keys()) {
-      if (key === dir || key.startsWith(`${dir}/`)) {
-        return true
-      }
-    }
-    return false
-  },
-  getAccessibleEntries(dir) {
-    // Like createVirtualFileSystem: return the child names relative to the
-    // queried directory, or `undefined` when the directory does not exist.
-    const prefix = dir === VIRTUAL_ROOT ? `${VIRTUAL_ROOT}/` : dir.endsWith('/') ? dir : `${dir}/`
-    const files = new Set<string>()
-    const directories = new Set<string>()
-    let found = false
-    for (const key of virtualFiles.keys()) {
-      if (!key.startsWith(prefix)) {
-        continue
-      }
-      found = true
-      const rest = key.slice(prefix.length)
-      const slash = rest.indexOf('/')
-      if (slash === -1) {
-        files.add(rest)
-      } else {
-        directories.add(rest.slice(0, slash))
-      }
-    }
-    return found ? { files: [...files], directories: [...directories] } : undefined
-  },
-}
-
-let apiPromise: Promise<API> | undefined
 let projectSequence = 0
 
-/** One compiler server instance is reused so a check never spawns it per file. */
-function getApi(): Promise<API> {
-  apiPromise ??= Promise.resolve().then(() => new API({ cwd: '/', fs: virtualFileSystem }))
-  return apiPromise
-}
-
-/** Stop the compiler server so a CLI run can exit. */
-async function closeApi(): Promise<void> {
-  if (apiPromise !== undefined) {
-    const api = await apiPromise
-    apiPromise = undefined
-    await api.close()
+/** A virtual filesystem view over one operation's file map. */
+function createFileSystem(virtualFiles: Map<string, string>): FileSystem {
+  return {
+    fileExists(fileName) {
+      return virtualFiles.has(fileName)
+    },
+    readFile(fileName) {
+      return virtualFiles.get(fileName)
+    },
+    realpath: (path) => path,
+    directoryExists(dir) {
+      for (const key of virtualFiles.keys()) {
+        if (key === dir || key.startsWith(`${dir}/`)) {
+          return true
+        }
+      }
+      return false
+    },
+    getAccessibleEntries(dir) {
+      // Like createVirtualFileSystem: return the child names relative to the
+      // queried directory, or `undefined` when the directory does not exist.
+      const prefix = dir === VIRTUAL_ROOT ? `${VIRTUAL_ROOT}/` : dir.endsWith('/') ? dir : `${dir}/`
+      const files = new Set<string>()
+      const directories = new Set<string>()
+      let found = false
+      for (const key of virtualFiles.keys()) {
+        if (!key.startsWith(prefix)) {
+          continue
+        }
+        found = true
+        const rest = key.slice(prefix.length)
+        const slash = rest.indexOf('/')
+        if (slash === -1) {
+          files.add(rest)
+        } else {
+          directories.add(rest.slice(0, slash))
+        }
+      }
+      return found ? { files: [...files], directories: [...directories] } : undefined
+    },
   }
-}
-
-/** Serialize compiler-server access; the virtual filesystem is process-wide. */
-let operationQueue: Promise<void> = Promise.resolve()
-
-function serialized<T>(task: () => Promise<T>): Promise<T> {
-  const result = operationQueue.then(task)
-  operationQueue = result.then(
-    () => undefined,
-    () => undefined,
-  )
-  return result
 }
 
 /**
  * Populate a fresh virtual project with `files` (keyed by their paths
  * relative to the project root, e.g. `src/core/a.ts`), open it, and run
- * `run` with the parsed project and its `src` prefix. Every call uses a
- * unique virtual root so the server never serves stale file contents.
+ * `run` with the parsed project and its `src` prefix.
+ *
+ * Each public operation owns its own compiler-server instance: the server
+ * is created here and always closed before the operation settles, so a
+ * standalone process that awaits `extractImports` or `checkProject` can
+ * exit. Every call uses a unique virtual root so the server never serves
+ * stale file contents.
  */
 async function withProject<T>(
   files: Record<string, string>,
   run: (project: Project, srcPrefix: string) => Promise<T>,
 ): Promise<T> {
-  return serialized(async () => {
-    const api = await getApi()
-    projectSequence += 1
-    const root = `${VIRTUAL_ROOT}-${projectSequence}`
-    const configPath = `${root}/tsconfig.json`
-    const srcPrefix = `${root}/src`
+  projectSequence += 1
+  const root = `${VIRTUAL_ROOT}-${projectSequence}`
+  const configPath = `${root}/tsconfig.json`
+  const srcPrefix = `${root}/src`
+  const virtualFiles = new Map<string, string>()
 
-    virtualFiles.clear()
-    virtualFiles.set(configPath, CONFIG_CONTENT)
-    for (const [relativePath, content] of Object.entries(files)) {
-      virtualFiles.set(`${root}/${relativePath}`, content)
-    }
+  virtualFiles.set(configPath, CONFIG_CONTENT)
+  for (const [relativePath, content] of Object.entries(files)) {
+    virtualFiles.set(`${root}/${relativePath}`, content)
+  }
 
+  const api = new API({ cwd: '/', fs: createFileSystem(virtualFiles) })
+  try {
     const snapshot = await api.updateSnapshot({ openProjects: [configPath], fileChanges: { invalidateAll: true } })
     try {
       const project = snapshot.getProject(configPath)
@@ -188,9 +169,10 @@ async function withProject<T>(
       return await run(project, srcPrefix)
     } finally {
       await snapshot.dispose()
-      virtualFiles.clear()
     }
-  })
+  } finally {
+    await api.close()
+  }
 }
 
 /**
@@ -377,12 +359,7 @@ function toPosix(path: string): string {
 
 async function main(): Promise<void> {
   const srcRoot = resolve('src')
-  let violations: DependencyViolation[]
-  try {
-    violations = await checkProject(srcRoot)
-  } finally {
-    await closeApi()
-  }
+  const violations = await checkProject(srcRoot)
 
   for (const violation of violations) {
     console.error(`[${violation.rule}] ${violation.importer}:${violation.line} imports ${violation.imported}`)

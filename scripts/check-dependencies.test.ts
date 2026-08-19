@@ -1,8 +1,12 @@
+import { execFile } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { checkProject, extractImports } from './check-dependencies'
+
+const execFileAsync = promisify(execFile)
 
 /** Create a controlled fixture project with empty `core` and `browser` zones. */
 function makeFixtureProject(): string {
@@ -633,5 +637,40 @@ describe('import extraction (parser regression)', () => {
       './multiline-export.js',
       './star-multiline.js',
     ])
+  })
+})
+
+describe('compiler-server lifecycle', () => {
+  it('lets a standalone Bun process exit after awaiting the public helpers', async () => {
+    const scriptDir = mkdtempSync(join(tmpdir(), 'bold-and-brave-standalone-'))
+    const checkerPath = join(process.cwd(), 'scripts', 'check-dependencies.ts')
+    const script = [
+      `import { extractImports, checkProject } from ${JSON.stringify(checkerPath)}`,
+      `import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'`,
+      `import { tmpdir } from 'node:os'`,
+      `import { join } from 'node:path'`,
+      `const specifiers = await extractImports("import { x } from './y.js'\\n")`,
+      `const root = mkdtempSync(join(tmpdir(), 'standalone-fixture-'))`,
+      `mkdirSync(join(root, 'core'))`,
+      `mkdirSync(join(root, 'browser'))`,
+      `writeFileSync(join(root, 'core', 'a.ts'), "import { x } from './b.ts'\\n")`,
+      `writeFileSync(join(root, 'core', 'b.ts'), 'export const x = 1\\n')`,
+      `writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\\n')`,
+      `const violations = await checkProject(root)`,
+      `console.log(JSON.stringify({ specifiers, violations }))`,
+    ].join('\n')
+    const scriptPath = join(scriptDir, 'standalone.ts')
+    writeFileSync(scriptPath, script)
+    try {
+      // The process must print its result and exit; a leaked compiler
+      // server keeps the event loop alive and makes execFile time out.
+      const { stdout } = await execFileAsync('bun', [scriptPath], { timeout: 10000, cwd: process.cwd() })
+      expect(JSON.parse(stdout)).toEqual({
+        specifiers: [{ specifier: './y.js', line: 1 }],
+        violations: [],
+      })
+    } finally {
+      rmSync(scriptDir, { recursive: true, force: true })
+    }
   })
 })
