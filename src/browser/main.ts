@@ -1,7 +1,8 @@
-import { APPLICATION_NAME } from '../core'
+import { createBrowserApplication } from './compositionRoot'
 
 const app = document.querySelector('#app')
 
 if (app !== null) {
-  app.textContent = APPLICATION_NAME
+  const application = createBrowserApplication()
+  app.textContent = application.name
 }
