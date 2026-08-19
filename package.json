@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck:core": "tsc -b tsconfig.core.json",
-    "typecheck:browser": "tsc -b tsconfig.browser.json"
+    "typecheck:browser": "tsc -b tsconfig.browser.json",
+    "test:simulation": "vitest run src/core/simulation"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
