@@ -23,4 +23,10 @@ Use the default five canonical triage labels. See `docs/agents/triage-labels.md`
 
 This is a single-context repo using root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
-### Task list
+### Planning inputs
+
+Phase plan - `docs/implementation/plan.md`
+Task list - `docs/implementation/task-list.md`
+Open items/issues - `docs/agents/issue-tracker.md`
+Architecture - `docs/architecture.md`
+Requirements - `docs/requirements.md`
