@@ -17,3 +17,9 @@ Create a new file under `.scratch/<feature-slug>/` (creating the directory if ne
 ## When a skill says “fetch the relevant ticket”
 
 Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+
+## Phase 1 — Repository description
+
+### Testing coverage deviations
+
+- No automated test or command is planned because the task changes repository documentation only. Review compares the rendered `README.md` with `CONTEXT.md`, `docs/requirements.md`, and `docs/architecture.md`.

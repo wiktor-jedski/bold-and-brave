@@ -30,29 +30,17 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ## Governance
 
-### Phase 0 — Handoff gate
+### Phase 1 — Repository description
 
-**Result:** The deterministic specification audit accepts the current contract. It blocks handoff after an invalid normative change. This plan adds no new product decision and no task-level design.
+**Result:** `README.md` gives a concise description of the Playable Vertical Slice, uses the canonical terms, links `CONTEXT.md`, `docs/requirements.md`, and `docs/architecture.md`, and does not contain the obsolete full-game feature list.
 
-**Requirements closed:** REQ-005, REQ-152, REQ-165, REQ-166.
+**Requirements closed:** None.
 
-**Phase check:** Run the audit with one valid contract and with one controlled invalid change. The valid contract permits handoff. The invalid contract blocks handoff.
+**Phase check:** Review the rendered `README.md` against the three linked normative sources. It contains no obsolete wishlist item and makes no product promise outside the current Playable Vertical Slice.
 
-**Acceptance link:** `CP-SPEC-AUDIT`.
+**Acceptance link:** None.
 
-**Review focus:** Confirm that the plan only groups existing requirements.
-
-### Phase 1 — Scope fence
-
-**Result:** The Playable Vertical Slice contains only the specified scope. An excluded system has no playable path, control, panel, placeholder text, disabled control, or acceptance checkpoint. Only a new specification decision can change the scope.
-
-**Requirements closed:** REQ-004, REQ-153, REQ-154, REQ-155, REQ-156, REQ-157, REQ-158, REQ-159, REQ-160, REQ-161, REQ-162, REQ-163, REQ-164.
-
-**Phase check:** Run the scope audit on the plan, content catalog, controls, panels, and checkpoint catalog. The audit finds no excluded system.
-
-**Acceptance link:** `CP-SPEC-AUDIT`.
-
-**Review focus:** Reject extra systems, including disabled or empty controls.
+**Review focus:** Confirm that `README.md` is short, accurate, and does not duplicate the normative contracts.
 
 ## Core runtime and browser delivery
 
@@ -264,9 +252,9 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 19 — Recruitment and equipment
 
-**Result:** The Journal offers four fixed Troop candidates before battle. The player can recruit zero to four Troops. Each confirmed recruitment costs 25 Coin once. Insufficient Coin or a started raid changes no state. The player, Companion, and Troops use only their fixed loadouts. The default accepted preparation has two Troops and 50 Coin. No excluded preparation system is present.
+**Result:** The Journal offers four fixed Troop candidates before battle. The player can recruit zero to four Troops. Each confirmed recruitment costs 25 Coin once. Insufficient Coin or a started raid changes no state. The player, Companion, and Troops use only their fixed loadouts. The default accepted preparation has two Troops and 50 Coin.
 
-**Requirements closed:** REQ-078, REQ-079, REQ-080, REQ-081, REQ-087, REQ-088.
+**Requirements closed:** REQ-078, REQ-079, REQ-080, REQ-081, REQ-088.
 
 **Phase check:** Exercise zero through four recruits, repeated selection, insufficient Coin, and recruitment after raid start. Inspect Band state and Coin after each command.
 

@@ -32,7 +32,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-004, REQ-007–REQ-009, REQ-017–REQ-032, REQ-034, REQ-036–REQ-053, REQ-055–REQ-059, REQ-061–REQ-066, REQ-068–REQ-076, REQ-078, REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-110–REQ-111, REQ-114, REQ-116, REQ-121, REQ-154, REQ-157–REQ-158, REQ-162 |
+| Requirements | REQ-001–REQ-002, REQ-004, REQ-007–REQ-009, REQ-017–REQ-032, REQ-034, REQ-036–REQ-053, REQ-055–REQ-059, REQ-061–REQ-066, REQ-068–REQ-076, REQ-078, REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-110–REQ-111, REQ-114, REQ-116, REQ-121 |
 | Dependencies | ARCH-002, ARCH-003, ARCH-004, ARCH-005, ARCH-013, ARCH-014, ARCH-016 |
 
 **Responsibility:** Own all mutable gameplay state and apply all campaign and battle rules.
@@ -58,7 +58,7 @@ flowchart LR
 | --- | --- |
 | Type | Data |
 | Status | Active |
-| Requirements | REQ-001, REQ-008–REQ-009, REQ-017–REQ-018, REQ-021, REQ-024–REQ-032, REQ-034, REQ-036–REQ-038, REQ-043–REQ-047, REQ-051–REQ-054, REQ-056–REQ-059, REQ-061, REQ-067–REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-123, REQ-157–REQ-158, REQ-162 |
+| Requirements | REQ-001, REQ-008–REQ-009, REQ-017–REQ-018, REQ-021, REQ-024–REQ-032, REQ-034, REQ-036–REQ-038, REQ-043–REQ-047, REQ-051–REQ-054, REQ-056–REQ-059, REQ-061, REQ-067–REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-123 |
 | Dependencies | ARCH-016 |
 
 **Responsibility:** Hold the only mutable truth for campaign and battle play.
@@ -146,7 +146,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146, REQ-160 |
+| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146 |
 | Dependencies | ARCH-002, ARCH-006, ARCH-016 |
 
 **Responsibility:** Render Scenes and visual feedback from read-only gameplay output.
@@ -159,7 +159,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-016, REQ-022–REQ-023, REQ-025, REQ-027, REQ-030–REQ-032, REQ-034, REQ-038, REQ-070, REQ-073, REQ-078, REQ-080, REQ-084, REQ-086, REQ-088, REQ-091, REQ-096–REQ-098, REQ-110, REQ-121, REQ-131–REQ-133, REQ-163 |
+| Requirements | REQ-001–REQ-002, REQ-016, REQ-022–REQ-023, REQ-025, REQ-027, REQ-030–REQ-032, REQ-034, REQ-038, REQ-070, REQ-073, REQ-078, REQ-080, REQ-084, REQ-086, REQ-088, REQ-091, REQ-096–REQ-098, REQ-110, REQ-121, REQ-131–REQ-133 |
 | Dependencies | ARCH-002, ARCH-006, ARCH-007 |
 
 **Responsibility:** Present essential text and actions through semantic HTML and CSS.
@@ -172,7 +172,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-044–REQ-045, REQ-061–REQ-062, REQ-093, REQ-099–REQ-110, REQ-120–REQ-121, REQ-160 |
+| Requirements | REQ-001–REQ-002, REQ-044–REQ-045, REQ-061–REQ-062, REQ-093, REQ-099–REQ-110, REQ-120–REQ-121 |
 | Dependencies | ARCH-002, ARCH-006 |
 
 **Responsibility:** Turn typed feedback events into the specified Web Audio presentation.
@@ -241,7 +241,7 @@ flowchart LR
 | --- | --- |
 | Type | Data |
 | Status | Active |
-| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-032–REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-067, REQ-069, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121, REQ-153–REQ-154, REQ-160, REQ-162–REQ-163 |
+| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-032–REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-067, REQ-069, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121 |
 | Dependencies | None |
 
 **Responsibility:** Define immutable authored gameplay and presentation content.
@@ -346,7 +346,7 @@ flowchart LR
 | --- | --- |
 | Type | Mechanism |
 | Status | Active |
-| Requirements | REQ-011, REQ-014, REQ-109, REQ-134–REQ-138, REQ-161 |
+| Requirements | REQ-011, REQ-014, REQ-109, REQ-134–REQ-138 |
 | Dependencies | ARCH-006, ARCH-008, ARCH-009, ARCH-011, ARCH-022, WebGPU, Web Audio |
 
 **Responsibility:** Fail closed before gameplay and stop gameplay when browser capabilities fail.
@@ -361,7 +361,7 @@ flowchart LR
 | --- | --- |
 | Type | Deployment |
 | Status | Active |
-| Requirements | REQ-001, REQ-010–REQ-015, REQ-111, REQ-116, REQ-135, REQ-139–REQ-140, REQ-159, REQ-161 |
+| Requirements | REQ-001, REQ-010–REQ-015, REQ-111, REQ-116, REQ-135, REQ-139–REQ-140 |
 | Dependencies | ARCH-006, ARCH-009, ARCH-010, ARCH-011, ARCH-013, ARCH-018, ARCH-023 |
 
 **Responsibility:** Place the complete Playable Vertical Slice in one local-state browser application.
@@ -438,7 +438,6 @@ flowchart LR
 | REQ-002 | Representative-quality priorities | ARCH-001, ARCH-004, ARCH-009, ARCH-010, ARCH-011, ARCH-012 |
 | REQ-003 | First-playthrough duration | ARCH-025, ARCH-027, ARCH-028 |
 | REQ-004 | Deliberate scope simplicity | ARCH-001, ARCH-016 |
-| REQ-005 | Self-contained contract | No architecture impact — Document-governance requirement; it does not constrain runtime architecture. |
 | REQ-006 | Frontier setting and player magic | ARCH-009, ARCH-016 |
 | REQ-007 | Playable population and spaces | ARCH-001, ARCH-009, ARCH-016 |
 | REQ-008 | Battle Band composition | ARCH-001, ARCH-003, ARCH-004, ARCH-016 |
@@ -520,7 +519,6 @@ flowchart LR
 | REQ-084 | Provisions floor and display | ARCH-001, ARCH-003, ARCH-010 |
 | REQ-085 | Non-moving consumption exclusions | ARCH-001, ARCH-003, ARCH-005 |
 | REQ-086 | Local Contract reward | ARCH-001, ARCH-003, ARCH-010 |
-| REQ-087 | Excluded preparation systems | No architecture impact — Scope exclusion; no architecture element implements an excluded preparation system. |
 | REQ-088 | Recruitment interaction and failure | ARCH-001, ARCH-003, ARCH-007, ARCH-010 |
 | REQ-089 | Representative visual language | ARCH-009, ARCH-016 |
 | REQ-090 | Scene camera and health display | ARCH-009 |
@@ -585,18 +583,5 @@ flowchart LR
 | REQ-149 | Acceptance checkpoint catalog | ARCH-026, ARCH-027 |
 | REQ-150 | Acceptance scenario execution | ARCH-002, ARCH-025, ARCH-026, ARCH-027 |
 | REQ-151 | Generated evidence provenance | ARCH-026, ARCH-027 |
-| REQ-152 | Exclude implementation planning details | No architecture impact — Specification and phase-planning constraint; it does not define runtime architecture. |
-| REQ-153 | Exclude alternate terrain and crossing variants | ARCH-016 |
-| REQ-154 | Exclude a raider-aligned path | ARCH-001, ARCH-016 |
-| REQ-155 | Exclude additional world and equipment systems | No architecture impact — Scope exclusion; no architecture element implements the excluded capability. |
-| REQ-156 | Exclude large-scale and delegated systems | No architecture impact — Scope exclusion; no architecture element implements the excluded capability. |
-| REQ-157 | Exclude Band morale and related needs | ARCH-001, ARCH-003 |
-| REQ-158 | Exclude detailed Captive systems | ARCH-001, ARCH-003 |
-| REQ-159 | Exclude online and remote-state systems | ARCH-024 |
-| REQ-160 | Exclude generative and adaptive media | ARCH-009, ARCH-011, ARCH-016 |
-| REQ-161 | Exclude unsupported rendering and input modes | ARCH-023, ARCH-024 |
-| REQ-162 | Exclude additional progression and recovery behavior | ARCH-001, ARCH-003, ARCH-016 |
-| REQ-163 | Excluded-system enforcement | ARCH-010, ARCH-016 |
-| REQ-164 | Explicit scope change | No architecture impact — Scope-governance requirement; architecture changes follow a later approved specification. |
 | REQ-165 | Specification completeness gate | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
 | REQ-166 | Specification audit lifecycle | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
