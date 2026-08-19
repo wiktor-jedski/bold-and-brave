@@ -30,6 +30,7 @@ The slice begins with preparation in a frontier settlement, resolves a small dir
 ## Decisions so far
 
 - [Find the directional combat control and feedback model](issues/01-prototype-directional-combat.md) — Use a stable over-the-shoulder camera and a shared four-sector drag gesture: hold to preview an attack or guard direction, then release to commit the attack or leave guard.
+- [Survey the current Three.js browser-game stack](issues/02-research-threejs-game-stack.md) — Use a fixed-step simulation core with seeded scenarios, Rapier 3D collision and movement, authored anchors behind a replaceable navigation seam, glTF/AnimationMixer presentation, IndexedDB saves, and Playwright evidence capture.
 - [Define the combat model and equipment roles](issues/03-define-combat-model.md) — Use Mount & Blade-style committed attacks with guard-cancel feints, directional sword/staff guards, omnidirectional stamina-limited shields, multi-target weapon paths, and explicit Downed/death rules.
 - [Define Band commands and combatant behavior](issues/04-define-band-commands-and-combat-ai.md) — Use separately ordered Companion and Troop groups with Follow, visible-marker Hold, and automatic-target Engage orders; the enemy Agent coordinates readable bandit pressure.
 - [Define the raid interception and battle flow](issues/05-define-raid-battle-flow.md) — Use a bridge setup or late settlement-center emergency, resident-protection victory conditions, binary Safe/Damaged settlement consequences, and immediate victory-resolution or defeat-summary exits.
@@ -37,15 +38,19 @@ The slice begins with preparation in a frontier settlement, resolves a small dir
 - [Define settlement interaction and contract flow](issues/07-define-settlement-and-contract-flow.md) — Use Talk, Wait, Journal, and Leave around one defense Local Contract, with a visible Raid deadline that selects bridge setup or a late settlement-center emergency.
 - [Define recruitment, equipment, Coin, and Provisions](issues/08-define-preparation-economy.md) — Use four fixed Staff Troop candidates at 25 Coin each, 100 starting Coin, 10 starting Provisions, and a single 0.2-per-member-per-Overworld-day upkeep rate.
 - [Define Overworld travel, time, and Scene transitions](issues/10-define-overworld-time-and-scenes.md) — Use a free-roaming 3D Overworld with direct click-to-move, distance-based time, Space pause, 1×–4× speed controls, and one settlement Scene for both battle starts.
+- [Define local campaign saves and restoration](issues/11-define-local-save-model.md) — Use three manual slots and one separate rolling autosave for complete validated non-combat campaign snapshots, with exact restoration, visible no-save failure, and explicit deletion/reset controls.
 - [Define player Feat progression](issues/09-define-player-feat-progression.md) — Any victory unlocks one permanent choice among Rapid Guard, Rapid Attack, and Rapid Stamina after survivor-fate resolution; defeat grants none.
 - [Find the visual language and readability bar](issues/12-prototype-visual-language.md) — Use a third-person camera and minimal white translucent HUD: bottom red health bar, top-left settlement defense/time, center four-sector Attack/Block control with opaque selected direction and stamina below; resolve Agent fate beside a kneeling Agent in a field with woodcut colors.
+- [Define the audio language and feedback priorities](issues/13-define-audio-language.md) — Use combat-first feedback with four-sector pitch cues, sparse nonverbal command and state sounds, one unvaried movement layer, Downed-only Agent reaction, and a single low non-adaptive music layer.
+- [Choose the Three.js slice architecture](issues/14-choose-technical-architecture.md) — Use one deep fixed-step Simulation with Rapier movement, strict presentation and adapter seams, typed manifests, shared deterministic scenarios, and WebGPU-only rendering.
+- [Prove screenshot and video evidence for AI vision testing](issues/15-prototype-vision-test-evidence.md) — Use an agent-native harness with deterministic seeds and checkpoints, machine-readable snapshots and assertions, and automatic screenshots only for visual claims; use clips only for transitions or timing.
+- [Establish the WebGPU browser and device envelope](issues/16-research-webgpu-browser-envelope.md) — WebGPU support is browser/OS/GPU specific; require secure-context capability checks, fail closed against Three.js WebGL2 fallback, explicit loading/device-loss states, and semantic DOM alternatives.
+- [Define the WebGPU slice support envelope](issues/19-define-webgpu-support-envelope.md) — Promise one tested Chromium/Linux desktop row with a named GPU and driver, core WebGPU only, 60-frame target and 30-frame floor, Scene loading with console diagnostics, and normal keyboard-and-mouse controls.
+- [Tune the Playable Vertical Slice encounter](issues/17-prototype-slice-tuning.md) — Use two default Troops, a 12-hour deadline with 15-second bridge setup, authored player-advantage movement, readable sector damage/timing, 100-max stamina, and a 3–5 minute competent battle.
+- [Structure the Playable Vertical Slice handoff specification](issues/18-structure-slice-handoff-spec.md) — Use one self-contained, subsystem-first normative contract with explicit requirement classes, state and flow tables, evidence traceability, and no in-scope unresolved decisions.
 
 ## Not yet specified
 
-- Exact tuning targets, content values, and encounter balance cannot be specified until combat, Band AI, economy, and contract-flow decisions are resolved.
-- Browser performance budgets, supported browser/device envelope, loading strategy, and accessibility baseline depend on the technical architecture and implementation constraints.
-- The final set of deterministic acceptance scenarios and their observable rubrics depends on the resolved game-state model and vision-evidence prototype.
-- The precise organization of the handoff specification will become visible as subsystem decisions accumulate in this map.
 - The future Band morale model, including how battle outcomes, missing Provisions, Local Contract decisions, travel without camping, and entertainment affect Band retention, is not yet specified.
 
 ## Out of scope

@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROTOTYPE — Bold and Brave evidence workbench</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      --page: #111417;
+      --panel: #1a1f22;
+      --panel-2: #22292d;
+      --ink: #f3efe2;
+      --muted: #aab0ab;
+      --line: #3c4548;
+      --safe: #9bd39c;
+      --danger: #f07458;
+      --gold: #e4be6b;
+      --blue: #8fc4d0;
+      --purple: #c5a8e8;
+      --shadow: rgba(4, 6, 7, .58);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--panel-2) 72%, transparent), var(--page) 62%);
+      color: var(--ink);
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .page { width: min(1480px, 100%); margin: 0 auto; padding: 28px 24px 72px; }
+    .eyebrow { margin: 0 0 8px; color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 950px; margin-bottom: 10px; font-size: clamp(26px, 3.2vw, 44px); line-height: 1.02; letter-spacing: -.035em; }
+    h2 { margin-bottom: 14px; font-size: 17px; }
+    h3 { margin-bottom: 6px; font-size: 13px; }
+    .lede { max-width: 900px; margin-bottom: 20px; color: var(--muted); font-size: 15px; line-height: 1.55; }
+    .prototype-note { display: inline-flex; gap: 8px; align-items: center; margin-bottom: 20px; padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--gold) 52%, var(--line)); border-radius: 999px; color: #f2dfaa; background: color-mix(in srgb, var(--gold) 9%, transparent); font-size: 12px; }
+    .prototype-note::before { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); content: ""; }
+    .controls, .card, .readout { border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: 0 18px 54px var(--shadow); }
+    .controls { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr auto; gap: 12px; align-items: end; margin-bottom: 16px; padding: 14px; }
+    .field { display: grid; gap: 6px; }
+    label, .field-label { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    input, select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--panel-2); }
+    .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .button { min-height: 38px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #293034; }
+    .button:hover { border-color: var(--gold); background: #343b3e; }
+    .button.primary { border-color: color-mix(in srgb, var(--gold) 66%, var(--line)); color: #201a10; background: var(--gold); }
+    .button.primary:hover { background: #f0cc7d; }
+    .button.toggled { border-color: var(--blue); color: #102027; background: var(--blue); }
+    .workbench { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(330px, .82fr); gap: 16px; align-items: start; }
+    .card { padding: 14px; }
+    .scene-card { padding: 12px; }
+    .scene-wrap { position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 11px; background: #6c725f; }
+    .scene { display: block; width: 100%; aspect-ratio: 16 / 9; }
+    .scene svg { display: block; width: 100%; height: 100%; }
+    .scene text { font-family: inherit; }
+    .scene .sky { fill: #9b9b7c; }
+    .scene .cloud { fill: #d3c89b; opacity: .45; }
+    .scene .far { fill: #566454; }
+    .scene .ground { fill: #756c52; }
+    .scene .water { fill: #5f7471; }
+    .scene .wood { fill: #765639; }
+    .scene .stone { fill: #a59a75; }
+    .scene .player { fill: #e5c05e; }
+    .scene .ally { fill: #a9bd75; }
+    .scene .enemy { fill: #9a4d3e; }
+    .scene .marker { fill: var(--gold); stroke: #332614; stroke-width: 3; }
+    .scene .danger-ring { fill: none; stroke: #f5d45f; stroke-width: 4; stroke-dasharray: 9 7; }
+    .scene .caption { fill: #201a10; opacity: .88; }
+    .scene .caption-text { fill: #f2e7c9; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
+    .scene-overlay { position: absolute; inset: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+    .scene-tag { padding: 6px 8px; border: 1px solid rgba(242, 231, 201, .28); border-radius: 6px; color: #f2e7c9; background: rgba(23, 21, 17, .72); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    .checkpoint-callout { position: absolute; right: 20px; bottom: 18px; max-width: 250px; padding: 10px 12px; border-left: 3px solid var(--gold); color: #f2e7c9; background: rgba(23, 21, 17, .84); font-size: 12px; line-height: 1.4; }
+    .scene-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .scene-actions p { margin: 0; color: var(--muted); font-size: 12px; }
+    .state-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .state-cell { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: #161b1d; }
+    .state-cell strong, .state-cell span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .state-cell strong { margin-top: 4px; color: var(--ink); font-size: 13px; }
+    .state-cell span { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .rail { display: grid; gap: 10px; }
+    .phase-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+    .phase-button { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-align: left; background: #161b1d; }
+    .phase-button:hover { border-color: var(--gold); }
+    .phase-button[aria-current="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, #161b1d); }
+    .phase-number { color: var(--gold); font-weight: 800; }
+    .phase-name { font-size: 13px; font-weight: 750; }
+    .phase-detail { color: var(--muted); font-size: 11px; }
+    .status { align-self: center; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .status.ready { color: var(--safe); }
+    .status.partial { color: var(--gold); }
+    .status.missing { color: var(--danger); }
+    .checklist { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .check { display: grid; grid-template-columns: 19px 1fr; gap: 8px; align-items: start; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: #161b1d; }
+    .check input { width: 16px; min-height: 16px; margin: 1px 0 0; accent-color: var(--safe); }
+    .check strong { display: block; margin-bottom: 2px; font-size: 12px; }
+    .check span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .rubric { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+    .rubric:last-child { border-bottom: 0; }
+    .rubric strong { font-size: 12px; }
+    .rubric p { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .badge { padding: 3px 6px; border-radius: 999px; font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .badge.pass { color: #172318; background: var(--safe); }
+    .badge.fail { color: #2c130f; background: var(--danger); }
+    .badge.wait { color: #2b2110; background: var(--gold); }
+    .video-timeline { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3px; margin: 10px 0 7px; }
+    .video-segment { min-height: 28px; padding: 6px 4px; border-radius: 4px; color: #181411; background: var(--blue); font-size: 10px; font-weight: 800; text-align: center; }
+    .video-segment:nth-child(2) { background: var(--gold); }
+    .video-segment:nth-child(3) { background: var(--danger); }
+    .video-segment:nth-child(4) { background: var(--safe); }
+    .fine { color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .manifest { margin-top: 16px; }
+    .manifest pre { overflow: auto; max-height: 200px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: #d8e4de; background: #0f1315; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .event-log { margin-top: 16px; }
+    .event-log output { display: block; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: #e9d9ae; background: #161b1d; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 960px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .workbench { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .page { padding: 22px 14px 48px; }
+      .controls { grid-template-columns: 1fr; }
+      .state-strip { grid-template-columns: 1fr 1fr; }
+      .scene-actions { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">Issue 15 · prototype</p>
+    <h1>Evidence workbench for AI vision review</h1>
+    <p class="lede">Try one seeded run from preparation through settlement return. The workbench makes the proposed contract concrete: resettable scenario controls, fixed visual checkpoints, a short clip recipe, visible rubrics, and conventional assertions in one evidence packet.</p>
+    <div class="prototype-note">Throwaway artifact — decide the evidence contract, not the production UI</div>
+
+    <section class="controls" aria-label="Deterministic scenario controls">
+      <div class="field">
+        <label for="scenario">Scenario preset</label>
+        <select id="scenario">
+          <option value="bridge-win">Bridge defense · clean victory</option>
+          <option value="late-win">Settlement response · late victory</option>
+          <option value="bridge-loss">Bridge defense · defeat summary</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="seed">Scenario seed</label>
+        <input id="seed" value="ironbridge-15-a" spellcheck="false" aria-describedby="seed-help">
+        <span id="seed-help" class="fine">Same seed + preset = same actors, timing, and checkpoint labels.</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Run controls</span>
+        <div class="button-row">
+          <button class="button" id="reset" type="button">Reset run</button>
+          <button class="button" id="previous" type="button">← Previous</button>
+          <button class="button" id="next" type="button">Next →</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">Packet</span>
+        <button class="button primary" id="export" type="button">Export manifest</button>
+      </div>
+    </section>
+
+    <section class="workbench">
+      <div>
+        <article class="card scene-card" aria-labelledby="scene-heading">
+          <h2 id="scene-heading">Current checkpoint</h2>
+          <div class="scene-wrap">
+            <div id="scene" class="scene" role="img" aria-label="Preparation checkpoint scene"></div>
+            <div class="scene-overlay" aria-hidden="true">
+              <span id="scene-tag" class="scene-tag">Preparation</span>
+              <span id="capture-tag" class="scene-tag">Screenshot not captured</span>
+            </div>
+            <div id="callout" class="checkpoint-callout">Show the Band, starting Coin, Provisions, and the accepted Local Contract before time advances.</div>
+          </div>
+          <div class="scene-actions">
+            <p id="step-help">Advance through the fixed checkpoints; capture only after the visual criteria are satisfied.</p>
+            <div class="button-row">
+              <button class="button" id="capture" type="button">Capture screenshot</button>
+              <button class="button" id="video" type="button">Record 8s clip</button>
+            </div>
+          </div>
+          <div class="state-strip" aria-live="polite">
+            <div class="state-cell"><span>Seed</span><strong id="state-seed">ironbridge-15-a</strong></div>
+            <div class="state-cell"><span>Phase</span><strong id="state-phase">Preparation</strong></div>
+            <div class="state-cell"><span>Checkpoint</span><strong id="state-checkpoint">01 / 05</strong></div>
+            <div class="state-cell"><span>Assertions</span><strong id="state-assertions">2 / 2 pass</strong></div>
+          </div>
+        </article>
+
+        <article class="card manifest" aria-labelledby="manifest-heading">
+          <h2 id="manifest-heading">Evidence packet manifest</h2>
+          <pre id="manifest" aria-live="polite"></pre>
+        </article>
+
+        <article class="card event-log" aria-labelledby="event-heading">
+          <h2 id="event-heading">Last action</h2>
+          <output id="event" aria-live="polite">Run reset with seed ironbridge-15-a. Checkpoint 01 is ready.</output>
+        </article>
+      </div>
+
+      <aside class="rail">
+        <article class="card" aria-labelledby="phase-heading">
+          <h2 id="phase-heading">Fixed phase order</h2>
+          <ol id="phase-list" class="phase-list"></ol>
+        </article>
+
+        <article class="card" aria-labelledby="criteria-heading">
+          <h2 id="criteria-heading">Visual checkpoint criteria</h2>
+          <ul id="criteria" class="checklist"></ul>
+        </article>
+
+        <article class="card" aria-labelledby="rubric-heading">
+          <h2 id="rubric-heading">Observable rubric</h2>
+          <div id="rubric"></div>
+          <p class="fine" style="margin: 10px 0 0">A reviewer can judge these from the screenshot or clip without reading implementation details.</p>
+        </article>
+
+        <article class="card" aria-labelledby="video-heading">
+          <h2 id="video-heading">Short-video recipe</h2>
+          <p class="fine">One clip per checkpoint. Keep the camera still enough to read the state; include the complete transition that proves the claim.</p>
+          <div class="video-timeline" aria-label="Eight second video timeline">
+            <div class="video-segment">0–2s<br>context</div>
+            <div class="video-segment">2–4s<br>input</div>
+            <div class="video-segment">4–6s<br>outcome</div>
+            <div class="video-segment">6–8s<br>hold</div>
+          </div>
+          <p class="fine" style="margin: 0">MP4 or WebM, 1280×720 minimum, no narration required. File name carries seed, checkpoint, and outcome.</p>
+        </article>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const checkpoints = [
+      {
+        phase: 'Preparation',
+        detail: 'Band and Local Contract are ready',
+        caption: 'PREPARATION · ACCEPTED LOCAL CONTRACT',
+        callout: 'Show the Band, starting Coin, Provisions, and the accepted Local Contract before time advances.',
+        criteria: [
+          ['Band is visible', 'Player character, Companion, and four Troop slots are readable.'],
+          ['Resources are visible', 'Coin and Provisions values are legible and match the scenario manifest.'],
+          ['Contract is accepted', 'The Journal shows the defense Local Contract as Accepted.']
+        ],
+        assertions: [
+          ['contract.state == Accepted', 'State assertion', 'pass'],
+          ['coin == 100 && provisions == 10', 'Starting resource assertion', 'pass'],
+          ['band.count == 6', 'Band size assertion', 'pass']
+        ]
+      },
+      {
+        phase: 'Bridge setup',
+        detail: 'Band holds the bridge before deadline',
+        caption: 'BRIDGE SETUP · HOLD POSITION',
+        callout: 'Show the visible Hold position marker, the ordered Companion and Troop groups, and the active Raid deadline.',
+        criteria: [
+          ['Hold marker is visible', 'The marker anchors the ordered group at the bridge.'],
+          ['Orders are distinct', 'Companion and grouped Troops each show their current order.'],
+          ['Deadline is readable', 'The Raid deadline is visible before the battle starts.']
+        ],
+        assertions: [
+          ['raid.location == Bridge', 'Raid-location assertion', 'pass'],
+          ['orders.companion == Hold', 'Companion command assertion', 'pass'],
+          ['raid.deadline > now', 'Deadline assertion', 'pass']
+        ]
+      },
+      {
+        phase: 'Directional combat',
+        detail: 'Player blocks, attacks, and commands',
+        caption: 'COMBAT · DIRECTIONAL BLOCK MATCH',
+        callout: 'Show one telegraphed enemy sector, the matching guard sector, Band orders, and the resident-protection objective during the exchange.',
+        criteria: [
+          ['Attack sector is legible', 'The four-sector control and selected direction are visible.'],
+          ['Block outcome is legible', 'Matched guard produces a distinct recoil or success reaction.'],
+          ['Objective remains visible', 'Resident protection and surviving combatants remain readable.']
+        ],
+        assertions: [
+          ['guard.sector == attack.sector', 'Directional-match assertion', 'pass'],
+          ['combatant.agent.fate == Active', 'Agent-state assertion', 'pass'],
+          ['residents.alive >= 1', 'Victory-condition assertion', 'pass']
+        ]
+      },
+      {
+        phase: 'Survivor fate',
+        detail: 'Downed Agent receives a separate decision',
+        caption: 'SURVIVOR FATE · CAPTURE DECISION',
+        callout: 'Show the kneeling Agent, the three fate choices, and the selected outcome before the scene changes.',
+        criteria: [
+          ['Downed Agent is identifiable', 'The kneeling named Agent is visibly separate from ordinary bandits.'],
+          ['Three choices are visible', 'Release, Capture, and Execute are presented together.'],
+          ['Choice is committed', 'The selected fate and resulting grievance reaction are visible.']
+        ],
+        assertions: [
+          ['agent.presentation == Downed', 'Presentation assertion', 'pass'],
+          ['agent.fate in [Active, Captive, Executed]', 'Fate assertion', 'pass'],
+          ['fate.choice != null', 'Choice assertion', 'pass']
+        ]
+      },
+      {
+        phase: 'Settlement return',
+        detail: 'Persistent consequence is visible',
+        caption: 'SETTLEMENT RETURN · SAFE WITH GRIEVANCE',
+        callout: 'Show the changed settlement condition, Journal result, Renown, and the Agent relationship or grievance consequence.',
+        criteria: [
+          ['Settlement condition is visible', 'Safe or Damaged is readable without opening a debug panel.'],
+          ['Journal is resolved', 'The Local Contract state and outcome are visible.'],
+          ['Relationship consequence is visible', 'Disposition or a typed Grievance is shown on the named Agent.']
+        ],
+        assertions: [
+          ['contract.state == Resolved', 'Contract-resolution assertion', 'pass'],
+          ['settlement.condition == Safe', 'Settlement assertion', 'pass'],
+          ['journal.hasRelationshipConsequence', 'Persistence assertion', 'pass']
+        ]
+      }
+    ];
+
+    const scenarioData = {
+      'bridge-win': { name: 'Bridge defense · clean victory', outcome: 'victory', location: 'Bridge', settlement: 'Safe' },
+      'late-win': { name: 'Settlement response · late victory', outcome: 'victory', location: 'Settlement center', settlement: 'Safe' },
+      'bridge-loss': { name: 'Bridge defense · defeat summary', outcome: 'defeat', location: 'Bridge', settlement: 'Damaged' }
+    };
+
+    const state = {
+      scenario: 'bridge-win',
+      seed: 'ironbridge-15-a',
+      checkpoint: 0,
+      captures: [],
+      videos: [],
+      criteria: {},
+      lastAction: 'Run reset with seed ironbridge-15-a. Checkpoint 01 is ready.'
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+    const scene = $('#scene');
+    const scenario = $('#scenario');
+    const seed = $('#seed');
+
+    function scenarioInfo() { return scenarioData[state.scenario]; }
+    function checkpoint() { return checkpoints[state.checkpoint]; }
+    function fileStem() {
+      return `${state.seed}-${String(state.checkpoint + 1).padStart(2, '0')}-${scenarioInfo().outcome}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+    }
+    function selectedCriteria() {
+      return state.criteria[state.checkpoint] || new Set();
+    }
+    function allCriteriaChecked() {
+      return selectedCriteria().size === checkpoint().criteria.length;
+    }
+    function assertionRows() {
+      const rows = checkpoint().assertions.map(([expression, label, defaultStatus]) => {
+        if (scenarioInfo().outcome === 'defeat' && expression === 'settlement.condition == Safe') return [expression, label, 'fail'];
+        if (scenarioInfo().outcome === 'defeat' && expression === 'contract.state == Resolved') return [expression, label, 'fail'];
+        return [expression, label, defaultStatus];
+      });
+      return rows;
+    }
+    function allAssertionsPass() { return assertionRows().every(([, , status]) => status === 'pass'); }
+
+    function sceneSvg() {
+      const info = scenarioInfo();
+      const cp = checkpoint();
+      const late = info.location === 'Settlement center';
+      const defeat = info.outcome === 'defeat';
+      const people = defeat ? `
+        <g class="enemy"><circle cx="685" cy="270" r="20"/><path d="M685 290l-18 60h36z"/><path d="M665 350l-22 28h42z"/><path d="M705 350l22 28h-42z"/></g>
+        <g class="ally" opacity=".8"><circle cx="468" cy="326" r="16"/><path d="M468 342l-14 52h28z"/></g>` : `
+        <g class="player"><circle cx="490" cy="316" r="18"/><path d="M490 334l-17 62h34z"/><path d="M475 348l-42 34" stroke="#e5c05e" stroke-width="9"/><path d="M505 349l39 25" stroke="#e5c05e" stroke-width="9"/></g>
+        <g class="ally"><circle cx="405" cy="328" r="15"/><path d="M405 343l-13 51h26z"/><circle cx="350" cy="336" r="14"/><path d="M350 350l-12 47h24z"/><circle cx="570" cy="324" r="14"/><path d="M570 338l-12 49h24z"/></g>
+        <g class="enemy"><circle cx="686" cy="299" r="17"/><path d="M686 316l-15 56h30z"/><circle cx="756" cy="320" r="14"/><path d="M756 334l-12 48h24z"/></g>`;
+      const marker = (state.checkpoint === 1) ? '<circle class="marker" cx="492" cy="420" r="16"/><path d="M492 405v-38" stroke="#332614" stroke-width="4"/>' : '';
+      const ring = state.checkpoint === 2 ? '<circle class="danger-ring" cx="686" cy="299" r="49"/>' : '';
+      const fate = state.checkpoint === 3 ? '<path d="M685 324l-18 34h36z" class="enemy"/><circle cx="685" cy="309" r="16" class="enemy"/><rect x="710" y="292" width="130" height="58" rx="6" fill="#201a10" opacity=".9"/><text x="721" y="312" fill="#f2e7c9" font-size="12" font-weight="800">RELEASE  CAPTURE  EXECUTE</text><text x="721" y="333" fill="#e4be6b" font-size="11">Agent: Odran Vale</text>' : '';
+      const returnPanel = state.checkpoint === 4 ? `<rect x="76" y="100" width="310" height="180" rx="10" fill="#201a10" opacity=".86"/><text x="98" y="137" fill="#f2e7c9" font-size="18" font-weight="800">${info.settlement.toUpperCase()}</text><text x="98" y="169" fill="#e4be6b" font-size="13">LOCAL CONTRACT · RESOLVED</text><text x="98" y="201" fill="#d9e2cf" font-size="12">Renown +12 · Grievance recorded</text><text x="98" y="230" fill="#d9e2cf" font-size="12">Agent Odran Vale · Neutral</text>` : '';
+      return `<svg viewBox="0 0 960 540" role="presentation" aria-hidden="true">
+        <rect width="960" height="540" class="sky"/>
+        <path class="cloud" d="M0 160c110-60 180 20 280-35 130-70 200 40 335-22 115-52 222 28 345-18v120H0z"/>
+        <path class="far" d="M0 245l130-102 70 46 120-91 126 88 126-112 108 100 118-70 162 119v120H0z"/>
+        <path class="ground" d="M0 305c160-40 255 15 400-10 155-28 278-24 560 28v217H0z"/>
+        ${late ? '<path class="stone" d="M120 215h250l28 175H95z"/><path class="wood" d="M135 240h210v28H135z"/><path class="wood" d="M171 215v175h18V215zm130 0v175h18V215z"/>' : '<path class="water" d="M0 410c160-34 257 16 421-8 172-26 341-13 539 18v120H0z"/><path class="wood" d="M255 325h450v54H255z"/><path class="wood" d="M278 379l-30 132h32l30-132zm400 0l30 132h-32l-30-132z"/>'}
+        ${marker}${ring}${people}${fate}${returnPanel}
+        <rect class="caption" x="22" y="22" width="${Math.max(255, cp.caption.length * 8.1)}" height="40" rx="6"/>
+        <text class="caption-text" x="38" y="48">${cp.caption}</text>
+      </svg>`;
+    }
+
+    function render() {
+      const cp = checkpoint();
+      const criteria = selectedCriteria();
+      const assertions = assertionRows();
+      const passCount = assertions.filter(([, , status]) => status === 'pass').length;
+      scene.innerHTML = sceneSvg();
+      scene.setAttribute('aria-label', `${cp.phase} checkpoint: ${cp.detail}`);
+      $('#scene-tag').textContent = `${String(state.checkpoint + 1).padStart(2, '0')} · ${cp.phase}`;
+      $('#capture-tag').textContent = state.captures.includes(state.checkpoint) ? 'Screenshot captured' : 'Screenshot not captured';
+      $('#capture-tag').className = `scene-tag ${state.captures.includes(state.checkpoint) ? 'ready' : ''}`;
+      $('#callout').textContent = cp.callout;
+      $('#state-seed').textContent = state.seed;
+      $('#state-phase').textContent = cp.phase;
+      $('#state-checkpoint').textContent = `${String(state.checkpoint + 1).padStart(2, '0')} / ${checkpoints.length}`;
+      $('#state-assertions').textContent = `${passCount} / ${assertions.length} pass`;
+      $('#step-help').textContent = allCriteriaChecked() ? 'Visual criteria complete. Capture the frame, then advance.' : 'Check each visual criterion after inspecting the scene; capture only after the criteria are satisfied.';
+
+      $('#phase-list').innerHTML = checkpoints.map((item, index) => `
+        <li><button class="phase-button" type="button" data-phase="${index}" aria-current="${index === state.checkpoint}">
+          <span class="phase-number">${String(index + 1).padStart(2, '0')}</span>
+          <span><span class="phase-name">${item.phase}</span><br><span class="phase-detail">${item.detail}</span></span>
+          <span class="status ${state.captures.includes(index) ? 'ready' : index === state.checkpoint ? 'partial' : 'missing'}">${state.captures.includes(index) ? 'captured' : index === state.checkpoint ? 'active' : 'pending'}</span>
+        </button></li>`).join('');
+      document.querySelectorAll('[data-phase]').forEach((button) => button.addEventListener('click', () => {
+        state.checkpoint = Number(button.dataset.phase);
+        state.lastAction = `Moved to checkpoint ${String(state.checkpoint + 1).padStart(2, '0')} — ${checkpoint().phase}.`;
+        $('#event').textContent = state.lastAction;
+        render();
+      }));
+
+      $('#criteria').innerHTML = cp.criteria.map(([title, detail], index) => `
+        <li class="check"><input type="checkbox" id="criterion-${index}" data-criterion="${index}" ${criteria.has(index) ? 'checked' : ''}><label for="criterion-${index}"><strong>${title}</strong><span>${detail}</span></label></li>`).join('');
+      document.querySelectorAll('[data-criterion]').forEach((input) => input.addEventListener('change', () => {
+        if (!state.criteria[state.checkpoint]) state.criteria[state.checkpoint] = new Set();
+        if (input.checked) state.criteria[state.checkpoint].add(Number(input.dataset.criterion));
+        else state.criteria[state.checkpoint].delete(Number(input.dataset.criterion));
+        state.lastAction = `${input.checked ? 'Accepted' : 'Rejected'} visual criterion “${cp.criteria[Number(input.dataset.criterion)][0]}”.`;
+        $('#event').textContent = state.lastAction;
+        render();
+      }));
+
+      $('#rubric').innerHTML = assertions.map(([expression, label, status]) => `<div class="rubric"><div><strong>${label}</strong><p><code>${expression}</code></p></div><span class="badge ${status}">${status === 'pass' ? 'Pass' : status === 'fail' ? 'Fail' : 'Wait'}</span></div>`).join('');
+      $('#manifest').textContent = JSON.stringify({
+        schema: 'bb.playable-vertical-slice.evidence.v1',
+        seed: state.seed,
+        preset: state.scenario,
+        location: scenarioInfo().location,
+        outcome: scenarioInfo().outcome,
+        checkpoints: checkpoints.map((item, index) => ({
+          id: String(index + 1).padStart(2, '0'),
+          phase: item.phase,
+          screenshot: state.captures.includes(index) ? `${fileStemFor(index)}.png` : null,
+          video: state.videos.includes(index) ? `${fileStemFor(index)}.webm` : null,
+          visualCriteria: state.criteria[index] ? state.criteria[index].size : 0,
+          assertions: index === state.checkpoint ? assertions.map(([expression, , status]) => ({ expression, status })) : 'run-on-load'
+        })),
+        review: { screenshotMinimum: '1280x720', clipSeconds: 8, reviewer: 'AI vision + conventional assertions' }
+      }, null, 2);
+    }
+
+    function fileStemFor(index) {
+      return `${state.seed}-${String(index + 1).padStart(2, '0')}-${scenarioInfo().outcome}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+    }
+    function setAction(message) {
+      state.lastAction = message;
+      $('#event').textContent = message;
+      render();
+    }
+    function resetRun() {
+      state.checkpoint = 0;
+      state.captures = [];
+      state.videos = [];
+      state.criteria = {};
+      setAction(`Run reset with seed ${state.seed}. Checkpoint 01 is ready.`);
+    }
+    function move(delta) {
+      state.checkpoint = Math.max(0, Math.min(checkpoints.length - 1, state.checkpoint + delta));
+      setAction(`Moved to checkpoint ${String(state.checkpoint + 1).padStart(2, '0')} — ${checkpoint().phase}.`);
+    }
+
+    scenario.addEventListener('change', () => {
+      state.scenario = scenario.value;
+      resetRun();
+      setAction(`Preset changed to “${scenarioInfo().name}”. Run reset with seed ${state.seed}.`);
+    });
+    seed.addEventListener('change', () => {
+      state.seed = seed.value.trim() || 'ironbridge-15-a';
+      seed.value = state.seed;
+      resetRun();
+      setAction(`Seed changed to ${state.seed}. Run reset; checkpoint 01 is ready.`);
+    });
+    $('#reset').addEventListener('click', resetRun);
+    $('#previous').addEventListener('click', () => move(-1));
+    $('#next').addEventListener('click', () => move(1));
+    $('#capture').addEventListener('click', () => {
+      if (!allCriteriaChecked()) return setAction('Screenshot blocked: accept every visual criterion before capture.');
+      if (!state.captures.includes(state.checkpoint)) state.captures.push(state.checkpoint);
+      setAction(`Screenshot captured as ${fileStem()}.png. Visual criteria are attached to checkpoint ${String(state.checkpoint + 1).padStart(2, '0')}.`);
+    });
+    $('#video').addEventListener('click', () => {
+      if (!allCriteriaChecked()) return setAction('Video blocked: accept every visual criterion before recording.');
+      if (!state.videos.includes(state.checkpoint)) state.videos.push(state.checkpoint);
+      setAction(`Eight-second clip captured as ${fileStem()}.webm: 2s context, 2s input, 2s outcome, 2s hold.`);
+    });
+    $('#export').addEventListener('click', () => {
+      const blob = new Blob([$('#manifest').textContent], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${state.seed}-evidence-manifest.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setAction(`Manifest exported as ${link.download}.`);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.target.matches('input, select')) return;
+      if (event.key === 'ArrowRight') move(1);
+      if (event.key === 'ArrowLeft') move(-1);
+      if (event.key.toLowerCase() === 'r') resetRun();
+    });
+
+    render();
+  </script>
+</body>
+</html>
