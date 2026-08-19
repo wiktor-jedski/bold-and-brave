@@ -20,9 +20,10 @@
  * clause state spans newlines, comments act as whitespace inside side-effect
  * and dynamic imports, and template-literal content never yields an import.
  * A small finite automaton over the token stream accepts the grammar of
- * `import`/`export ... from` declarations, `import('...')` dynamic imports,
- * side-effect imports, and `import x = require('...')` assignments; any
- * token sequence outside that grammar is ignored.
+ * `import`/`export ... from` declarations, `import('...')` dynamic imports
+ * (with or without an options argument), side-effect imports, and
+ * `import x = require('...')` assignments; any token sequence outside that
+ * grammar is ignored.
  *
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
@@ -119,14 +120,19 @@ function scanImport(
     return scanToken(scanner)
   }
   if (token.kind === SyntaxKind.OpenParenToken) {
-    // Dynamic import: import('spec').
+    // Dynamic import: import('spec') or import('spec', options).
     const inner = scanToken(scanner)
     if (inner.kind === SyntaxKind.StringLiteral) {
-      const close = scanToken(scanner)
-      if (close.kind === SyntaxKind.CloseParenToken) {
+      const after = scanToken(scanner)
+      if (after.kind === SyntaxKind.CloseParenToken) {
         record(found, inner, content)
+      } else if (after.kind === SyntaxKind.CommaToken) {
+        // An options argument follows; the specifier is still statically
+        // known. Skip to the token after the matching close paren.
+        record(found, inner, content)
+        return skipToMatchingParen(scanner, after)
       }
-      return close
+      return after
     }
     return inner
   }
@@ -303,6 +309,36 @@ function expectFrom(
     return scanToken(scanner)
   }
   return specifierToken
+}
+
+/**
+ * Skip a dynamic-import options argument, starting at the comma that
+ * separates it from the specifier, and return the token after the import
+ * call's closing paren. Nested parens, braces, and brackets are balanced.
+ */
+function skipToMatchingParen(scanner: Scanner, startToken: Token): Token {
+  let depth = 1 // the import call's own open paren
+  let token = startToken
+  while (token.kind !== END_OF_FILE) {
+    if (
+      token.kind === SyntaxKind.OpenParenToken ||
+      token.kind === SyntaxKind.OpenBraceToken ||
+      token.kind === SyntaxKind.OpenBracketToken
+    ) {
+      depth += 1
+    } else if (
+      token.kind === SyntaxKind.CloseParenToken ||
+      token.kind === SyntaxKind.CloseBraceToken ||
+      token.kind === SyntaxKind.CloseBracketToken
+    ) {
+      depth -= 1
+      if (depth === 0) {
+        return scanToken(scanner)
+      }
+    }
+    token = scanToken(scanner)
+  }
+  return token
 }
 
 /** Consume `= require('spec')` after the current `=` token; record the specifier. */

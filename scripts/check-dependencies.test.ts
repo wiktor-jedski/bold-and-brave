@@ -239,6 +239,54 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
+  it('fails on a core-to-browser dynamic import with an options argument', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), "import('../browser/main.js', { with: { type: 'json' } })\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-to-browser')
+      expect(violations[0].imported).toBe('browser/main.ts')
+      expect(violations[0].specifier).toBe('../browser/main.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a browser dynamic import of a private Simulation implementation file with an options argument', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), "import('../core/simulation/implementation.js', { with: { type: 'json' } })\n")
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+      expect(violations[0].specifier).toBe('../core/simulation/implementation.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a browser dynamic import of the public Simulation entry with an options argument', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'main.ts'), "import('../core/simulation/index.js', { with: { type: 'json' } })\n")
+
+      expect(checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('ignores import-like text inside multiline template literals', () => {
     const root = makeFixtureProject()
     try {
@@ -346,6 +394,7 @@ describe('import extraction (parser regression)', () => {
       "import x = require('./req.js')",
       "import * as ns from './ns.js'",
       "export * as all from './all.js'",
+      "import('./opt.js', { with: { type: 'json' } })",
     ].join('\n')
 
     expect(extractImports(content)).toEqual([
@@ -363,7 +412,18 @@ describe('import extraction (parser regression)', () => {
       { specifier: './req.js', line: 11 },
       { specifier: './ns.js', line: 12 },
       { specifier: './all.js', line: 13 },
+      { specifier: './opt.js', line: 14 },
     ])
+  })
+
+  it('does not treat a non-literal dynamic import argument as a specifier', () => {
+    const content = [
+      "const a = import('./prefix' + suffix)",
+      'const b = import(`./template.js`)',
+      'const c = import(someVariable)',
+    ].join('\n')
+
+    expect(extractImports(content)).toEqual([])
   })
 
   it('preserves clause state across newlines and comments for every clause shape', () => {
