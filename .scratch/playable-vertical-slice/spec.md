@@ -10,7 +10,7 @@ Status: decision-complete handoff contract
 | Authoritative state and data | This file is the normative handoff. The decision map keeps the decision history. |
 | Inputs and commands | The resolved decision map and its resolved ticket answers are the source inputs. There is no player command in this section. |
 | Transitions | The work moves from decision mapping to iterative phase planning only after the completeness gate passes. |
-| Outputs and player-visible feedback | The output is one self-contained contract. The section does not add player-visible feedback. |
+| Outputs and player-visible feedback | The output is the normative handoff contract. The section does not add player-visible feedback. |
 | Failure and edge behavior | An unresolved in-scope decision, an incomplete contract tuple, or an unverified acceptance claim blocks the handoff. |
 | Fixed values or targets | The complete playable journey targets 45–60 minutes of play. |
 | Evidence checkpoints | `CP-SPEC-END-TO-END`, `CP-SPEC-AUDIT` |
@@ -24,7 +24,6 @@ All requirement and state tables in this file are normative.
 | `MUST` | A product, behavior, delivery, or support commitment. A failed check blocks acceptance. |
 | `TARGET` | An authored tuning or performance goal. A miss requires more tuning before representative-quality acceptance. |
 | `SHOULD` | Implementation guidance. A phase plan can depart from it only when the plan records the reason and keeps all `MUST` behavior. |
-| `OUT OF SCOPE` | An explicit exclusion from this slice. A phase plan must not add it. |
 
 | ID | Class | Contract | Evidence |
 | --- | --- | --- | --- |
@@ -32,7 +31,6 @@ All requirement and state tables in this file are normative.
 | PVS-PUR-002 | MUST | Make directional melee, personal Band leadership, and a visible Agent relationship or Grievance consequence the representative-quality priorities. | `CP-SPEC-END-TO-END`, `CP-UI-FATE` |
 | PVS-PUR-003 | TARGET | A competent first complete playthrough takes 45–60 minutes of real time. | `CP-SPEC-END-TO-END` |
 | PVS-PUR-004 | SHOULD | Keep the Overworld, dialogue, settlement simulation, economy, and content volume deliberately simple when more detail does not improve a representative-quality priority. | `CP-SPEC-AUDIT` |
-| PVS-PUR-005 | MUST | Keep this contract self-contained. Do not require a phase planner to reopen a resolved domain, architecture, evidence, tuning, or support decision. | `CP-SPEC-AUDIT` |
 
 ## 2. Scope, support envelope, and canonical terminology
 
@@ -393,7 +391,6 @@ PVS-FEA-001 (`MUST`): after both applicable survivor decisions and the victory s
 | PVS-PRP-008 | MUST | Store and show Provisions to one decimal place. Clamp the value at 0.0 Provisions. At zero, permit travel and add no morale, health, speed, combat, or relationship effect. | `CP-PREP-PROVISIONS` |
 | PVS-PRP-009 | MUST | Consume no Provisions during stationary Overworld time, Overworld pause, settlement interaction, Scene loading, bridge setup, battle, or post-battle resolution. | `CP-PREP-PROVISIONS` |
 | PVS-PRP-010 | MUST | Give no Coin or Provisions reward for the Local Contract. Describe the one victory Feat as the expected mechanical reward. | `CP-FLOW-CONTRACT`, `CP-FEAT` |
-| PVS-PRP-011 | OUT OF SCOPE | Do not add an equipment shop, item inventory, equipment durability, Provisions purchase, resupply, provision loot, custom Troop equipment, or Troop progression. | `CP-SPEC-AUDIT` |
 
 ## 7. Presentation, interface, and audio
 
@@ -586,7 +583,7 @@ PVS-WEB-001 (`MUST`): follow these ordered delivery transitions. Evidence: `CP-S
 | `SCN-17-PERFORMANCE-BRIDGE` | 1803 | Default seeded bridge battle at the promised viewport, device-pixel ratio, browser, GPU, and driver |
 | `SCN-18-PRESENTATION-AUDIO` | 1901 | HUD states, woodcut Scene, Downed ambiguity, fate view, sector sounds, mix priority, music fade, and audio-init failure |
 | `SCN-19-DETERMINISTIC-REPLAY` | 2001 | Two clean runs with identical state, event, artifact-metadata, and outcome hashes |
-| `SCN-20-SPEC-AUDIT` | 0 | Deterministic document check for required sections, contract tuples, state transitions, units, requirement evidence links, and excluded scope |
+| `SCN-20-SPEC-AUDIT` | 0 | Deterministic document check for required sections, contract tuples, state transitions, units, and requirement evidence links |
 
 ### Checkpoint traceability matrix
 
@@ -621,38 +618,9 @@ PVS-WEB-001 (`MUST`): follow these ordered delivery transitions. Evidence: `CP-S
 | `CP-SAVE-FAILURE` | `SCN-14-SAVE-FAILURES`/1702 | Old and corrupt entries are unavailable without migration; denial and full storage keep in-memory play, disable actions, persist failure, and never emit success; Retry recovers; confirmed delete/reset affects only specified entries. | PNG for each failure state and confirmation state |
 | `CP-DELIVERY-DEVICE-LOSS` | `SCN-16-WEBGPU-DEVICE-LOSS`/1802 | The Simulation tick at loss equals every later tick before Reload; no gameplay event follows loss; visible state offers Reload; reload repeats startup gates. | WebM from active frame through device-loss settled state |
 | `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second; bridge battle lasts 3–5 active minutes. | `none`; metrics and state-only claim |
-| `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 11 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, scenario seeds, and exclusions are present; no in-scope unresolved marker exists. | `none`; document claim |
+| `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 10 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, and scenario seeds are present; no in-scope unresolved marker exists. | `none`; document claim |
 
-## 10. Out-of-scope boundaries
-
-| Contract item | This section |
-| --- | --- |
-| Purpose | Keep future systems and implementation planning out of this handoff. |
-| Authoritative state and data | The exclusions below and the future decision map are the boundary record. |
-| Inputs and commands | There is no player command that enables an excluded system. A future maintainer can change scope only through a new explicit specification decision. |
-| Transitions | No excluded feature can move into the slice during play or implementation planning. A later approved specification can move it into a future effort. |
-| Outputs and player-visible feedback | The slice does not show controls, panels, placeholder copy, or disabled affordances for excluded systems. |
-| Failure and edge behavior | A phase ticket that adds an excluded system fails the scope check, even when the system is only a placeholder. |
-| Fixed values or targets | All exclusions have zero playable paths and zero acceptance checkpoints other than the document scope audit. |
-| Evidence checkpoints | `CP-SPEC-AUDIT` |
-
-The [decision map](map.md) keeps future map fog. In particular, the future Band morale model is unresolved outside this specification. Missing Provisions has no morale effect in this slice.
-
-| ID | Class | Boundary | Evidence |
-| --- | --- | --- | --- |
-| PVS-OOS-001 | OUT OF SCOPE | Implementation, phase tickets, task order, file layouts, class designs, and the implementation schedule. This file gives contract-level constraints only. | `CP-SPEC-AUDIT` |
-| PVS-OOS-002 | OUT OF SCOPE | An open-approach interception terrain variant and an alternate river crossing. | `CP-SPEC-AUDIT` |
-| PVS-OOS-003 | OUT OF SCOPE | A playable path that joins or helps the raiders. | `CP-SPEC-AUDIT` |
-| PVS-OOS-004 | OUT OF SCOPE | More Overworld locations, covert operations, trade simulation, trade routes, camping, tournaments, nicknames, horses, vehicles, siege equipment, bows, axes, and pikes. | `CP-SPEC-AUDIT` |
-| PVS-OOS-005 | OUT OF SCOPE | Large armies, diplomacy, delegated Companion work, stewards, Troop education, Troop progression, custom Troops, quirks, multiple Local Contracts, and resident daily schedules. | `CP-SPEC-AUDIT` |
-| PVS-OOS-006 | OUT OF SCOPE | Band morale, retention, missing-Provisions penalties, camping needs, and entertainment. | `CP-SPEC-AUDIT` |
-| PVS-OOS-007 | OUT OF SCOPE | Detailed Captive management, ransom, forced labor, enslavement, recruitment of Captives, and Captive trade. | `CP-SPEC-AUDIT` |
-| PVS-OOS-008 | OUT OF SCOPE | Multiplayer, accounts, backend services, server-owned state, cloud saves, and online synchronization. | `CP-SPEC-AUDIT` |
-| PVS-OOS-009 | OUT OF SCOPE | Runtime generative AI, spoken dialogue, and adaptive music. | `CP-SPEC-AUDIT` |
-| PVS-OOS-010 | OUT OF SCOPE | WebGL rendering fallback, software rendering, mobile support, touch controls, keyboard-only support, reduced-motion support, and support promises outside the named Chromium/Linux/GPU/driver row. | `CP-SPEC-AUDIT` |
-| PVS-OOS-011 | OUT OF SCOPE | Renown behavior, a broad progression tree, Agent relationship scores, shared faction attitude, partial settlement damage, contract retry, and Agent-Grievance removal. | `CP-SPEC-AUDIT` |
-
-## 11. Completeness checklist
+## 10. Completeness checklist
 
 | Contract item | This section |
 | --- | --- |
@@ -662,7 +630,7 @@ The [decision map](map.md) keeps future map fog. In particular, the future Band 
 | Transitions | A failed item keeps the handoff incomplete. All checked items make the specification ready for iterative phase planning. |
 | Outputs and player-visible feedback | The checked list is the document-level result. It adds no gameplay interface. |
 | Failure and edge behavior | A later normative edit must rerun the audit and clear any item that is no longer true. |
-| Fixed values or targets | The gate covers 11 top-level sections, eight contract-tuple fields per section, five required state tables, one end-to-end flow diagram, 20 named scenarios, and 30 named checkpoints. |
+| Fixed values or targets | The gate covers 10 top-level sections, eight contract-tuple fields per section, five required state tables, one end-to-end flow diagram, 20 named scenarios, and 30 named checkpoints. |
 | Evidence checkpoints | `CP-SPEC-AUDIT` |
 
 PVS-CMP-001 (`MUST`): do not hand this specification to iterative phase planning unless every item remains checked. Evidence: `CP-SPEC-AUDIT`.
@@ -677,5 +645,4 @@ PVS-CMP-001 (`MUST`): do not hand this specification to iterative phase planning
 - [x] Every in-scope normative acceptance claim has a stable requirement ID, class, named checkpoint, named scenario, seed policy, machine-readable assertion, and visual-artifact rule.
 - [x] Screenshots are limited to static visual claims. Short clips are limited to transition, timing, or audio claims.
 - [x] Failure checkpoints cover invalid commands, defeat priority, save boundaries, storage denial, corrupt data, loading failure, unsupported rendering, audio failure, and device loss.
-- [x] Future map fog and every explicit exclusion stay outside the normative playable scope.
 - [x] No unresolved in-scope decision or placeholder remains.

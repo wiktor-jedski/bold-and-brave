@@ -57,10 +57,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, a phase-planning exercise passes when it can use the contract without reopening any resolved domain, architecture, evidence, tuning, or support decision. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-PUR-005`.
+**Notes:** Deprecated because phase planning cannot reliably guarantee that the contract contains every fact needed without reopening a decision. No replacement.
 
 ## REQ-006 — Frontier setting and player magic
 
@@ -1041,10 +1041,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | `CP-SPEC-AUDIT` passes when the phase plan adds none of the listed excluded systems or functions. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-PRP-011`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-088 — Recruitment interaction and failure
 
@@ -1799,7 +1799,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 | `SCN-17-PERFORMANCE-BRIDGE` | 1803 | Default seeded bridge battle at the promised viewport, device-pixel ratio, browser, GPU, and driver |
 | `SCN-18-PRESENTATION-AUDIO` | 1901 | HUD states, woodcut Scene, Downed ambiguity, fate view, sector sounds, mix priority, music fade, and audio-init failure |
 | `SCN-19-DETERMINISTIC-REPLAY` | 2001 | Two clean runs with identical state, event, artifact-metadata, and outcome hashes |
-| `SCN-20-SPEC-AUDIT` | 0 | Deterministic document check for required sections, contract tuples, state transitions, units, requirement evidence links, and excluded scope |
+| `SCN-20-SPEC-AUDIT` | 0 | Deterministic document check for required sections, contract tuples, state transitions, units, and requirement evidence links |
 
 ## REQ-149 — Acceptance checkpoint catalog
 
@@ -1844,7 +1844,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 | `CP-SAVE-FAILURE` | `SCN-14-SAVE-FAILURES`/1702 | Old and corrupt entries are unavailable without migration; denial and full storage keep in-memory play, disable actions, persist failure, and never emit success; Retry recovers; confirmed delete/reset affects only specified entries. | PNG for each failure state and confirmation state |
 | `CP-DELIVERY-DEVICE-LOSS` | `SCN-16-WEBGPU-DEVICE-LOSS`/1802 | The Simulation tick at loss equals every later tick before Reload; no gameplay event follows loss; visible state offers Reload; reload repeats startup gates. | WebM from active frame through device-loss settled state |
 | `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second; bridge battle lasts 3–5 active minutes. | `none`; metrics and state-only claim |
-| `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 11 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, scenario seeds, and exclusions are present; no in-scope unresolved marker exists. | `none`; document claim |
+| `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 10 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, and scenario seeds are present; no in-scope unresolved marker exists. | `none`; document claim |
 
 ## REQ-150 — Acceptance scenario execution
 
@@ -1877,10 +1877,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and handoff specification; pass only if the phase plan does not add implementation, phase tickets, task order, file layouts, class designs, or an implementation schedule and the handoff specification contains contract-level constraints only. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-001`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-153 — Exclude alternate terrain and crossing variants
 
@@ -1889,10 +1889,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add an open-approach interception terrain variant or an alternate river crossing. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-002`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-154 — Exclude a raider-aligned path
 
@@ -1901,10 +1901,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add a playable path that joins or helps the raiders. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-003`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-155 — Exclude additional world and equipment systems
 
@@ -1913,10 +1913,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add more Overworld locations, covert operations, trade simulation, trade routes, camping, tournaments, nicknames, horses, vehicles, siege equipment, bows, axes, or pikes. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-004`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-156 — Exclude large-scale and delegated systems
 
@@ -1925,10 +1925,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add large armies, diplomacy, delegated Companion work, stewards, Troop education, Troop progression, custom Troops, quirks, multiple Local Contracts, or resident daily schedules. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-005`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-157 — Exclude Band morale and related needs
 
@@ -1937,10 +1937,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add Band morale, retention, missing-Provisions penalties, camping needs, or entertainment. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-006`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-158 — Exclude detailed Captive systems
 
@@ -1949,10 +1949,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add detailed Captive management, ransom, forced labor, enslavement, recruitment of Captives, or Captive trade. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-007`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-159 — Exclude online and remote-state systems
 
@@ -1961,10 +1961,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add multiplayer, accounts, backend services, server-owned state, cloud saves, or online synchronization. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-008`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-160 — Exclude generative and adaptive media
 
@@ -1973,10 +1973,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add runtime generative AI, spoken dialogue, or adaptive music. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-009`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-161 — Exclude unsupported rendering and input modes
 
@@ -1985,10 +1985,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add WebGL rendering fallback, software rendering, mobile support, touch controls, keyboard-only support, reduced-motion support, or support promises outside the named Chromium/Linux/GPU/driver row. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-010`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-162 — Exclude additional progression and recovery behavior
 
@@ -1997,10 +1997,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the phase plan and pass only if it does not add Renown behavior, a broad progression tree, Agent relationship scores, shared faction attitude, partial settlement damage, contract retry, or Agent-Grievance removal. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `PVS-OOS-011`.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-163 — Excluded-system enforcement
 
@@ -2009,10 +2009,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect the slice, acceptance catalog, and phase plan; pass when each exclusion has no playable path or interface affordance, has no checkpoint other than the scope audit, and no accepted phase ticket adds it. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `spec.md`, Section 10 section-wide exclusion contract.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-164 — Explicit scope change
 
@@ -2021,20 +2021,20 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-SPEC-AUDIT`, inspect every scope addition and pass when each one has an approved explicit specification decision and no current phase plan adds an exclusion without that decision. |
+| Status | Deprecated |
+| Verification | Not applicable. This requirement is not an acceptance condition. |
 
-**Notes:** Source: `spec.md`, Section 10 scope-transition contract.
+**Notes:** Deprecated because `OUT OF SCOPE` clauses are no longer normative acceptance requirements. No replacement.
 
 ## REQ-165 — Specification completeness gate
 
-**Statement:** The specification shall not be handed to iterative phase planning unless every following item remains checked: (1) the purpose, destination, playable boundary, and 45–60-minute target are explicit; (2) the support row, WebGPU gate, viewport, device-pixel ratio, controls promise, loading behavior, and performance floor are explicit; (3) canonical terms agree with `CONTEXT.md`; (4) every top-level section contains purpose, authoritative state and data, inputs and commands, transitions, outputs and player-visible feedback, failure and edge behavior, fixed values or targets, and evidence checkpoints; (5) Local Contract, Agent fate, Settlement condition, save-safe boundary, and battle outcome transitions are complete state tables; (6) one end-to-end diagram covers early victory, late victory, Band defeat, resident loss, survivor decisions, Feat choice, and return; (7) every numeric gameplay, timing, distance, rate, resource, viewport, frame, and duration value has its unit or is explicitly a unitless count, ratio, key, seed, or version; (8) every in-scope normative acceptance claim has a stable requirement ID, class, named checkpoint, named scenario, seed policy, machine-readable assertion, and visual-artifact rule; (9) screenshots are limited to static visual claims, and short clips are limited to transition, timing, or audio claims; (10) failure checkpoints cover invalid commands, defeat priority, save boundaries, storage denial, corrupt data, loading failure, unsupported rendering, audio failure, and device loss; (11) future map fog and every explicit exclusion stay outside the normative playable scope; and (12) no unresolved in-scope decision or placeholder remains.
+**Statement:** The specification shall not be handed to iterative phase planning unless every following item remains checked: (1) the purpose, destination, playable boundary, and 45–60-minute target are explicit; (2) the support row, WebGPU gate, viewport, device-pixel ratio, controls promise, loading behavior, and performance floor are explicit; (3) canonical terms agree with `CONTEXT.md`; (4) every top-level section contains purpose, authoritative state and data, inputs and commands, transitions, outputs and player-visible feedback, failure and edge behavior, fixed values or targets, and evidence checkpoints; (5) Local Contract, Agent fate, Settlement condition, save-safe boundary, and battle outcome transitions are complete state tables; (6) one end-to-end diagram covers early victory, late victory, Band defeat, resident loss, survivor decisions, Feat choice, and return; (7) every numeric gameplay, timing, distance, rate, resource, viewport, frame, and duration value has its unit or is explicitly a unitless count, ratio, key, seed, or version; (8) every in-scope normative acceptance claim has a stable requirement ID, class, named checkpoint, named scenario, seed policy, machine-readable assertion, and visual-artifact rule; (9) screenshots are limited to static visual claims, and short clips are limited to transition, timing, or audio claims; (10) failure checkpoints cover invalid commands, defeat priority, save boundaries, storage denial, corrupt data, loading failure, unsupported rendering, audio failure, and device loss; and (11) no unresolved in-scope decision or placeholder remains.
 
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
 | Status | Active |
-| Verification | `CP-SPEC-AUDIT`: Run the deterministic specification audit on this file. Pass only when the audit validates structure and references, establishes that each of the 12 checklist clauses in the statement is true and checked, and blocks handoff to iterative phase planning whenever any one of those clauses is false or unchecked. Exercise the gate with a conforming fixture and with a controlled failing fixture for each checklist clause; every conforming run must permit the gate and every failing run must keep the handoff ineligible. |
+| Verification | `CP-SPEC-AUDIT`: Run the deterministic specification audit on this file. Pass only when the audit validates structure and references, establishes that each of the 11 checklist clauses in the statement is true and checked, and blocks handoff to iterative phase planning whenever any one of those clauses is false or unchecked. Exercise the gate with a conforming fixture and with a controlled failing fixture for each checklist clause; every conforming run must permit the gate and every failing run must keep the handoff ineligible. |
 
 **Notes:** Source: `PVS-CMP-001`.
 
@@ -2048,4 +2048,4 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Status | Active |
 | Verification | At `CP-SPEC-AUDIT`, make a controlled normative edit that invalidates one item and pass when the rerun clears that item and blocks handoff; restore the source and pass when all valid items return, with no gameplay interface added by the checklist. |
 
-**Notes:** Source: `spec.md`, Section 11 transition and output contracts.
+**Notes:** Source: `spec.md`, Section 10 transition and output contracts.

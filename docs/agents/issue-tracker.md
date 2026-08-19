@@ -17,3 +17,20 @@ Create a new file under `.scratch/<feature-slug>/` (creating the directory if ne
 ## When a skill says “fetch the relevant ticket”
 
 Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+
+## Phase 1 — Repository description
+
+### Testing coverage deviations
+
+- No automated test or command is planned because the task changes repository documentation only. Review compares the rendered `README.md` with `CONTEXT.md`, `docs/requirements.md`, and `docs/architecture.md`.
+
+## Phase 2 — Simulation boundary
+
+### Assumptions
+
+- Bun is the package manager. The implementation commits `bun.lock` and uses frozen Bun installs because no package configuration or lock file exists.
+- Rendering, interface, audio, persistence, and navigation ports are not created until a real adapter needs each seam. The only browser-to-core seam in this phase is the core-owned `Simulation` interface.
+
+### Clarifications
+
+- The project owner selected a boundary-only tracer. This phase does not add a typed gameplay command or advance a Simulation tick. The initial immutable projection contains only Simulation tick 0; later phases add real command and tick behavior.

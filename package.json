@@ -1,0 +1,23 @@
+{
+  "name": "bold-and-brave",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck:core": "tsc -b tsconfig.core.json",
+    "typecheck:browser": "tsc -b tsconfig.browser.json",
+    "test:simulation": "vitest run src/core/simulation",
+    "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
+    "test:browser": "playwright test",
+    "check:dependencies": "bun scripts/check-dependencies.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
+  }
+}
