@@ -15,12 +15,14 @@
  * the emitted `.js` extension (which maps back to the `.ts` source) are all
  * recognized, so a `.js` import cannot bypass either boundary rule.
  *
- * Import extraction is a single-pass scanner that understands comments and
- * string literals: import-like text inside line comments, block comments,
- * string literals, and template literals never produces a specifier, while
- * real `import`/`export` ... `from` declarations, `import('...')` dynamic
- * imports, and side-effect imports are detected. Regex literals are outside
- * the scanner's scope.
+ * Import extraction uses the TypeScript tokenizer (the `typescript` package
+ * already in the toolchain). Tokenization skips comments and whitespace, so
+ * clause state spans newlines, comments act as whitespace inside side-effect
+ * and dynamic imports, and template-literal content never yields an import.
+ * A small finite automaton over the token stream accepts the grammar of
+ * `import`/`export ... from` declarations, `import('...')` dynamic imports,
+ * side-effect imports, and `import x = require('...')` assignments; any
+ * token sequence outside that grammar is ignored.
  *
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
@@ -28,6 +30,8 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
+import type { Scanner } from 'typescript/unstable/ast'
 
 export type RuleId = 'core-to-browser' | 'browser-private-simulation'
 
@@ -39,7 +43,7 @@ export interface DependencyViolation {
   readonly imported: string
   /** The import specifier as written. */
   readonly specifier: string
-  /** 1-based line number of the import. */
+  /** 1-based line number of the import specifier. */
   readonly line: number
 }
 
@@ -48,244 +52,314 @@ export interface ImportSpecifier {
   readonly line: number
 }
 
+interface Token {
+  readonly kind: SyntaxKind
+  /** Unquoted value for string and template tokens; raw text otherwise. */
+  readonly value: string
+  /** 0-based character offset of the token start. */
+  readonly pos: number
+}
+
+type ClauseState =
+  | 'start'
+  | 'typeSeen'
+  | 'defaultSeen'
+  | 'expectBinding'
+  | 'braces'
+  | 'starSeen'
+  | 'starAsSeen'
+  | 'afterBindings'
+
+const END_OF_FILE = SyntaxKind.EndOfFile
+
 const CORE_ZONE = 'core'
 const BROWSER_ZONE = 'browser'
 const SIMULATION_DIR = 'simulation'
 const PUBLIC_SIMULATION_ENTRY = 'index.ts'
 
-const IDENTIFIER_START = /[A-Za-z_$]/
-const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/
-
-type ScanState = 'code' | 'line-comment' | 'block-comment' | 'import-clause' | 'export-clause'
-type ClauseState = 'import-clause' | 'export-clause'
-
-interface LineScanResult {
-  readonly specifiers: string[]
-  readonly inBlockComment: boolean
-}
-
 /**
  * Extract import specifiers with their 1-based source line numbers.
  *
- * Only imports written in real code produce specifiers; import-like text
- * inside line comments, block comments, string literals, and template
- * literals is ignored.
+ * Only imports the TypeScript tokenizer accepts in real code produce
+ * specifiers: comments, string literals, template literals, and multiline
+ * constructs are handled by the tokenizer itself.
  */
 export function extractImports(content: string): ImportSpecifier[] {
+  const scanner = createScanner(true, LanguageVariant.Standard, content)
   const found: ImportSpecifier[] = []
-  let inBlockComment = false
+  let token = scanToken(scanner)
 
-  content.split('\n').forEach((line, index) => {
-    const scan = scanLine(line, inBlockComment)
-    inBlockComment = scan.inBlockComment
-    for (const specifier of scan.specifiers) {
-      found.push({ specifier, line: index + 1 })
+  while (token.kind !== END_OF_FILE) {
+    if (token.kind === SyntaxKind.ImportKeyword) {
+      token = scanImport(scanner, found, content)
+    } else if (token.kind === SyntaxKind.ExportKeyword) {
+      token = scanExport(scanner, found, content)
+    } else {
+      token = scanToken(scanner)
     }
-  })
+  }
 
   return found
 }
 
 /**
- * Scan one source line for import specifiers.
- *
- * The scanner walks the line character by character, tracking comments and
- * string literals so that only imports written in real code are recorded.
- * `startsInBlockComment` carries an unterminated block comment from a
- * previous line; the result reports whether this line still ends inside one.
+ * Scan the tokens that follow an `import` keyword and record any specifier.
+ * Returns the current (already scanned) token after the import construct.
  */
-function scanLine(line: string, startsInBlockComment: boolean): LineScanResult {
-  const specifiers: string[] = []
-  let state: ScanState = startsInBlockComment ? 'block-comment' : 'code'
-  let resumeState: ScanState = 'code'
-  let i = 0
+function scanImport(
+  scanner: Scanner,
+  found: ImportSpecifier[],
+  content: string,
+): Token {
+  let token = scanToken(scanner)
 
-  while (i < line.length) {
-    const c = line[i]
+  if (token.kind === SyntaxKind.StringLiteral) {
+    // Side-effect import: import 'spec'.
+    record(found, token, content)
+    return scanToken(scanner)
+  }
+  if (token.kind === SyntaxKind.OpenParenToken) {
+    // Dynamic import: import('spec').
+    const inner = scanToken(scanner)
+    if (inner.kind === SyntaxKind.StringLiteral) {
+      const close = scanToken(scanner)
+      if (close.kind === SyntaxKind.CloseParenToken) {
+        record(found, inner, content)
+      }
+      return close
+    }
+    return inner
+  }
+  if (token.kind === SyntaxKind.DotToken) {
+    // import.meta: not an import clause.
+    return token
+  }
 
+  return scanClause(scanner, token, 'import', found, content)
+}
+
+/**
+ * Scan the tokens that follow an `export` keyword and record a re-export
+ * specifier. Returns the current (already scanned) token after the
+ * construct. Declarations such as `export const ...` or `export function`
+ * consume no specifier and leave scanning untouched.
+ */
+function scanExport(
+  scanner: Scanner,
+  found: ImportSpecifier[],
+  content: string,
+): Token {
+  let token = scanToken(scanner)
+
+  if (token.kind === SyntaxKind.TypeKeyword) {
+    // export type { ... } from ... | export type * from ...
+    token = scanToken(scanner)
+  }
+  if (token.kind === SyntaxKind.OpenBraceToken || token.kind === SyntaxKind.AsteriskToken) {
+    return scanClause(scanner, token, 'export', found, content)
+  }
+
+  return token
+}
+
+/**
+ * Drive the import/export clause automaton until a `from 'spec'` is
+ * consumed (recording the specifier) or the clause proves to be something
+ * else. Returns the current (already scanned) token.
+ */
+function scanClause(
+  scanner: Scanner,
+  firstToken: Token,
+  mode: 'import' | 'export',
+  found: ImportSpecifier[],
+  content: string,
+): Token {
+  let state: ClauseState = 'start'
+  let token = firstToken
+
+  while (token.kind !== END_OF_FILE) {
     switch (state) {
-      case 'code': {
-        if (c === '/' && line[i + 1] === '/') {
-          state = 'line-comment'
-          i += 2
-        } else if (c === '/' && line[i + 1] === '*') {
-          state = 'block-comment'
-          resumeState = 'code'
-          i += 2
-        } else if (c === "'" || c === '"' || c === '`') {
-          // A string literal is opaque: skip it whole so its content cannot
-          // be misread as an import.
-          i = skipQuoted(line, i)
-        } else if (IDENTIFIER_START.test(c)) {
-          const end = readIdentifier(line, i)
-          const word = line.slice(i, end)
-          if (word === 'import' && isKeyword(line, i)) {
-            const continuation = classifyImport(line, end)
-            if (continuation.kind === 'clause') {
-              state = 'import-clause'
-            } else {
-              specifiers.push(continuation.specifier)
-            }
-            i = continuation.end
-          } else if (word === 'export' && isKeyword(line, i)) {
-            state = 'export-clause'
-            i = end
-          } else {
-            i = end
-          }
+      case 'start': {
+        if (mode === 'import' && token.kind === SyntaxKind.Identifier) {
+          // Default import binding: import name from ...
+          state = 'defaultSeen'
+        } else if (token.kind === SyntaxKind.TypeKeyword && mode === 'import') {
+          state = 'typeSeen'
+        } else if (token.kind === SyntaxKind.OpenBraceToken) {
+          state = 'braces'
+        } else if (token.kind === SyntaxKind.AsteriskToken) {
+          state = 'starSeen'
+        } else if (token.kind === SyntaxKind.FromKeyword) {
+          return expectFrom(scanner, found, content)
         } else {
-          i += 1
+          return token
         }
+        token = scanToken(scanner)
         break
       }
 
-      case 'line-comment':
-        i = line.length
-        break
-
-      case 'block-comment': {
-        if (c === '*' && line[i + 1] === '/') {
-          state = resumeState
-          i += 2
+      case 'typeSeen': {
+        if (token.kind === SyntaxKind.Identifier && mode === 'import') {
+          // import type name from ... (type-only default import)
+          state = 'defaultSeen'
+        } else if (token.kind === SyntaxKind.OpenBraceToken) {
+          state = 'braces'
+        } else if (token.kind === SyntaxKind.AsteriskToken) {
+          state = 'starSeen'
+        } else if (token.kind === SyntaxKind.FromKeyword) {
+          return expectFrom(scanner, found, content)
         } else {
-          i += 1
+          return token
         }
+        token = scanToken(scanner)
         break
       }
 
-      case 'import-clause':
-      case 'export-clause': {
-        const step = scanClause(line, i, state, specifiers)
-        if (step.nextState === 'block-comment') {
-          resumeState = state
+      case 'defaultSeen': {
+        if (token.kind === SyntaxKind.CommaToken) {
+          state = 'expectBinding'
+        } else if (token.kind === SyntaxKind.FromKeyword) {
+          return expectFrom(scanner, found, content)
+        } else if (token.kind === SyntaxKind.EqualsToken) {
+          // import x = require('spec')
+          return scanRequireAssignment(scanner, found, content)
+        } else {
+          return token
         }
-        i = step.nextIndex
-        state = step.nextState
+        token = scanToken(scanner)
         break
       }
-    }
-  }
 
-  return { specifiers, inBlockComment: state === 'block-comment' }
-}
+      case 'expectBinding': {
+        if (token.kind === SyntaxKind.OpenBraceToken) {
+          state = 'braces'
+        } else if (token.kind === SyntaxKind.AsteriskToken) {
+          state = 'starSeen'
+        } else {
+          return token
+        }
+        token = scanToken(scanner)
+        break
+      }
 
-type ImportContinuation =
-  | { kind: 'clause'; end: number }
-  | { kind: 'specifier'; specifier: string; end: number }
+      case 'braces': {
+        if (token.kind === SyntaxKind.CloseBraceToken) {
+          state = 'afterBindings'
+        } else if (isBindingElementToken(token)) {
+          // Identifiers, string-literal names, keywords (default, if, ...),
+          // `as`, `type` modifiers, and commas inside the braces.
+          // Continue scanning the binding list.
+        } else {
+          return token
+        }
+        token = scanToken(scanner)
+        break
+      }
 
-/**
- * Classify what follows the word `import` at `end`.
- *
- * `import('...')` and `import '...'` yield a specifier directly; any other
- * form (`import { x } from ...`, `import x from ...`, `import type ...`)
- * yields an import clause that still needs a `from` specifier.
- */
-function classifyImport(line: string, end: number): ImportContinuation {
-  let j = end
-  while (j < line.length && isSpace(line[j])) j += 1
-  const nextChar = line[j]
+      case 'starSeen': {
+        if (token.kind === SyntaxKind.AsKeyword) {
+          state = 'starAsSeen'
+        } else if (token.kind === SyntaxKind.FromKeyword && mode === 'export') {
+          // export * from 'spec'
+          return expectFrom(scanner, found, content)
+        } else {
+          return token
+        }
+        token = scanToken(scanner)
+        break
+      }
 
-  if (nextChar === '(') {
-    let k = j + 1
-    while (k < line.length && isSpace(line[k])) k += 1
-    if (line[k] === "'" || line[k] === '"') {
-      const spec = readQuoted(line, k)
-      return { kind: 'specifier', specifier: spec.value, end: spec.end }
-    }
-    return { kind: 'clause', end }
-  }
+      case 'starAsSeen': {
+        if (token.kind === SyntaxKind.Identifier) {
+          state = 'afterBindings'
+        } else {
+          return token
+        }
+        token = scanToken(scanner)
+        break
+      }
 
-  if (nextChar === "'" || nextChar === '"') {
-    const spec = readQuoted(line, j)
-    return { kind: 'specifier', specifier: spec.value, end: spec.end }
-  }
-
-  return { kind: 'clause', end }
-}
-
-interface ClauseStep {
-  readonly nextIndex: number
-  readonly nextState: ScanState
-}
-
-/**
- * Scan one position of an import or export clause for a `from '...'`
- * specifier. A specifier is recorded only when the word `from` is directly
- * followed by a quoted string.
- */
-function scanClause(line: string, i: number, clause: ClauseState, specifiers: string[]): ClauseStep {
-  const c = line[i]
-
-  if (c === '/' && line[i + 1] === '/') {
-    return { nextIndex: line.length, nextState: clause }
-  }
-  if (c === '/' && line[i + 1] === '*') {
-    return { nextIndex: i + 2, nextState: 'block-comment' }
-  }
-  if (c === "'" || c === '"') {
-    // A string inside a clause is not a specifier unless it follows
-    // `from`; skip it whole so its content cannot be misread.
-    return { nextIndex: skipQuoted(line, i), nextState: clause }
-  }
-  if (IDENTIFIER_START.test(c)) {
-    const end = readIdentifier(line, i)
-    const word = line.slice(i, end)
-    if (word === 'from') {
-      let j = end
-      while (j < line.length && isSpace(line[j])) j += 1
-      const quote = line[j]
-      if (quote === "'" || quote === '"') {
-        const spec = readQuoted(line, j)
-        specifiers.push(spec.value)
-        return { nextIndex: spec.end, nextState: 'code' }
+      case 'afterBindings': {
+        if (token.kind === SyntaxKind.FromKeyword) {
+          return expectFrom(scanner, found, content)
+        }
+        return token
       }
     }
-    return { nextIndex: end, nextState: clause }
   }
-  return { nextIndex: i + 1, nextState: clause }
+
+  return token
 }
 
-function readIdentifier(line: string, start: number): number {
-  let end = start + 1
-  while (end < line.length && IDENTIFIER_CHAR.test(line[end])) end += 1
-  return end
+/** Consume `from 'spec'` when the current token is `from`; record the specifier. */
+function expectFrom(
+  scanner: Scanner,
+  found: ImportSpecifier[],
+  content: string,
+): Token {
+  const specifierToken = scanToken(scanner)
+  if (specifierToken.kind === SyntaxKind.StringLiteral) {
+    record(found, specifierToken, content)
+    return scanToken(scanner)
+  }
+  return specifierToken
 }
 
-/** A keyword is recognized only when it is not an identifier or property access. */
-function isKeyword(line: string, index: number): boolean {
-  const prev = line[index - 1]
-  return prev === undefined || (!IDENTIFIER_CHAR.test(prev) && prev !== '.')
-}
-
-function isSpace(c: string): boolean {
-  return c === ' ' || c === '\t' || c === '\r'
-}
-
-/** Read a quoted string starting at its opening quote; returns value and index after the closing quote. */
-function readQuoted(line: string, quoteIndex: number): { value: string; end: number } {
-  const quote = line[quoteIndex]
-  let i = quoteIndex + 1
-  let value = ''
-  while (i < line.length && line[i] !== quote) {
-    if (line[i] === '\\' && i + 1 < line.length) {
-      value += line[i + 1]
-      i += 2
-    } else {
-      value += line[i]
-      i += 1
+/** Consume `= require('spec')` after the current `=` token; record the specifier. */
+function scanRequireAssignment(
+  scanner: Scanner,
+  found: ImportSpecifier[],
+  content: string,
+): Token {
+  let token = scanToken(scanner)
+  if (token.kind === SyntaxKind.RequireKeyword) {
+    token = scanToken(scanner)
+    if (token.kind === SyntaxKind.OpenParenToken) {
+      token = scanToken(scanner)
+      if (token.kind === SyntaxKind.StringLiteral) {
+        record(found, token, content)
+      }
     }
   }
-  return { value, end: i < line.length ? i + 1 : i }
+  return token
 }
 
-/** Skip a quoted string starting at its opening quote; returns the index after the closing quote. */
-function skipQuoted(line: string, quoteIndex: number): number {
-  const quote = line[quoteIndex]
-  let i = quoteIndex + 1
-  while (i < line.length && line[i] !== quote) {
-    i += line[i] === '\\' && i + 1 < line.length ? 2 : 1
+/** Binding-list tokens allowed between the braces of an import/export clause. */
+function isBindingElementToken(token: Token): boolean {
+  const kind = token.kind
+  return (
+    kind === SyntaxKind.Identifier ||
+    kind === SyntaxKind.StringLiteral ||
+    kind === SyntaxKind.CommaToken ||
+    kind === SyntaxKind.AsKeyword ||
+    kind === SyntaxKind.TypeKeyword ||
+    kind === SyntaxKind.DotToken ||
+    (kind >= SyntaxKind.FirstKeyword && kind <= SyntaxKind.LastKeyword)
+  )
+}
+
+function record(found: ImportSpecifier[], token: Token, content: string): void {
+  found.push({ specifier: token.value, line: lineAt(content, token.pos) })
+}
+
+/** 1-based line number of a character offset. */
+function lineAt(content: string, pos: number): number {
+  let line = 1
+  for (let i = 0; i < pos && i < content.length; i++) {
+    if (content[i] === '\n') {
+      line += 1
+    }
   }
-  return i < line.length ? i + 1 : i
+  return line
+}
+
+function scanToken(scanner: Scanner): Token {
+  const kind = scanner.scan()
+  return {
+    kind,
+    value: scanner.getTokenValue(),
+    pos: scanner.getTokenStart(),
+  }
 }
 
 /**
