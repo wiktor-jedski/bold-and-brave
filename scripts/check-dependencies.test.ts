@@ -287,6 +287,86 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
+  it('fails on a core-to-browser static template dynamic import', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), 'import(`../browser/main.js`)\n')
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-to-browser')
+      expect(violations[0].imported).toBe('browser/main.ts')
+      expect(violations[0].specifier).toBe('../browser/main.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a browser static template dynamic import of a private Simulation implementation file', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/implementation.js`)\n')
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+      expect(violations[0].specifier).toBe('../core/simulation/implementation.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a browser static template dynamic import of a private Simulation implementation file with an options argument', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/implementation.js`, { with: { type: "json" } })\n')
+
+      const violations = checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+      expect(violations[0].specifier).toBe('../core/simulation/implementation.js')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a browser static template dynamic import of the public Simulation entry', () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(join(root, 'browser', 'main.ts'), 'import(`../core/simulation/index.js`)\n')
+
+      expect(checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores interpolated template dynamic imports in every zone', () => {
+    const root = makeFixtureProject()
+    try {
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'simulation.ts'), 'export const createSimulation = (): unknown => ({})\n')
+      writeFileSync(join(root, 'core', 'leaks.ts'), 'import(`../${zone}/main.js`)\n')
+      writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/${file}.js`)\n')
+
+      expect(checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('ignores import-like text inside multiline template literals', () => {
     const root = makeFixtureProject()
     try {
@@ -395,6 +475,8 @@ describe('import extraction (parser regression)', () => {
       "import * as ns from './ns.js'",
       "export * as all from './all.js'",
       "import('./opt.js', { with: { type: 'json' } })",
+      'import(`./template.js`)',
+      'import(`./template-opt.js`, { with: { type: "json" } })',
     ].join('\n')
 
     expect(extractImports(content)).toEqual([
@@ -413,14 +495,17 @@ describe('import extraction (parser regression)', () => {
       { specifier: './ns.js', line: 12 },
       { specifier: './all.js', line: 13 },
       { specifier: './opt.js', line: 14 },
+      { specifier: './template.js', line: 15 },
+      { specifier: './template-opt.js', line: 16 },
     ])
   })
 
-  it('does not treat a non-literal dynamic import argument as a specifier', () => {
+  it('does not treat a non-literal or interpolated dynamic import argument as a specifier', () => {
     const content = [
       "const a = import('./prefix' + suffix)",
-      'const b = import(`./template.js`)',
+      'const b = import(`./interpolated-${name}.js`)',
       'const c = import(someVariable)',
+      'const d = `import(\'./fake.js\')`',
     ].join('\n')
 
     expect(extractImports(content)).toEqual([])

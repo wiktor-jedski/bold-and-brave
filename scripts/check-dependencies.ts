@@ -20,10 +20,12 @@
  * clause state spans newlines, comments act as whitespace inside side-effect
  * and dynamic imports, and template-literal content never yields an import.
  * A small finite automaton over the token stream accepts the grammar of
- * `import`/`export ... from` declarations, `import('...')` dynamic imports
- * (with or without an options argument), side-effect imports, and
- * `import x = require('...')` assignments; any token sequence outside that
- * grammar is ignored.
+ * `import`/`export ... from` declarations, `import('...')` and
+ * `import(\`...\`)` dynamic imports (with or without an options argument),
+ * side-effect imports, and `import x = require('...')` assignments; any
+ * token sequence outside that grammar is ignored. An interpolated template
+ * specifier opens with a TemplateHead and is therefore never recorded as a
+ * static import.
  *
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
@@ -88,19 +90,63 @@ const PUBLIC_SIMULATION_ENTRY = 'index.ts'
 export function extractImports(content: string): ImportSpecifier[] {
   const scanner = createScanner(true, LanguageVariant.Standard, content)
   const found: ImportSpecifier[] = []
+  const templateFrames: number[] = []
   let token = scanToken(scanner)
 
   while (token.kind !== END_OF_FILE) {
-    if (token.kind === SyntaxKind.ImportKeyword) {
+    if (templateFrames.length > 0) {
+      token = scanTemplateInterpolation(scanner, token, templateFrames)
+    } else if (token.kind === SyntaxKind.ImportKeyword) {
       token = scanImport(scanner, found, content)
     } else if (token.kind === SyntaxKind.ExportKeyword) {
       token = scanExport(scanner, found, content)
+    } else if (token.kind === SyntaxKind.TemplateHead) {
+      // An interpolated template literal begins; its content is opaque.
+      templateFrames.push(0)
+      token = scanToken(scanner)
     } else {
       token = scanToken(scanner)
     }
   }
 
   return found
+}
+
+/**
+ * Scan one token position inside a template interpolation. A closing brace
+ * at depth zero ends the interpolation, so the scanner re-scans the
+ * template continuation (`reScanTemplateToken`) instead of tokenizing the
+ * template text as code. Template text and interpolated expressions never
+ * produce imports. Returns the next token to process.
+ */
+function scanTemplateInterpolation(scanner: Scanner, token: Token, templateFrames: number[]): Token {
+  if (token.kind === SyntaxKind.OpenBraceToken) {
+    templateFrames[templateFrames.length - 1] += 1
+    return scanToken(scanner)
+  }
+  if (token.kind === SyntaxKind.CloseBraceToken) {
+    const depth = templateFrames[templateFrames.length - 1]
+    if (depth > 0) {
+      templateFrames[templateFrames.length - 1] = depth - 1
+      return scanToken(scanner)
+    }
+    return rescanTemplate(scanner, templateFrames)
+  }
+  if (token.kind === SyntaxKind.TemplateHead) {
+    // A nested template literal inside the interpolation.
+    templateFrames.push(0)
+    return scanToken(scanner)
+  }
+  return scanToken(scanner)
+}
+
+/** Re-scan a template continuation after `}` and return the token after it. */
+function rescanTemplate(scanner: Scanner, templateFrames: number[]): Token {
+  const kind = scanner.reScanTemplateToken(false)
+  if (kind === SyntaxKind.TemplateTail || kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
+    templateFrames.pop()
+  }
+  return scanToken(scanner)
 }
 
 /**
@@ -120,9 +166,12 @@ function scanImport(
     return scanToken(scanner)
   }
   if (token.kind === SyntaxKind.OpenParenToken) {
-    // Dynamic import: import('spec') or import('spec', options).
+    // Dynamic import: import('spec') / import(`spec`), each with an
+    // optional options argument. An interpolated template opens with a
+    // TemplateHead, not a NoSubstitutionTemplateLiteral, so its specifier
+    // is never statically recorded.
     const inner = scanToken(scanner)
-    if (inner.kind === SyntaxKind.StringLiteral) {
+    if (inner.kind === SyntaxKind.StringLiteral || inner.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
       const after = scanToken(scanner)
       if (after.kind === SyntaxKind.CloseParenToken) {
         record(found, inner, content)
