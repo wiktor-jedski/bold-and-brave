@@ -50,7 +50,7 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 **Requirements closed:** REQ-111, REQ-121.
 
-**Phase check:** Submit a typed command, advance a tick, and read an immutable projection. A dependency check finds no browser type in the core boundary.
+**Phase check:** Build and start the browser application. Its composition root creates exactly one `Simulation` through the core-owned interface and reads an immutable initial projection with Simulation tick 0. A mutation attempt leaves a second projection unchanged. A core-only TypeScript build and dependency check find no browser type or dependency from core code to browser code.
 
 **Acceptance link:** `CP-ARCH-DETERMINISM`.
 
