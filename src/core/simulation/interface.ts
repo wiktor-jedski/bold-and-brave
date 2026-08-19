@@ -15,4 +15,15 @@ export interface SimulationProjection {
 export interface Simulation {
   /** Read the current immutable projection. */
   readProjection(): SimulationProjection
+
+  /**
+   * Advance the private Simulation tick by exactly one fixed tick.
+   *
+   * This is the only external way to advance Simulation time (REQ-113,
+   * PVS-ARC-003): the Browser Runtime calls it once per due 60 Hz interval
+   * (ARCH-005) and the Scenario Harness calls it once per exact requested
+   * tick (ARCH-025). Each call advances exactly one tick; no scenario-only
+   * state mutator exists.
+   */
+  advanceTick(): void
 }
