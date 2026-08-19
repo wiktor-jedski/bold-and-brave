@@ -10,23 +10,21 @@
  *      `src/core/simulation` other than the public module entry
  *      `index.ts` (ARCH-002).
  *
+ * Import extraction is a TypeScript AST traversal. The `typescript` package
+ * already in the toolchain (v7) ships its native compiler as a server
+ * process; source files are fed to it over a virtual filesystem and walked
+ * with the AST predicates and `forEachChild`. Static module specifiers come
+ * from import declarations, export declarations, import-equals
+ * `require(...)` calls, and dynamic `import(...)` calls at any AST depth,
+ * including inside nested template expressions. A specifier is static only
+ * when it is a string literal or a no-substitution template literal;
+ * interpolated arguments are ignored. Comments, strings, and template text
+ * are never imports because the parser itself skips them.
+ *
  * Relative import specifiers resolve against TypeScript source. The
  * extensionless form, an explicit `.ts` suffix, a directory `index.ts`, and
  * the emitted `.js` extension (which maps back to the `.ts` source) are all
  * recognized, so a `.js` import cannot bypass either boundary rule.
- *
- * Import extraction uses the TypeScript tokenizer (the `typescript` package
- * already in the toolchain). Tokenization skips comments and whitespace, so
- * clause state spans newlines, comments act as whitespace inside side-effect
- * and dynamic imports, and template-literal content never yields an import.
- * A small finite automaton over the token stream accepts the grammar of
- * `import`/`export ... from` declarations, `import('...')` and
- * `import(\`...\`)` dynamic imports (with or without an options argument),
- * side-effect imports, and `import x = require('...')` assignments; any
- * token sequence outside that grammar is ignored. An interpolated template
- * specifier opens with a TemplateHead and is therefore never recorded as a
- * static import. Template text stays opaque, but interpolation code inside
- * `${...}` is real code, so dynamic imports nested there are detected.
  *
  * Run with `bun scripts/check-dependencies.ts`. The command exits 0 when
  * the scanned project has no violation and exits 1 otherwise, listing each
@@ -34,8 +32,19 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
-import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
-import type { Scanner } from 'typescript/unstable/ast'
+import { API } from 'typescript/unstable/async'
+import type { Project } from 'typescript/unstable/async'
+import {
+  SyntaxKind,
+  isCallExpression,
+  isExportDeclaration,
+  isExternalModuleReference,
+  isImportDeclaration,
+  isImportEqualsDeclaration,
+  isStringLiteral,
+} from 'typescript/unstable/ast'
+import type { Node, NoSubstitutionTemplateLiteral, SourceFile, StringLiteral } from 'typescript/unstable/ast'
+import type { FileSystem } from 'typescript/unstable/fs'
 
 export type RuleId = 'core-to-browser' | 'browser-private-simulation'
 
@@ -56,409 +65,200 @@ export interface ImportSpecifier {
   readonly line: number
 }
 
-interface Token {
-  readonly kind: SyntaxKind
-  /** Unquoted value for string and template tokens; raw text otherwise. */
-  readonly value: string
-  /** 0-based character offset of the token start. */
-  readonly pos: number
-}
-
-type ClauseState =
-  | 'start'
-  | 'typeSeen'
-  | 'defaultSeen'
-  | 'expectBinding'
-  | 'braces'
-  | 'starSeen'
-  | 'starAsSeen'
-  | 'afterBindings'
-
-const END_OF_FILE = SyntaxKind.EndOfFile
-
 const CORE_ZONE = 'core'
 const BROWSER_ZONE = 'browser'
 const SIMULATION_DIR = 'simulation'
 const PUBLIC_SIMULATION_ENTRY = 'index.ts'
 
-/**
- * Extract import specifiers with their 1-based source line numbers.
- *
- * Only imports the TypeScript tokenizer accepts in real code produce
- * specifiers: comments, string literals, template literals, and multiline
- * constructs are handled by the tokenizer itself.
- */
-export function extractImports(content: string): ImportSpecifier[] {
-  const scanner = createScanner(true, LanguageVariant.Standard, content)
-  const found: ImportSpecifier[] = []
-  const templateFrames: number[] = []
-  let token = scanToken(scanner)
+/** Virtual project root prefix served to the TypeScript compiler server. */
+const VIRTUAL_ROOT = '/bold-and-brave'
+const CONFIG_CONTENT = JSON.stringify({
+  compilerOptions: {
+    target: 'es2022',
+    module: 'esnext',
+    moduleResolution: 'bundler',
+    noEmit: true,
+    skipLibCheck: true,
+  },
+  include: ['src'],
+})
 
-  while (token.kind !== END_OF_FILE) {
-    if (templateFrames.length > 0) {
-      token = scanTemplateInterpolation(scanner, token, templateFrames, found, content)
-    } else if (token.kind === SyntaxKind.ImportKeyword) {
-      token = scanImport(scanner, found, content)
-    } else if (token.kind === SyntaxKind.ExportKeyword) {
-      token = scanExport(scanner, found, content)
-    } else if (token.kind === SyntaxKind.TemplateHead) {
-      // An interpolated template literal begins; its text stays opaque.
-      templateFrames.push(0)
-      token = scanToken(scanner)
-    } else {
-      token = scanToken(scanner)
+/** Module-level virtual filesystem; repopulated for every checked project. */
+const virtualFiles = new Map<string, string>()
+
+const virtualFileSystem: FileSystem = {
+  fileExists(fileName) {
+    return virtualFiles.has(fileName)
+  },
+  readFile(fileName) {
+    return virtualFiles.get(fileName)
+  },
+  realpath: (path) => path,
+  directoryExists(dir) {
+    for (const key of virtualFiles.keys()) {
+      if (key === dir || key.startsWith(`${dir}/`)) {
+        return true
+      }
     }
+    return false
+  },
+  getAccessibleEntries(dir) {
+    // Like createVirtualFileSystem: return the child names relative to the
+    // queried directory, or `undefined` when the directory does not exist.
+    const prefix = dir === VIRTUAL_ROOT ? `${VIRTUAL_ROOT}/` : dir.endsWith('/') ? dir : `${dir}/`
+    const files = new Set<string>()
+    const directories = new Set<string>()
+    let found = false
+    for (const key of virtualFiles.keys()) {
+      if (!key.startsWith(prefix)) {
+        continue
+      }
+      found = true
+      const rest = key.slice(prefix.length)
+      const slash = rest.indexOf('/')
+      if (slash === -1) {
+        files.add(rest)
+      } else {
+        directories.add(rest.slice(0, slash))
+      }
+    }
+    return found ? { files: [...files], directories: [...directories] } : undefined
+  },
+}
+
+let apiPromise: Promise<API> | undefined
+let projectSequence = 0
+
+/** One compiler server instance is reused so a check never spawns it per file. */
+function getApi(): Promise<API> {
+  apiPromise ??= Promise.resolve().then(() => new API({ cwd: '/', fs: virtualFileSystem }))
+  return apiPromise
+}
+
+/** Stop the compiler server so a CLI run can exit. */
+async function closeApi(): Promise<void> {
+  if (apiPromise !== undefined) {
+    const api = await apiPromise
+    apiPromise = undefined
+    await api.close()
+  }
+}
+
+/** Serialize compiler-server access; the virtual filesystem is process-wide. */
+let operationQueue: Promise<void> = Promise.resolve()
+
+function serialized<T>(task: () => Promise<T>): Promise<T> {
+  const result = operationQueue.then(task)
+  operationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  )
+  return result
+}
+
+/**
+ * Populate a fresh virtual project with `files` (keyed by their paths
+ * relative to the project root, e.g. `src/core/a.ts`), open it, and run
+ * `run` with the parsed project and its `src` prefix. Every call uses a
+ * unique virtual root so the server never serves stale file contents.
+ */
+async function withProject<T>(
+  files: Record<string, string>,
+  run: (project: Project, srcPrefix: string) => Promise<T>,
+): Promise<T> {
+  return serialized(async () => {
+    const api = await getApi()
+    projectSequence += 1
+    const root = `${VIRTUAL_ROOT}-${projectSequence}`
+    const configPath = `${root}/tsconfig.json`
+    const srcPrefix = `${root}/src`
+
+    virtualFiles.clear()
+    virtualFiles.set(configPath, CONFIG_CONTENT)
+    for (const [relativePath, content] of Object.entries(files)) {
+      virtualFiles.set(`${root}/${relativePath}`, content)
+    }
+
+    const snapshot = await api.updateSnapshot({ openProjects: [configPath], fileChanges: { invalidateAll: true } })
+    try {
+      const project = snapshot.getProject(configPath)
+      if (project === undefined) {
+        throw new Error('The TypeScript compiler server did not open the virtual project.')
+      }
+      return await run(project, srcPrefix)
+    } finally {
+      await snapshot.dispose()
+      virtualFiles.clear()
+    }
+  })
+}
+
+/**
+ * Collect the static import specifiers of a parsed source file.
+ *
+ * Walks the full AST: import declarations, export declarations,
+ * import-equals `require(...)` calls, and dynamic `import(...)` calls at any
+ * depth — including inside template interpolations. A specifier is static
+ * only as a string literal or a no-substitution template literal.
+ */
+export function collectSpecifiers(sourceFile: SourceFile): ImportSpecifier[] {
+  const found: ImportSpecifier[] = []
+
+  const visit = (node: Node): void => {
+    if (isImportDeclaration(node) || isExportDeclaration(node)) {
+      const moduleSpecifier = node.moduleSpecifier
+      if (moduleSpecifier !== undefined) {
+        const specifier = staticSpecifierText(moduleSpecifier)
+        if (specifier !== undefined) {
+          found.push({ specifier, line: lineOf(sourceFile, moduleSpecifier) })
+        }
+      }
+    } else if (isImportEqualsDeclaration(node) && isExternalModuleReference(node.moduleReference)) {
+      const expression = node.moduleReference.expression
+      const specifier = staticSpecifierText(expression)
+      if (specifier !== undefined) {
+        found.push({ specifier, line: lineOf(sourceFile, expression) })
+      }
+    } else if (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword && node.arguments.length >= 1) {
+      const firstArgument = node.arguments[0]
+      const specifier = staticSpecifierText(firstArgument)
+      if (specifier !== undefined) {
+        found.push({ specifier, line: lineOf(sourceFile, firstArgument) })
+      }
+    }
+    node.forEachChild(visit)
   }
 
+  visit(sourceFile)
   return found
 }
 
 /**
- * Scan one token position inside a template interpolation. Template text is
- * opaque, but interpolation code is real code: `import(...)` calls (and any
- * import or export syntax present) inside `${...}` are detected. A closing
- * brace at depth zero ends the interpolation, so the scanner re-scans the
- * template continuation (`reScanTemplateToken`) instead of tokenizing the
- * template text as code. Returns the next token to process.
+ * The static specifier text of a module-specifier node, or `undefined` for
+ * interpolated template expressions, computed expressions, and identifiers.
  */
-function scanTemplateInterpolation(
-  scanner: Scanner,
-  token: Token,
-  templateFrames: number[],
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  if (token.kind === SyntaxKind.OpenBraceToken) {
-    templateFrames[templateFrames.length - 1] += 1
-    return scanToken(scanner)
+function staticSpecifierText(node: Node): string | undefined {
+  if (isStringLiteral(node) || node.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
+    return (node as StringLiteral | NoSubstitutionTemplateLiteral).text
   }
-  if (token.kind === SyntaxKind.CloseBraceToken) {
-    const depth = templateFrames[templateFrames.length - 1]
-    if (depth > 0) {
-      templateFrames[templateFrames.length - 1] = depth - 1
-      return scanToken(scanner)
-    }
-    return rescanTemplate(scanner, templateFrames)
-  }
-  if (token.kind === SyntaxKind.TemplateHead) {
-    // A nested template literal inside the interpolation.
-    templateFrames.push(0)
-    return scanToken(scanner)
-  }
-  if (token.kind === SyntaxKind.ImportKeyword) {
-    return scanImport(scanner, found, content)
-  }
-  if (token.kind === SyntaxKind.ExportKeyword) {
-    return scanExport(scanner, found, content)
-  }
-  return scanToken(scanner)
+  return undefined
 }
 
-/** Re-scan a template continuation after `}` and return the token after it. */
-function rescanTemplate(scanner: Scanner, templateFrames: number[]): Token {
-  const kind = scanner.reScanTemplateToken(false)
-  if (kind === SyntaxKind.TemplateTail || kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-    templateFrames.pop()
-  }
-  return scanToken(scanner)
+/** 1-based line number of a node in its source file. */
+function lineOf(sourceFile: SourceFile, node: Node): number {
+  return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1
 }
 
 /**
- * Scan the tokens that follow an `import` keyword and record any specifier.
- * Returns the current (already scanned) token after the import construct.
+ * Extract the static import specifiers of one TypeScript source text.
+ *
+ * The content is parsed as a virtual file by the compiler server.
  */
-function scanImport(
-  scanner: Scanner,
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  let token = scanToken(scanner)
-
-  if (token.kind === SyntaxKind.StringLiteral) {
-    // Side-effect import: import 'spec'.
-    record(found, token, content)
-    return scanToken(scanner)
-  }
-  if (token.kind === SyntaxKind.OpenParenToken) {
-    // Dynamic import: import('spec') / import(`spec`), each with an
-    // optional options argument. An interpolated template opens with a
-    // TemplateHead, not a NoSubstitutionTemplateLiteral, so its specifier
-    // is never statically recorded.
-    const inner = scanToken(scanner)
-    if (inner.kind === SyntaxKind.StringLiteral || inner.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-      const after = scanToken(scanner)
-      if (after.kind === SyntaxKind.CloseParenToken) {
-        record(found, inner, content)
-      } else if (after.kind === SyntaxKind.CommaToken) {
-        // An options argument follows; the specifier is still statically
-        // known. Skip to the token after the matching close paren.
-        record(found, inner, content)
-        return skipToMatchingParen(scanner, after)
-      }
-      return after
-    }
-    return inner
-  }
-  if (token.kind === SyntaxKind.DotToken) {
-    // import.meta: not an import clause.
-    return token
-  }
-
-  return scanClause(scanner, token, 'import', found, content)
-}
-
-/**
- * Scan the tokens that follow an `export` keyword and record a re-export
- * specifier. Returns the current (already scanned) token after the
- * construct. Declarations such as `export const ...` or `export function`
- * consume no specifier and leave scanning untouched.
- */
-function scanExport(
-  scanner: Scanner,
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  let token = scanToken(scanner)
-
-  if (token.kind === SyntaxKind.TypeKeyword) {
-    // export type { ... } from ... | export type * from ...
-    token = scanToken(scanner)
-  }
-  if (token.kind === SyntaxKind.OpenBraceToken || token.kind === SyntaxKind.AsteriskToken) {
-    return scanClause(scanner, token, 'export', found, content)
-  }
-
-  return token
-}
-
-/**
- * Drive the import/export clause automaton until a `from 'spec'` is
- * consumed (recording the specifier) or the clause proves to be something
- * else. Returns the current (already scanned) token.
- */
-function scanClause(
-  scanner: Scanner,
-  firstToken: Token,
-  mode: 'import' | 'export',
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  let state: ClauseState = 'start'
-  let token = firstToken
-
-  while (token.kind !== END_OF_FILE) {
-    switch (state) {
-      case 'start': {
-        if (mode === 'import' && token.kind === SyntaxKind.Identifier) {
-          // Default import binding: import name from ...
-          state = 'defaultSeen'
-        } else if (token.kind === SyntaxKind.TypeKeyword && mode === 'import') {
-          state = 'typeSeen'
-        } else if (token.kind === SyntaxKind.OpenBraceToken) {
-          state = 'braces'
-        } else if (token.kind === SyntaxKind.AsteriskToken) {
-          state = 'starSeen'
-        } else if (token.kind === SyntaxKind.FromKeyword) {
-          return expectFrom(scanner, found, content)
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'typeSeen': {
-        if (token.kind === SyntaxKind.Identifier && mode === 'import') {
-          // import type name from ... (type-only default import)
-          state = 'defaultSeen'
-        } else if (token.kind === SyntaxKind.OpenBraceToken) {
-          state = 'braces'
-        } else if (token.kind === SyntaxKind.AsteriskToken) {
-          state = 'starSeen'
-        } else if (token.kind === SyntaxKind.FromKeyword) {
-          return expectFrom(scanner, found, content)
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'defaultSeen': {
-        if (token.kind === SyntaxKind.CommaToken) {
-          state = 'expectBinding'
-        } else if (token.kind === SyntaxKind.FromKeyword) {
-          return expectFrom(scanner, found, content)
-        } else if (token.kind === SyntaxKind.EqualsToken) {
-          // import x = require('spec')
-          return scanRequireAssignment(scanner, found, content)
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'expectBinding': {
-        if (token.kind === SyntaxKind.OpenBraceToken) {
-          state = 'braces'
-        } else if (token.kind === SyntaxKind.AsteriskToken) {
-          state = 'starSeen'
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'braces': {
-        if (token.kind === SyntaxKind.CloseBraceToken) {
-          state = 'afterBindings'
-        } else if (isBindingElementToken(token)) {
-          // Identifiers, string-literal names, keywords (default, if, ...),
-          // `as`, `type` modifiers, and commas inside the braces.
-          // Continue scanning the binding list.
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'starSeen': {
-        if (token.kind === SyntaxKind.AsKeyword) {
-          state = 'starAsSeen'
-        } else if (token.kind === SyntaxKind.FromKeyword && mode === 'export') {
-          // export * from 'spec'
-          return expectFrom(scanner, found, content)
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'starAsSeen': {
-        if (token.kind === SyntaxKind.Identifier) {
-          state = 'afterBindings'
-        } else {
-          return token
-        }
-        token = scanToken(scanner)
-        break
-      }
-
-      case 'afterBindings': {
-        if (token.kind === SyntaxKind.FromKeyword) {
-          return expectFrom(scanner, found, content)
-        }
-        return token
-      }
-    }
-  }
-
-  return token
-}
-
-/** Consume `from 'spec'` when the current token is `from`; record the specifier. */
-function expectFrom(
-  scanner: Scanner,
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  const specifierToken = scanToken(scanner)
-  if (specifierToken.kind === SyntaxKind.StringLiteral) {
-    record(found, specifierToken, content)
-    return scanToken(scanner)
-  }
-  return specifierToken
-}
-
-/**
- * Skip a dynamic-import options argument, starting at the comma that
- * separates it from the specifier, and return the token after the import
- * call's closing paren. Nested parens, braces, and brackets are balanced.
- */
-function skipToMatchingParen(scanner: Scanner, startToken: Token): Token {
-  let depth = 1 // the import call's own open paren
-  let token = startToken
-  while (token.kind !== END_OF_FILE) {
-    if (
-      token.kind === SyntaxKind.OpenParenToken ||
-      token.kind === SyntaxKind.OpenBraceToken ||
-      token.kind === SyntaxKind.OpenBracketToken
-    ) {
-      depth += 1
-    } else if (
-      token.kind === SyntaxKind.CloseParenToken ||
-      token.kind === SyntaxKind.CloseBraceToken ||
-      token.kind === SyntaxKind.CloseBracketToken
-    ) {
-      depth -= 1
-      if (depth === 0) {
-        return scanToken(scanner)
-      }
-    }
-    token = scanToken(scanner)
-  }
-  return token
-}
-
-/** Consume `= require('spec')` after the current `=` token; record the specifier. */
-function scanRequireAssignment(
-  scanner: Scanner,
-  found: ImportSpecifier[],
-  content: string,
-): Token {
-  let token = scanToken(scanner)
-  if (token.kind === SyntaxKind.RequireKeyword) {
-    token = scanToken(scanner)
-    if (token.kind === SyntaxKind.OpenParenToken) {
-      token = scanToken(scanner)
-      if (token.kind === SyntaxKind.StringLiteral) {
-        record(found, token, content)
-      }
-    }
-  }
-  return token
-}
-
-/** Binding-list tokens allowed between the braces of an import/export clause. */
-function isBindingElementToken(token: Token): boolean {
-  const kind = token.kind
-  return (
-    kind === SyntaxKind.Identifier ||
-    kind === SyntaxKind.StringLiteral ||
-    kind === SyntaxKind.CommaToken ||
-    kind === SyntaxKind.AsKeyword ||
-    kind === SyntaxKind.TypeKeyword ||
-    kind === SyntaxKind.DotToken ||
-    (kind >= SyntaxKind.FirstKeyword && kind <= SyntaxKind.LastKeyword)
-  )
-}
-
-function record(found: ImportSpecifier[], token: Token, content: string): void {
-  found.push({ specifier: token.value, line: lineAt(content, token.pos) })
-}
-
-/** 1-based line number of a character offset. */
-function lineAt(content: string, pos: number): number {
-  let line = 1
-  for (let i = 0; i < pos && i < content.length; i++) {
-    if (content[i] === '\n') {
-      line += 1
-    }
-  }
-  return line
-}
-
-function scanToken(scanner: Scanner): Token {
-  const kind = scanner.scan()
-  return {
-    kind,
-    value: scanner.getTokenValue(),
-    pos: scanner.getTokenStart(),
-  }
+export async function extractImports(content: string): Promise<ImportSpecifier[]> {
+  return withProject({ 'src/probe.ts': content }, async (project, srcPrefix) => {
+    const sourceFile = await project.program.getSourceFile(`${srcPrefix}/probe.ts`)
+    return sourceFile === undefined ? [] : collectSpecifiers(sourceFile)
+  })
 }
 
 /**
@@ -521,24 +321,39 @@ export function checkRules(
 }
 
 /** Scan every TypeScript file under `srcRoot` for rule violations. */
-export function checkProject(srcRoot: string): DependencyViolation[] {
-  const violations: DependencyViolation[] = []
+export async function checkProject(srcRoot: string): Promise<DependencyViolation[]> {
+  const files = collectTypeScriptFiles(srcRoot)
+  const contentByRelativePath: Record<string, string> = {}
+  const relativePathByFile = new Map<string, string>()
 
-  for (const file of collectTypeScriptFiles(srcRoot)) {
-    const content = readFileSync(file, 'utf8')
-    for (const { specifier, line } of extractImports(content)) {
-      const imported = resolveImportedFile(file, specifier)
-      if (imported === null) {
-        continue
-      }
-      const violation = checkRules(srcRoot, file, imported, specifier, line)
-      if (violation !== null) {
-        violations.push(violation)
-      }
-    }
+  for (const file of files) {
+    const relativePath = `src/${toPosix(relative(srcRoot, file))}`
+    contentByRelativePath[relativePath] = readFileSync(file, 'utf8')
+    relativePathByFile.set(relativePath, file)
   }
 
-  return violations
+  return withProject(contentByRelativePath, async (project, srcPrefix) => {
+    const violations: DependencyViolation[] = []
+
+    for (const [relativePath, importerFile] of relativePathByFile) {
+      const sourceFile = await project.program.getSourceFile(`${srcPrefix}/${relativePath.slice('src/'.length)}`)
+      if (sourceFile === undefined) {
+        continue
+      }
+      for (const { specifier, line } of collectSpecifiers(sourceFile)) {
+        const imported = resolveImportedFile(importerFile, specifier)
+        if (imported === null) {
+          continue
+        }
+        const violation = checkRules(srcRoot, importerFile, imported, specifier, line)
+        if (violation !== null) {
+          violations.push(violation)
+        }
+      }
+    }
+
+    return violations
+  })
 }
 
 function collectTypeScriptFiles(dir: string, out: string[] = []): string[] {
@@ -560,9 +375,14 @@ function toPosix(path: string): string {
   return path.split(sep).join('/')
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const srcRoot = resolve('src')
-  const violations = checkProject(srcRoot)
+  let violations: DependencyViolation[]
+  try {
+    violations = await checkProject(srcRoot)
+  } finally {
+    await closeApi()
+  }
 
   for (const violation of violations) {
     console.error(`[${violation.rule}] ${violation.importer}:${violation.line} imports ${violation.imported}`)
@@ -577,5 +397,5 @@ function main(): void {
 }
 
 if (import.meta.main) {
-  main()
+  await main()
 }

@@ -20,13 +20,13 @@ function writeSimulationModule(root: string): void {
 }
 
 describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
-  it('fails on a core-to-browser import fixture', () => {
+  it('fails on a core-to-browser import fixture', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import { boot } from '../browser/main'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -39,13 +39,13 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
-  it('fails on a core-to-browser import that uses the emitted .js extension', () => {
+  it('fails on a core-to-browser import that uses the emitted .js extension', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import { boot } from '../browser/main.js'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -58,13 +58,13 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
-  it('fails on a browser import of a private Simulation implementation file', () => {
+  it('fails on a browser import of a private Simulation implementation file', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "import { createSimulation } from '../core/simulation/implementation'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -77,13 +77,13 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
-  it('fails on a browser import of a private Simulation implementation file using the emitted .js extension', () => {
+  it('fails on a browser import of a private Simulation implementation file using the emitted .js extension', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "import { createSimulation } from '../core/simulation/implementation.js'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -96,48 +96,48 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
-  it('accepts a browser import of the public Simulation module entry, in both extension forms', () => {
+  it('accepts a browser import of the public Simulation module entry, in both extension forms', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'main.ts'), "import { createSimulation } from '../core/simulation'\n")
       writeFileSync(join(root, 'browser', 'other.ts'), "import { createSimulation as other } from '../core/simulation/index.js'\nvoid other\n")
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('accepts the Simulation module entry importing its own private implementation', () => {
+  it('accepts the Simulation module entry importing its own private implementation', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('accepts an empty fixture project', () => {
+  it('accepts an empty fixture project', async () => {
     const root = makeFixtureProject()
     try {
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 })
 
-describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () => {
-  it('fails on a multiline core-to-browser import clause', () => {
+describe('multiline imports and comment-as-whitespace', () => {
+  it('fails on a multiline core-to-browser import clause', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import {\n  boot,\n} from '../browser/main'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -149,13 +149,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a multiline browser import of a private Simulation implementation file', () => {
+  it('fails on a multiline browser import of a private Simulation implementation file', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "import {\n  createSimulation,\n} from '../core/simulation/implementation.js'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -167,13 +167,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a multiline re-export of a private Simulation implementation file', () => {
+  it('fails on a multiline re-export of a private Simulation implementation file', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "export {\n  createSimulation,\n} from '../core/simulation/implementation'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -185,13 +185,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a core-to-browser side-effect import with a comment as whitespace', () => {
+  it('fails on a core-to-browser side-effect import with a comment as whitespace', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import /* needs boot */ '../browser/main.js'\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -203,13 +203,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a core-to-browser dynamic import with a comment as whitespace', () => {
+  it('fails on a core-to-browser dynamic import with a comment as whitespace', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import(/* needs boot */ '../browser/main.js')\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -221,13 +221,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser dynamic import of a private Simulation implementation file', () => {
+  it('fails on a browser dynamic import of a private Simulation implementation file', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "import(/* private */ '../core/simulation/implementation.js')\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -239,13 +239,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a core-to-browser dynamic import with an options argument', () => {
+  it('fails on a core-to-browser dynamic import with an options argument', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "import('../browser/main.js', { with: { type: 'json' } })\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -257,13 +257,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser dynamic import of a private Simulation implementation file with an options argument', () => {
+  it('fails on a browser dynamic import of a private Simulation implementation file with an options argument', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "import('../core/simulation/implementation.js', { with: { type: 'json' } })\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -275,25 +275,25 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('accepts a browser dynamic import of the public Simulation entry with an options argument', () => {
+  it('accepts a browser dynamic import of the public Simulation entry with an options argument', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'main.ts'), "import('../core/simulation/index.js', { with: { type: 'json' } })\n")
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('fails on a core-to-browser static template dynamic import', () => {
+  it('fails on a core-to-browser static template dynamic import', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), 'import(`../browser/main.js`)\n')
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -305,13 +305,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser static template dynamic import of a private Simulation implementation file', () => {
+  it('fails on a browser static template dynamic import of a private Simulation implementation file', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/implementation.js`)\n')
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -323,13 +323,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser static template dynamic import of a private Simulation implementation file with an options argument', () => {
+  it('fails on a browser static template dynamic import of a private Simulation implementation file with an options argument', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/implementation.js`, { with: { type: "json" } })\n')
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -341,19 +341,19 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('accepts a browser static template dynamic import of the public Simulation entry', () => {
+  it('accepts a browser static template dynamic import of the public Simulation entry', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'main.ts'), 'import(`../core/simulation/index.js`)\n')
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('ignores interpolated template dynamic imports in every zone', () => {
+  it('ignores interpolated template dynamic imports in every zone', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
@@ -361,19 +361,19 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
       writeFileSync(join(root, 'core', 'leaks.ts'), 'import(`../${zone}/main.js`)\n')
       writeFileSync(join(root, 'browser', 'sneaks.ts'), 'import(`../core/simulation/${file}.js`)\n')
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('fails on a core-to-browser dynamic import nested inside template interpolation', () => {
+  it('fails on a core-to-browser dynamic import nested inside template interpolation', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "const hint = `prefix ${import('../browser/main.js')} suffix`\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -385,13 +385,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser dynamic import of a private Simulation implementation file nested inside template interpolation', () => {
+  it('fails on a browser dynamic import of a private Simulation implementation file nested inside template interpolation', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "const hint = `prefix ${import('../core/simulation/implementation.js')} suffix`\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -403,13 +403,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a browser dynamic import with an options argument nested inside template interpolation', () => {
+  it('fails on a browser dynamic import with an options argument nested inside template interpolation', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'sneaks.ts'), "const hint = `prefix ${import('../core/simulation/implementation.js', { with: { type: 'json' } })} suffix`\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('browser-private-simulation')
@@ -421,13 +421,13 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('fails on a core-to-browser dynamic import nested inside nested template interpolations', () => {
+  it('fails on a core-to-browser dynamic import nested inside nested template interpolations', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), "const hint = `outer ${`inner ${import('../browser/main.js')} inner`} outer`\n")
 
-      const violations = checkProject(root)
+      const violations = await checkProject(root)
 
       expect(violations).toHaveLength(1)
       expect(violations[0].rule).toBe('core-to-browser')
@@ -439,52 +439,25 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
     }
   })
 
-  it('accepts a browser dynamic import of the public Simulation entry nested inside template interpolation', () => {
+  it('accepts a browser dynamic import of the public Simulation entry nested inside template interpolation', async () => {
     const root = makeFixtureProject()
     try {
       writeSimulationModule(root)
       writeFileSync(join(root, 'browser', 'main.ts'), "const hint = `prefix ${import('../core/simulation/index.js')} suffix`\n")
 
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('keeps an interpolated import argument non-static even inside template interpolation', () => {
+  it('keeps an interpolated import argument non-static even inside template interpolation', async () => {
     const root = makeFixtureProject()
     try {
       writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
       writeFileSync(join(root, 'core', 'leaks.ts'), 'const hint = `prefix ${import(`../${zone}/main.js`)} suffix`\n')
 
-      expect(checkProject(root)).toEqual([])
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
-  it('ignores import-like text inside multiline template literals', () => {
-    const root = makeFixtureProject()
-    try {
-      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
-      writeFileSync(
-        join(root, 'core', 'leaks.ts'),
-        "const doc = `\nimport { boot } from '../browser/main'\nfrom '../browser/main'\n`\n",
-      )
-
-      expect(checkProject(root)).toEqual([])
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
-  it('accepts a multiline browser import of the public Simulation module entry', () => {
-    const root = makeFixtureProject()
-    try {
-      writeSimulationModule(root)
-      writeFileSync(join(root, 'browser', 'main.ts'), "import {\n  createSimulation,\n} from '../core/simulation'\nvoid createSimulation\n")
-
-      expect(checkProject(root)).toEqual([])
+      expect(await checkProject(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -492,16 +465,16 @@ describe('multiline imports and comment-as-whitespace (tokenizer-backed)', () =>
 })
 
 describe('import extraction (parser regression)', () => {
-  it('ignores import-like text inside line comments', () => {
+  it('ignores import-like text inside line comments', async () => {
     const content = [
       "// import { boot } from '../browser/main'",
       "const note = 'keep' // from './core/simulation/implementation'",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('ignores import-like text inside block comments, including multi-line ones', () => {
+  it('ignores import-like text inside block comments, including multi-line ones', async () => {
     const content = [
       '/*',
       "import { boot } from '../browser/main'",
@@ -510,10 +483,10 @@ describe('import extraction (parser regression)', () => {
       "const after = 'still fine'",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('ignores import-like text inside string and template literals', () => {
+  it('ignores import-like text inside string and template literals', async () => {
     const content = [
       'const a = "from \'../browser/main\'"',
       'const b = \'import "./core/simulation/implementation"\'',
@@ -521,10 +494,10 @@ describe('import extraction (parser regression)', () => {
       "const d = 'from ./fake'",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('ignores import-like text inside a multiline template literal', () => {
+  it('ignores import-like text inside a multiline template literal', async () => {
     const content = [
       'const doc = `',
       "import { boot } from '../browser/main'",
@@ -533,29 +506,29 @@ describe('import extraction (parser regression)', () => {
       "const after = 'still fine'",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('ignores identifiers that merely look like import or from usage', () => {
+  it('ignores identifiers that merely look like import or from usage', async () => {
     const content = [
       'const url = import.meta.url',
       "const label = obj.from('./not-an-import')",
       "export const value = from('not-an-import')",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('still detects a real import on a line that also contains a comment or string', () => {
+  it('still detects a real import on a line that also contains a comment or string', async () => {
     const content = [
       "import { createSimulation } from '../core/simulation' // public entry",
       "const s = 'from ./fake'",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([{ specifier: '../core/simulation', line: 1 }])
+    expect(await extractImports(content)).toEqual([{ specifier: '../core/simulation', line: 1 }])
   })
 
-  it('detects every supported import form with correct specifiers and lines', () => {
+  it('detects every supported import form with correct specifiers and lines', async () => {
     const content = [
       "import './side-effect.js'",
       "import('./lazy.js')",
@@ -575,7 +548,7 @@ describe('import extraction (parser regression)', () => {
       'import(`./template-opt.js`, { with: { type: "json" } })',
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([
+    expect(await extractImports(content)).toEqual([
       { specifier: './side-effect.js', line: 1 },
       { specifier: './lazy.js', line: 2 },
       { specifier: './re-export.js', line: 3 },
@@ -596,7 +569,7 @@ describe('import extraction (parser regression)', () => {
     ])
   })
 
-  it('does not treat a non-literal or interpolated dynamic import argument as a specifier', () => {
+  it('does not treat a non-literal or interpolated dynamic import argument as a specifier', async () => {
     const content = [
       "const a = import('./prefix' + suffix)",
       'const b = import(`./interpolated-${name}.js`)',
@@ -604,10 +577,10 @@ describe('import extraction (parser regression)', () => {
       'const d = `import(\'./fake.js\')`',
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('detects real dynamic imports inside template interpolation code', () => {
+  it('detects real dynamic imports inside template interpolation code', async () => {
     const content = [
       "const a = `prefix ${import('./inside.js')} suffix`",
       "const b = `prefix ${import(`./static-template.js`)} suffix`",
@@ -616,7 +589,7 @@ describe('import extraction (parser regression)', () => {
       "const e = `outer ${`inner ${import(`./deep-template.js`)} inner`} outer`",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([
+    expect(await extractImports(content)).toEqual([
       { specifier: './inside.js', line: 1 },
       { specifier: './static-template.js', line: 2 },
       { specifier: './opt.js', line: 3 },
@@ -625,26 +598,26 @@ describe('import extraction (parser regression)', () => {
     ])
   })
 
-  it('keeps interpolated import arguments non-static inside template interpolation', () => {
+  it('keeps interpolated import arguments non-static inside template interpolation', async () => {
     const content = [
       "const a = `prefix ${import(`./${name}.js`)} suffix`",
       "const b = `prefix ${import('./prefix' + suffix)} suffix`",
       "const c = `prefix ${import(variable)} suffix`",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([])
+    expect(await extractImports(content)).toEqual([])
   })
 
-  it('keeps import-like template text opaque alongside real interpolation imports', () => {
+  it('keeps import-like template text opaque alongside real interpolation imports', async () => {
     const content = [
       "const s = `import { x } from './fake.js'`",
       "const t = `text ${import('./real.js')} more`",
     ].join('\n')
 
-    expect(extractImports(content)).toEqual([{ specifier: './real.js', line: 2 }])
+    expect(await extractImports(content)).toEqual([{ specifier: './real.js', line: 2 }])
   })
 
-  it('preserves clause state across newlines and comments for every clause shape', () => {
+  it('preserves clause state across newlines and comments for every clause shape', async () => {
     const content = [
       "import {\n  a,\n} from './multiline.js'",
       "import\n  type {\n    B,\n  } from './multiline-type.js'",
@@ -653,7 +626,7 @@ describe('import extraction (parser regression)', () => {
       "export * from './star-multiline.js'",
     ].join('\n')
 
-    expect(extractImports(content).map((entry) => entry.specifier)).toEqual([
+    expect((await extractImports(content)).map((entry) => entry.specifier)).toEqual([
       './multiline.js',
       './multiline-type.js',
       './star-comment.js',
