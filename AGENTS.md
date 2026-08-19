@@ -30,3 +30,9 @@ Task list - `docs/implementation/task-list.md`
 Open items/issues - `docs/agents/issue-tracker.md`
 Architecture - `docs/architecture.md`
 Requirements - `docs/requirements.md`
+
+## Testing
+
+### Planning
+
+Task list validation script - `scripts/validate-task-list.py`
