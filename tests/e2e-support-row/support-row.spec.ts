@@ -179,7 +179,7 @@ test('the promised row runs the real Phase 6 startup to Loading Scene and writes
   // state, host GPU, driver, or GPU-row count fails here, before the
   // evidence file is written (REQ-011, REQ-012, REQ-014, REQ-134,
   // REQ-135).
-  const rejections = validateStartupEvidenceRecord(evidence, SUPPORT_PROMISE, system)
+  const rejections = validateStartupEvidenceRecord(evidence, SUPPORT_PROMISE)
   expect(rejections).toEqual([])
 
   // No Scene asset request occurred before the gates passed (REQ-134,

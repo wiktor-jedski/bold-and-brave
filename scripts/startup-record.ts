@@ -83,9 +83,12 @@ export function matchesPromisedAdapterVendor(vendor: string, promisedGpu: string
 
 /**
  * Validate one Phase 6 startup evidence record against the single authored
- * support promise and the gate-verified system facts (REQ-011, REQ-012,
- * REQ-014, REQ-134, REQ-135).
+ * support promise (REQ-011, REQ-012, REQ-014, REQ-134, REQ-135).
  *
+ * The host row of the evidence record is composed by
+ * `buildStartupEvidenceRecord` from the gate-verified system facts, so
+ * comparing it against the authored promise is the meaningful check: a
+ * wrong, stale, or tampered host row fails against `SUPPORT_PROMISE`.
  * Returns the list of rejection reasons; an empty list means the product
  * reported a secure context, the exact gate order, the `high-performance`
  * power-preference hint, a browser adapter with matching NVIDIA vendor
@@ -98,7 +101,6 @@ export function matchesPromisedAdapterVendor(vendor: string, promisedGpu: string
 export function validateStartupEvidenceRecord(
   record: StartupEvidenceRecord,
   promise: SupportPromise,
-  system: SystemFacts,
 ): string[] {
   const rejections: string[] = []
   const row = promise.rows[0]

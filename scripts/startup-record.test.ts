@@ -90,14 +90,14 @@ function expectRecordRejected(
 ): void {
   const record = makeValidRecord() as unknown as DeepMutable<StartupEvidenceRecord>
   mutate(record)
-  const rejections = validateStartupEvidenceRecord(record, SUPPORT_PROMISE, VALID_SYSTEM_FACTS)
+  const rejections = validateStartupEvidenceRecord(record, SUPPORT_PROMISE)
   expect(rejections).not.toEqual([])
 }
 
 describe('Phase 6 startup-record validation (REQ-011, REQ-012, REQ-014, REQ-134, REQ-135)', () => {
   it('accepts the record that matches the promised row and the verified host facts', () => {
     expect(
-      validateStartupEvidenceRecord(makeValidRecord(), SUPPORT_PROMISE, VALID_SYSTEM_FACTS),
+      validateStartupEvidenceRecord(makeValidRecord(), SUPPORT_PROMISE),
     ).toEqual([])
   })
 
