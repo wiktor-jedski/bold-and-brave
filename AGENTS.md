@@ -43,6 +43,11 @@ Use integration tests and e2e tests to check seams and requirements.
 
 Check required dependencies, type-check the project, check dependency direction, build the browser application, and run all project tests - `scripts/ci-check.py`
 
+### Local
+
+Run only machine-specific acceptance checks on the promised workstation - `scripts/local-check.py`
+Do not run this script in general CI.
+
 ### Planning
 
 Task list validation script - `scripts/validate-task-list.py`
