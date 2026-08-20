@@ -11,6 +11,7 @@
     "typecheck:browser": "tsc -b tsconfig.browser.json",
     "test:simulation": "vitest run src/core/simulation",
     "test:runtime": "vitest run src/browser/runtime",
+    "test:support": "vitest run src/browser/support",
     "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
     "test:browser": "playwright test",
     "check:dependencies": "bun scripts/check-dependencies.ts"
