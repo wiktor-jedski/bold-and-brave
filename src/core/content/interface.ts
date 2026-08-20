@@ -61,3 +61,22 @@ export interface AgentContent {
   /** The initial fixed-set of Grievances. */
   readonly grievances: readonly Grievance[]
 }
+
+/**
+ * The authored identity and fixed join cost of one initial Band member
+ * (ARCH-016, PVS-PRP-001, REQ-077).
+ *
+ * The Band is the player-led group comprising the player character, any
+ * companions, and ordinary troops travelling and fighting together
+ * (CONTEXT.md). A new campaign starts with the player character and Miro
+ * (`poc-companion`) as the one fixed Companion. Miro's fixed join cost is
+ * 0 Coin, so no Coin deduction occurs when Miro joins the new campaign.
+ */
+export interface BandMemberContent {
+  /** The stable build-internal member ID. */
+  readonly id: string
+  /** The player-facing name of the member. */
+  readonly name: string
+  /** The fixed Coin cost to add this member to a new campaign. */
+  readonly costCoin: number
+}

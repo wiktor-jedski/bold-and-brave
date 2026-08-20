@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSimulation } from './index'
 import type { AgentRecord, Simulation, SimulationProjection } from './index'
+import { INITIAL_BAND, MIRO, PLAYER_CHARACTER } from '../content'
 import type { Disposition, Grievance } from '../content'
 
 describe('Simulation module', () => {
@@ -190,6 +191,150 @@ describe('Simulation module', () => {
     expect(simulation.readProjection().tick).toBe(1)
   })
 
+  it('projects the complete tick-0 campaign state with one exact expected value', () => {
+    const first = createSimulation()
+    const second = createSimulation()
+
+    // The complete tick-0 plain-state projection of a new campaign
+    // (REQ-077, REQ-167, PVS-PRP-001): the Agent state from task 8, 100
+    // Coin, 10.0 Provisions, and Band membership of the player character
+    // and Miro (`poc-companion`), the one fixed Companion.
+    const expected = {
+      tick: 0,
+      agents: [
+        {
+          id: 'poc-contract-giver',
+          name: 'Village Elder',
+          role: 'Contract-giver Agent',
+          fate: 'Active',
+          disposition: 'Neutral',
+          grievances: [],
+        },
+        {
+          id: 'poc-enemy-agent',
+          name: 'Varek',
+          role: 'Enemy Agent',
+          fate: 'Active',
+          disposition: 'Hostile',
+          grievances: [],
+        },
+      ],
+      band: [
+        { id: 'poc-player-character', name: 'Player Character' },
+        { id: 'poc-companion', name: 'Miro' },
+      ],
+      coin: 100,
+      provisions: 10.0,
+    }
+
+    expect(first.readProjection()).toEqual(expected)
+    expect(second.readProjection()).toEqual(expected)
+  })
+
+  it('keeps Miro in the Band as the fixed Companion while Coin remains 100', () => {
+    const projection = createSimulation().readProjection()
+
+    // Miro has ID `poc-companion` and is present in the Band while Coin
+    // remains 100 (REQ-077, PVS-PRP-001).
+    expect(projection.band).toEqual([
+      { id: 'poc-player-character', name: 'Player Character' },
+      { id: 'poc-companion', name: 'Miro' },
+    ])
+    expect(projection.band.some((member) => member.id === 'poc-companion' && member.name === 'Miro')).toBe(true)
+    expect(projection.coin).toBe(100)
+    expect(projection.provisions).toBe(10.0)
+
+    // The no-deduction behavior comes from authored content: both initial
+    // Band members have a fixed 0-Coin join cost, so the new campaign starts
+    // at the full 100 Coin even with Miro in the Band (ARCH-016).
+    expect(PLAYER_CHARACTER.costCoin).toBe(0)
+    expect(MIRO.costCoin).toBe(0)
+    expect(INITIAL_BAND.reduce((total, member) => total + member.costCoin, 0)).toBe(0)
+  })
+
+  it('projects value-equal complete state from two new Simulations with separate deep-immutable nested data', () => {
+    const first = createSimulation().readProjection()
+    const second = createSimulation().readProjection()
+
+    // The two complete projections are value-equal.
+    expect(first).toEqual(second)
+    expect(first.agents).toEqual(second.agents)
+    expect(first.band).toEqual(second.band)
+    expect(first.coin).toBe(second.coin)
+    expect(first.provisions).toBe(second.provisions)
+
+    // But each Simulation owns separate deep-immutable nested data
+    // (ARCH-003): no record or list reference is shared.
+    expect(first).not.toBe(second)
+    expect(first.agents).not.toBe(second.agents)
+    expect(first.band).not.toBe(second.band)
+    for (let index = 0; index < first.agents.length; index += 1) {
+      expect(first.agents[index]).not.toBe(second.agents[index])
+      expect(first.agents[index].grievances).not.toBe(second.agents[index].grievances)
+    }
+    for (let index = 0; index < first.band.length; index += 1) {
+      expect(first.band[index]).not.toBe(second.band[index])
+    }
+
+    // The nested Band data is deep-immutable in both projections.
+    expect(Object.isFrozen(first.band)).toBe(true)
+    expect(Object.isFrozen(second.band)).toBe(true)
+    for (const member of first.band) {
+      expect(Object.isFrozen(member)).toBe(true)
+    }
+    for (const member of second.band) {
+      expect(Object.isFrozen(member)).toBe(true)
+    }
+  })
+
+  it('keeps the initial Agent, Band, Coin, and Provisions values unchanged by repeated reads and advanceTick', () => {
+    const simulation = createSimulation()
+
+    const expected = {
+      tick: 0,
+      agents: [
+        {
+          id: 'poc-contract-giver',
+          name: 'Village Elder',
+          role: 'Contract-giver Agent',
+          fate: 'Active',
+          disposition: 'Neutral',
+          grievances: [],
+        },
+        {
+          id: 'poc-enemy-agent',
+          name: 'Varek',
+          role: 'Enemy Agent',
+          fate: 'Active',
+          disposition: 'Hostile',
+          grievances: [],
+        },
+      ],
+      band: [
+        { id: 'poc-player-character', name: 'Player Character' },
+        { id: 'poc-companion', name: 'Miro' },
+      ],
+      coin: 100,
+      provisions: 10.0,
+    }
+
+    // Repeated reads return the same complete initial state.
+    expect(simulation.readProjection()).toEqual(expected)
+    expect(simulation.readProjection()).toEqual(expected)
+
+    // advanceTick changes only the tick; the initial Agent, Band, Coin, and
+    // Provisions values stay untouched (ARCH-003).
+    simulation.advanceTick()
+    simulation.advanceTick()
+
+    const later = simulation.readProjection()
+    expect(later.tick).toBe(2)
+    expect(later.agents).toEqual(expected.agents)
+    expect(later.band).toEqual(expected.band)
+    expect(later.coin).toBe(100)
+    expect(later.provisions).toBe(10.0)
+  })
+
   it('rejects mutable fields and browser types in the public interface at compile time', () => {
     const simulation: Simulation = createSimulation()
 
@@ -202,10 +347,25 @@ describe('Simulation module', () => {
 
       // @ts-expect-error the projection rejects mutation of its tick field
       projection.tick = 1
+      // @ts-expect-error the projection rejects mutation of its band field
+      projection.band = []
+      // @ts-expect-error the projection rejects mutation of its coin field
+      projection.coin = 0
+      // @ts-expect-error the projection rejects mutation of its provisions field
+      projection.provisions = 0
 
       type BrowserNode = { readonly ownerDocument: unknown }
-      // @ts-expect-error a browser-owned type must not appear in the public projection
-      const projectionWithBrowserField: SimulationProjection = { tick: 0, agents: [], ownerDocument: null as unknown as BrowserNode }
+      // The directive comment below suppresses the excess-property error that
+      // the object literal reports on the `ownerDocument` line itself.
+      const projectionWithBrowserField: SimulationProjection = {
+        tick: 0,
+        agents: [],
+        band: [],
+        coin: 0,
+        provisions: 0,
+        // @ts-expect-error a browser-owned type must not appear in the public projection
+        ownerDocument: null as unknown as BrowserNode,
+      }
       void projectionWithBrowserField
     }
     void assertPurity
