@@ -82,9 +82,9 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 5 — Support promise
 
-**Result:** The product states one support row. Acceptance uses the specified Chromium version, Linux x64, NVIDIA GPU and driver, viewport, and device-pixel ratio. The product supports normal keyboard-and-mouse play only.
+**Result:** The product states one support row. Acceptance uses the specified Chromium version, Linux x64, NVIDIA GPU and driver, viewport, and device-pixel ratio. The product makes only a normal keyboard-and-mouse support promise.
 
-**Requirements closed:** REQ-012, REQ-013, REQ-015.
+**Requirements closed:** REQ-012, REQ-013.
 
 **Phase check:** Inspect the recorded environment and browser dimensions. Confirm that no other support promise is present.
 
@@ -486,15 +486,15 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 38 — Visual and interface contract
 
-**Result:** The Playable Vertical Slice presents the specified frontier, one Overworld, and one compact settlement. It presents the specified population and gives the player no magic. It uses the representative low-poly woodcut visual language. All player-facing terms are canonical. All essential panels use semantic HTML and CSS. Pointer, keyboard, and DOM actions use one target-tick command stream.
+**Result:** The Playable Vertical Slice presents the specified frontier, one Overworld, and one compact settlement. It presents the specified population and gives the player no magic. It uses the representative low-poly woodcut visual language. All player-facing terms are canonical. All essential panels use semantic HTML and CSS. Pointer, keyboard, and DOM actions use one target-tick command stream. Normal keyboard-and-mouse play is usable through this stream.
 
-**Requirements closed:** REQ-006, REQ-007, REQ-016, REQ-089, REQ-097, REQ-119.
+**Requirements closed:** REQ-006, REQ-007, REQ-015, REQ-016, REQ-089, REQ-097, REQ-119.
 
-**Phase check:** Inspect the Overworld, settlement, bridge, settlement center, all required Combatants, every panel, and each input source. Run the canonical-term and runtime-asset checks.
+**Phase check:** Inspect the Overworld, settlement, bridge, settlement center, all required Combatants, every panel, and each input source. Use normal keyboard-and-mouse input for the required Overworld, settlement, combat, command, and DOM actions. Run the canonical-term and runtime-asset checks.
 
-**Acceptance link:** `CP-UI-HUD`, `CP-UI-FATE`, `CP-SPEC-END-TO-END`, `CP-ARCH-DETERMINISM`.
+**Acceptance link:** `CP-UI-HUD`, `CP-UI-FATE`, `CP-SPEC-END-TO-END`, `CP-ARCH-DETERMINISM`, `CP-SUPPORT-GATE`, `CP-SPEC-AUDIT`.
 
-**Review focus:** Confirm that generated assets are not runtime dependencies.
+**Review focus:** Confirm that generated assets are not runtime dependencies. Confirm that unsupported input modes do not create a second command path or support promise.
 
 ### Phase 39 — Audio readiness and interface
 
