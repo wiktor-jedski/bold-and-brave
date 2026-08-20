@@ -40,3 +40,14 @@ Read the file at the referenced path. The user will normally pass the path or th
 ### Testing coverage deviations
 
 - Phase 4 does not run `CP-REL-RELEASE` or `CP-PREP-RECRUIT` end to end because their battle, Journal, recruitment, and evidence surfaces belong to later phases. As allowed by the phase plan, `src/core/simulation/simulation.test.ts` creates two new Simulations and checks the same exact initial state and projection claims. Browser evidence stays assigned to the later evidence phases.
+
+## Phase 5 — Support promise
+
+### Assumptions
+
+- The manual promised-row acceptance command runs on the current promised workstation and resolves the system `chromium` executable from `PATH`. Playwright 1.62.1 bundles Chromium 151.0.7922.34, which is not the required patch version. The workstation provides the required system Chromium. The command must fail instead of using the bundled browser.
+
+### Testing coverage deviations
+
+- Phase 5 uses a focused support-row check instead of running `CP-SUPPORT-GATE` and `CP-PERFORMANCE` end to end. WebGPU startup gates, the representative bridge battle, performance metrics, and the evidence harness belong to later phases.
+- Pull-request CI uses Playwright's bundled Chromium for general browser checks and does not produce promised-row evidence. The focused Phase 5 support-row check runs manually on the promised workstation. REQ-015 remains open until Phase 38 verifies usable normal keyboard-and-mouse play.
