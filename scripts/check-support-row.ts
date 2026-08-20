@@ -1,18 +1,24 @@
 /**
  * Local promised-row acceptance command (ARCH-024, ARCH-028, REQ-012,
- * REQ-013, REQ-015).
+ * REQ-013, REQ-015, REQ-134).
  *
  * `bun run check:support-row` runs the dedicated local promised-row
  * acceptance: it resolves the system Chromium executable from `PATH`,
  * rejects an environment that does not match the promised browser, Linux
- * x64 architecture, GPU, or driver before the browser launches, writes the
- * verified system facts, and then runs the promised-row Playwright
+ * x64 architecture, GPU, or driver — and one that has no active desktop
+ * session or more than one GPU row — before the browser launches, writes
+ * the verified system facts, and then runs the promised-row Playwright
  * configuration against the built product. The Playwright spec launches
- * the system Chromium, measures the actual browser version, viewport, and
- * device-pixel ratio, validates the full environment record against the
- * shared `SUPPORT_PROMISE` record (REQ-012), and writes
- * `test-results/support-row/environment.json` only after validation
- * passes.
+ * the system Chromium headed through the active desktop session, measures
+ * the actual browser version, viewport, and device-pixel ratio, validates
+ * the full environment record against the shared `SUPPORT_PROMISE` record
+ * (REQ-012), and writes `test-results/support-row/environment.json` only
+ * after validation passes. The same spec exercises the real Phase 6
+ * startup through the built product: it waits for `Loading Scene`, reads
+ * the machine-readable startup record the product reports after every
+ * ordered gate success, validates it, and writes
+ * `test-results/support-row/startup.json` only after validation passes
+ * (REQ-011, REQ-014, REQ-134, REQ-135).
  *
  * GitHub-hosted pull-request CI keeps the existing general Playwright
  * browser check and never runs this command, so it produces no
@@ -58,6 +64,18 @@ export const SYSTEM_FACTS_PATH = join('node_modules', '.tmp', 'support-row', 'sy
  * `environment.json` present belongs to the latest accepted run.
  */
 export const ENVIRONMENT_RECORD_PATH = join('test-results', 'support-row', 'environment.json')
+
+/**
+ * The machine-readable Phase 6 startup evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * reports every ordered startup gate success and the startup record passes
+ * validation, so a headless launch, a software adapter, a failed gate, or
+ * a mismatched record never leaves passing startup evidence. The gate
+ * removes any stale file before a new run so the only `startup.json`
+ * present belongs to the latest accepted run.
+ */
+export const STARTUP_RECORD_PATH = join('test-results', 'support-row', 'startup.json')
 
 /**
  * Parse the product name and version from a Chromium `--version` output
@@ -106,24 +124,35 @@ export function readChromiumInfo(executable: string): { name: string; version: s
 }
 
 /**
- * Read the GPU name and driver version from the system, or `null` when no
- * NVIDIA tool reports them.
+ * Read every GPU name and driver version row the system reports, or
+ * `null` when no NVIDIA tool reports them.
+ *
+ * The promised-row acceptance requires exactly one host GPU and driver
+ * row: a multi-GPU system could hide the promised device behind another
+ * row, and an empty report proves nothing. The gate rejects any report
+ * that is not exactly one row (REQ-012).
  */
-export function readGpuDriverInfo(): { gpu: string; driver: string } | null {
+export function readGpuDriverRows(): Array<{ gpu: string; driver: string }> | null {
   try {
     const output: string = execFileSync(
       'nvidia-smi',
       ['--query-gpu=name,driver_version', '--format=csv,noheader'],
       { encoding: 'utf8' },
     )
-    const [gpu, driver] = output
-      .split(',')
-      .map((part) => part.trim())
-      .filter((part) => part !== '')
-    if (gpu === undefined || driver === undefined) {
-      return null
-    }
-    return { gpu, driver }
+    const rows = output
+      .split('\n')
+      .map((line) => {
+        const [gpu, driver] = line
+          .split(',')
+          .map((part) => part.trim())
+          .filter((part) => part !== '')
+        if (gpu === undefined || driver === undefined) {
+          return null
+        }
+        return { gpu, driver }
+      })
+      .filter((row): row is { gpu: string; driver: string } => row !== null)
+    return rows.length > 0 ? rows : null
   } catch {
     return null
   }
@@ -243,9 +272,24 @@ export interface SupportRowSystemCheck {
  * launches: resolve the system Chromium from `PATH`, verify the browser,
  * Linux x64 platform and architecture, GPU, and driver, and return the
  * verified facts or the rejection reasons (REQ-012).
+ *
+ * The acceptance launches the browser in headed mode through the active
+ * desktop session (ARCH-024), so the check also rejects an environment
+ * with no active graphical session: headed Chromium cannot launch there,
+ * and a headless launch must never produce promised-row evidence.
  */
 export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystemCheck {
   const rejections: string[] = []
+
+  // The headed promised-row browser needs the active desktop session
+  // (REQ-012, ARCH-024): Chromium selects its display platform from the
+  // session environment, and WebGPU needs that session. A tty-only
+  // environment cannot run the acceptance, so it is rejected up front.
+  if (process.env.DISPLAY === undefined && process.env.WAYLAND_DISPLAY === undefined) {
+    rejections.push(
+      'No active desktop session: neither DISPLAY nor WAYLAND_DISPLAY is set; the headed promised-row browser cannot launch.',
+    )
+  }
 
   const executable = resolveSystemChromium(process.env.PATH ?? '')
   if (executable === null) {
@@ -269,10 +313,17 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
 
   rejections.push(...validateHost(promise, process.platform, process.arch))
 
-  const gpuDriver = readGpuDriverInfo()
-  if (gpuDriver === null) {
+  // Require exactly one host GPU and driver row: a multi-GPU report could
+  // hide the promised device behind another row (REQ-012).
+  const gpuRows = readGpuDriverRows()
+  if (gpuRows === null) {
     rejections.push('The system did not report an NVIDIA GPU and driver through nvidia-smi.')
+  } else if (gpuRows.length !== 1) {
+    rejections.push(
+      `The system reported ${gpuRows.length} GPU rows; exactly one host GPU and driver row is required.`,
+    )
   } else {
+    const gpuDriver = gpuRows[0]
     rejections.push(...validateGpuDriver(promise, gpuDriver.gpu, gpuDriver.driver))
   }
 
@@ -290,7 +341,8 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
     // vendor-reported device (e.g. `NVIDIA GeForce RTX 2070 SUPER`) token-
     // matches the promised model `NVIDIA RTX 2070 SUPER` (REQ-012).
     gpu: promise.rows[0].gpu,
-    driver: gpuDriver?.driver ?? '',
+    driver: gpuRows?.[0]?.driver ?? '',
+    gpuRows: gpuRows?.length ?? 0,
   }
   return { facts, rejections }
 }
@@ -298,9 +350,11 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
 /** Run the local promised-row acceptance: gate, then Playwright. */
 function main(): void {
   // Remove any stale evidence from a previous run up front: whatever the
-  // outcome of this run, the only `environment.json` that may exist
-  // afterwards belongs to an accepted run of this invocation (REQ-013).
+  // outcome of this run, the only `environment.json` and `startup.json`
+  // that may exist afterwards belong to an accepted run of this invocation
+  // (REQ-013).
   rmSync(ENVIRONMENT_RECORD_PATH, { force: true })
+  rmSync(STARTUP_RECORD_PATH, { force: true })
 
   const { facts, rejections } = checkSupportRowSystem(SUPPORT_PROMISE)
   if (rejections.length > 0) {

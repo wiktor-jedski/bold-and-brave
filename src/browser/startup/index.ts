@@ -10,6 +10,8 @@
  * (REQ-135).
  */
 export { runStartupGate } from './implementation'
+export { buildStartupRecord, productionStartupRecorder, STARTUP_GATE_ORDER } from './record'
+export type { StartupRecord, StartupRecorder } from './record'
 export type {
   StartupCapabilityEnvironment,
   StartupInspectionRecord,

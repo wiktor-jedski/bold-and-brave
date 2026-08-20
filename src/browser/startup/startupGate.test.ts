@@ -150,6 +150,14 @@ describe('Browser Delivery State capability gate (ARCH-023, REQ-014, REQ-134, RE
     expect(result.adapter).toBe(fakeAdapter)
     expect(result.device).toBe(fakeDevice)
 
+    // The success result reports the exact facts of the performed checks:
+    // the secure-context value read once at the first check, the one
+    // `high-performance` power-preference hint, and the exact empty
+    // core-only device descriptor (REQ-014, REQ-135).
+    expect(result.secureContext).toBe(true)
+    expect(result.powerPreference).toBe('high-performance')
+    expect(result.deviceDescriptor).toEqual({})
+
     // The adapter is accepted even though its vendor is not NVIDIA and its
     // description carries no high-performance marker: the power preference
     // is a hint only and no product-side vendor allowlist is consulted

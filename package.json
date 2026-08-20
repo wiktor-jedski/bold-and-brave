@@ -15,6 +15,7 @@
     "test:startup": "vitest run src/browser/startup",
     "test:presentation": "vitest run src/browser/presentation",
     "test:support-row": "vitest run scripts/check-support-row.test.ts",
+    "test:startup-record": "vitest run scripts/startup-record.test.ts",
     "check:support-row": "bun scripts/check-support-row.ts",
     "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
     "test:browser": "playwright test",

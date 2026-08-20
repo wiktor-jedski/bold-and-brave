@@ -43,6 +43,8 @@ import { createBrowserRuntime } from './runtime'
 import type { BrowserRuntime, FrameScheduler } from './runtime'
 import { runStartupGate } from './startup'
 import type { StartupCapabilityEnvironment } from './startup'
+import { buildStartupRecord, productionStartupRecorder } from './startup/record'
+import type { StartupRecorder } from './startup/record'
 import { createSceneLoadingHandoff } from './startup/surface'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './startup/surface'
 import { runWebGPUBackendGate } from './presentation'
@@ -110,6 +112,16 @@ export interface StartupDependencies {
    * prove a failure invokes no handoff.
    */
   readonly handoff?: SceneLoadingHandoff
+  /**
+   * The recorder of the machine-readable startup record (ARCH-023,
+   * REQ-134).
+   *
+   * Production publishes the record on the browser global object after
+   * every gate passes; integration tests inject a recording recorder to
+   * prove the exact published content and that a failed startup publishes
+   * nothing.
+   */
+  readonly recorder?: StartupRecorder
 }
 
 /**
@@ -183,11 +195,15 @@ export async function runApplicationStartup(
     return
   }
 
-  // Every gate passed: start the one Browser Runtime frame loop and invoke
-  // the Scene-loading handoff with the initialized renderer (REQ-134,
-  // PVS-WEB-001). The production handoff enters the `Loading Scene`
-  // delivery state; a failed gate above started neither and ran no later
-  // gate.
+  // Every gate passed: publish the machine-readable startup record — the
+  // product reports the ordered secure-context, physical-adapter,
+  // core-device, and Three.js WebGPU-backend successes — then start the
+  // one Browser Runtime frame loop and invoke the Scene-loading handoff
+  // with the initialized renderer (REQ-134, PVS-WEB-001). A failed gate
+  // above started neither, ran no later gate, and published no record.
+  const recorder = dependencies.recorder ?? productionStartupRecorder
+  recorder.record(buildStartupRecord(capability, backend))
+
   application.runtime.start()
   const handoff = dependencies.handoff ?? createSceneLoadingHandoff(surface)
   handoff(backend.renderer)

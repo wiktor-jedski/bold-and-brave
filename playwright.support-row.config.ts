@@ -1,13 +1,21 @@
 /**
  * Dedicated promised-row Playwright configuration (ARCH-024, ARCH-028,
- * REQ-012, REQ-013).
+ * REQ-012, REQ-013, REQ-134).
  *
  * This configuration runs the local promised-row acceptance: it launches
  * the system Chromium executable resolved from `PATH` by the
- * `check:support-row` gate, and it sets the promised 1920 × 1080
- * CSS-pixel viewport and 1.0 device-pixel ratio from the shared
- * `SUPPORT_PROMISE` record (REQ-013). It is used only by
- * `bun run check:support-row`; the default `playwright.config.ts`
+ * `check:support-row` gate in headed mode through the active desktop
+ * session, and it sets the promised 1920 × 1080 CSS-pixel viewport and
+ * 1.0 device-pixel ratio from the shared `SUPPORT_PROMISE` record
+ * (REQ-013). The headed launch exercises the real Phase 6 startup through
+ * the built product: the product's ordered startup gates select the
+ * physical WebGPU adapter of the promised machine and reach `Loading
+ * Scene` (REQ-011, REQ-014, REQ-134, REQ-135).
+ *
+ * Playwright's default `--enable-unsafe-swiftshader` launch argument is
+ * removed so a software adapter can never be selected; no launch argument
+ * enables WebGPU or bypasses the GPU blocklist. The configuration is used
+ * only by `bun run check:support-row`; the default `playwright.config.ts`
  * remains the general Playwright browser check that GitHub-hosted
  * pull-request CI runs, and this configuration never runs in that
  * workflow (no promised-row claim in CI).
@@ -49,9 +57,17 @@ export default defineConfig({
         },
         deviceScaleFactor: PROMISED_ROW.maxDevicePixelRatio,
         // Launch the system Chromium executable resolved from `PATH` by
-        // the gate (ARCH-024).
+        // the gate (ARCH-024) in headed mode through the active desktop
+        // session: the real Phase 6 startup must select the physical
+        // WebGPU adapter of the promised machine, which a headless launch
+        // cannot prove (REQ-011, REQ-014). Playwright's unsafe
+        // `--enable-unsafe-swiftshader` default is removed so no software
+        // adapter can be selected, and no launch argument enables WebGPU
+        // or bypasses the GPU blocklist.
         launchOptions: {
           executablePath: system.executablePath,
+          headless: false,
+          ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
         },
       },
     },

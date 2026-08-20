@@ -48,6 +48,19 @@ const productionCapabilityEnvironment: StartupCapabilityEnvironment = {
   },
 }
 
+/** The one power-preference hint of the adapter request (REQ-014). */
+const POWER_PREFERENCE = 'high-performance' as const
+
+/**
+ * The exact core-only device descriptor of the device request (REQ-135).
+ *
+ * The gate always requests the device with this empty descriptor, so no
+ * optional feature or raised limit is required (PVS-WEB-002). Recording
+ * the exact object lets the composed startup record prove the emptiness
+ * of the request.
+ */
+const CORE_DEVICE_DESCRIPTOR: GPUDeviceDescriptor = {}
+
 /** Build one typed, readable `Unsupported` result (REQ-134, PVS-WEB-001). */
 function unsupported(code: StartupUnsupportedCode, message: string): StartupUnsupported {
   return Object.freeze({ ok: false, code, message })
@@ -92,8 +105,11 @@ function snapshotInspection(
 export async function runStartupGate(
   environment: StartupCapabilityEnvironment = productionCapabilityEnvironment,
 ): Promise<StartupResult> {
-  // 1. Secure context (REQ-134, PVS-WEB-001).
-  if (!environment.isSecureContext) {
+  // 1. Secure context (REQ-134, PVS-WEB-001). Read the value once and keep
+  //    it for the success result, so reporting the secure context never
+  //    repeats a capability operation.
+  const isSecureContext = environment.isSecureContext
+  if (!isSecureContext) {
     return unsupported('secure-context', 'Startup requires a secure context.')
   }
 
@@ -110,7 +126,7 @@ export async function runStartupGate(
   //    `high-performance` power preference is a hint only and never proves
   //    a physical adapter; the browser's own nonfallback signal does
   //    (REQ-014, PVS-WEB-002). No product-side vendor allowlist exists.
-  const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' })
+  const adapter = await gpu.requestAdapter({ powerPreference: POWER_PREFERENCE })
   if (adapter === null) {
     return unsupported('physical-adapter', 'No WebGPU adapter was returned.')
   }
@@ -132,10 +148,18 @@ export async function runStartupGate(
   //    feature or raised limit is required (REQ-135, PVS-WEB-002).
   let device: GPUDevice
   try {
-    device = await adapter.requestDevice({})
+    device = await adapter.requestDevice(CORE_DEVICE_DESCRIPTOR)
   } catch {
     return unsupported('device-initialization', 'The WebGPU device could not be initialized.')
   }
 
-  return Object.freeze({ ok: true, adapter, device, inspection })
+  return Object.freeze({
+    ok: true,
+    adapter,
+    device,
+    inspection,
+    secureContext: isSecureContext,
+    powerPreference: POWER_PREFERENCE,
+    deviceDescriptor: CORE_DEVICE_DESCRIPTOR,
+  })
 }
