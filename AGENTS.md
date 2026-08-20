@@ -33,9 +33,15 @@ Requirements - `docs/requirements.md`
 
 ## Testing
 
+### General
+
+Unit tests are forbidden in phase/master branches.
+You can use unit tests to check functionalities before finishing work.
+Use integration tests and e2e tests to check seams and requirements.
+
 ### CI
 
-Check required dependencies and run all project tests - `scripts/ci-check.py`
+Check required dependencies, type-check the project, check dependency direction, build the browser application, and run all project tests - `scripts/ci-check.py`
 
 ### Planning
 
