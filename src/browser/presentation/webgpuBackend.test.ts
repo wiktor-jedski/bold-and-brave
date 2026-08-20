@@ -88,18 +88,60 @@ function expectUnsupported(result: PresentationResult): PresentationUnsupported 
 /** The one device fixture the gate receives, as if selected by the capability gate. */
 const GATE_DEVICE = {} as unknown as GPUDevice
 
+/**
+ * A promise whose settlement the test controls.
+ *
+ * The fake renderer returns the deferred promise from `init`, so the test
+ * can hold initialization open and prove that the gate inspects the backend
+ * only after initialization completes: while the promise is still pending,
+ * the operations log must contain no `renderer.backend` entry. If the gate
+ * omitted `await init()`, the mid-flight assertion fails (REQ-011,
+ * PVS-WEB-001).
+ */
+interface Deferred {
+  /** Settle the deferred promise as fulfilled. */
+  resolve(): void
+  /** The pending promise the fake renderer returns from `init`. */
+  promise: Promise<void>
+}
+
+function createDeferred(): Deferred {
+  let resolve!: () => void
+  const promise = new Promise<void>((res) => {
+    resolve = res
+  })
+  return { resolve, promise }
+}
+
+/** Assert the gate handed the exact capability-gate device to the factory once (REQ-135). */
+function expectExactDeviceOnce(captured: CapturedCalls): void {
+  expect(captured.devices).toHaveLength(1)
+  expect(captured.devices[0]).toBe(GATE_DEVICE)
+}
+
 describe('Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134, REQ-135)', () => {
-  it('hands the capability gate device to the renderer factory once, waits for initialization before backend inspection, and accepts only a WebGPU backend', async () => {
+  it('hands the capability gate device to the renderer factory once, waits for initialization to complete before backend inspection, and accepts only a WebGPU backend', async () => {
     const operations: Operation[] = []
     const captured: CapturedCalls = { devices: [] }
+    const deferredInit = createDeferred()
     const fakeRenderer = createFakeRenderer(
       operations,
       { isWebGPUBackend: true },
-      Promise.resolve(),
+      deferredInit.promise,
     )
     const factory = createFakeFactory(operations, fakeRenderer, captured)
 
-    const result = await runWebGPUBackendGate(GATE_DEVICE, factory)
+    const pending = runWebGPUBackendGate(GATE_DEVICE, factory)
+
+    // The gate created the renderer with the capability-gate device and is
+    // now waiting for initialization. While initialization is still
+    // pending, the backend must not be inspected: this assertion fails if
+    // the gate reads `renderer.backend` before `await init()` completes
+    // (REQ-011, PVS-WEB-001).
+    expect(operations).toEqual(['factory.create', 'renderer.init'])
+
+    deferredInit.resolve()
+    const result = await pending
 
     expect(result.ok).toBe(true)
     if (!result.ok) {
@@ -110,9 +152,9 @@ describe('Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134, REQ-135)', (
 
     // The renderer factory receives the exact device selected by the
     // capability gate, exactly once (REQ-135, PVS-WEB-002).
-    expect(captured.devices).toEqual([GATE_DEVICE])
+    expectExactDeviceOnce(captured)
 
-    // Initialization completes before the backend is inspected, the
+    // Initialization completed before the backend was inspected, the
     // accepted backend identifies itself as WebGPU, and the gate neither
     // disposes the accepted renderer nor renders or loads a Scene
     // (REQ-011, PVS-WEB-001).
@@ -145,23 +187,31 @@ describe('Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134, REQ-135)', (
     // once and never inspects a backend that never initialized, never
     // renders, and never loads a Scene (PVS-WEB-001).
     expect(operations).toEqual(['factory.create', 'renderer.init', 'renderer.dispose'])
-    expect(captured.devices).toEqual([GATE_DEVICE])
+    expectExactDeviceOnce(captured)
   })
 
   it('rejects a renderer whose initialized backend is the Three.js WebGL fallback and disposes it', async () => {
     const operations: Operation[] = []
     const captured: CapturedCalls = { devices: [] }
+    const deferredInit = createDeferred()
     // Three.js selects its WebGL2 fallback backend when the WebGPU backend
     // cannot initialize; the fallback identifies itself as WebGL, not as
     // WebGPU (REQ-011, PVS-WEB-001).
     const fakeRenderer = createFakeRenderer(
       operations,
       { isWebGLBackend: true },
-      Promise.resolve(),
+      deferredInit.promise,
     )
     const factory = createFakeFactory(operations, fakeRenderer, captured)
 
-    const failure = expectUnsupported(await runWebGPUBackendGate(GATE_DEVICE, factory))
+    const pending = runWebGPUBackendGate(GATE_DEVICE, factory)
+
+    // While initialization is still pending, the backend must not be
+    // inspected, even for a fallback rejection (PVS-WEB-001).
+    expect(operations).toEqual(['factory.create', 'renderer.init'])
+
+    deferredInit.resolve()
+    const failure = expectUnsupported(await pending)
 
     expect(failure.code).toBe('webgpu-backend')
     expect(failure.message).toBe(
@@ -177,20 +227,28 @@ describe('Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134, REQ-135)', (
       'renderer.backend',
       'renderer.dispose',
     ])
-    expect(captured.devices).toEqual([GATE_DEVICE])
+    expectExactDeviceOnce(captured)
   })
 
   it('accepts only the exact WebGPU backend identity and rejects a backend reporting isWebGPUBackend false', async () => {
     const operations: Operation[] = []
     const captured: CapturedCalls = { devices: [] }
+    const deferredInit = createDeferred()
     const fakeRenderer = createFakeRenderer(
       operations,
       { isWebGPUBackend: false },
-      Promise.resolve(),
+      deferredInit.promise,
     )
     const factory = createFakeFactory(operations, fakeRenderer, captured)
 
-    const failure = expectUnsupported(await runWebGPUBackendGate(GATE_DEVICE, factory))
+    const pending = runWebGPUBackendGate(GATE_DEVICE, factory)
+
+    // While initialization is still pending, the backend must not be
+    // inspected (PVS-WEB-001).
+    expect(operations).toEqual(['factory.create', 'renderer.init'])
+
+    deferredInit.resolve()
+    const failure = expectUnsupported(await pending)
 
     expect(failure.code).toBe('webgpu-backend')
     expect(failure.message).toBe(
@@ -202,6 +260,6 @@ describe('Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134, REQ-135)', (
       'renderer.backend',
       'renderer.dispose',
     ])
-    expect(captured.devices).toEqual([GATE_DEVICE])
+    expectExactDeviceOnce(captured)
   })
 })
