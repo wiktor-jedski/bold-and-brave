@@ -176,9 +176,23 @@ describe('system gate validation (REQ-012)', () => {
 
   it('rejects a wrong GPU model while accepting the vendor-reported promised model', () => {
     expect(matchesPromisedGpu('NVIDIA GeForce RTX 2070 SUPER', 'NVIDIA RTX 2070 SUPER')).toBe(true)
+    expect(matchesPromisedGpu('NVIDIA RTX 2070 SUPER', 'NVIDIA RTX 2070 SUPER')).toBe(true)
     expect(matchesPromisedGpu('NVIDIA GeForce RTX 3080', 'NVIDIA RTX 2070 SUPER')).toBe(false)
     expect(matchesPromisedGpu('AMD Radeon RX 6800 XT', 'NVIDIA RTX 2070 SUPER')).toBe(false)
     expect(matchesPromisedGpu('NVIDIA GeForce GTX 2070 SUPER', 'NVIDIA RTX 2070 SUPER')).toBe(false)
+  })
+
+  it('rejects GPU variants that contain the promised model name', () => {
+    expect(matchesPromisedGpu('NVIDIA GeForce RTX 2070 SUPER Mobile', 'NVIDIA RTX 2070 SUPER')).toBe(
+      false,
+    )
+    expect(matchesPromisedGpu('NVIDIA GeForce RTX 2070 SUPER Ti', 'NVIDIA RTX 2070 SUPER')).toBe(
+      false,
+    )
+    expect(
+      matchesPromisedGpu('NVIDIA GeForce RTX 2070 SUPER Max-Q Design', 'NVIDIA RTX 2070 SUPER'),
+    ).toBe(false)
+    expect(matchesPromisedGpu('NVIDIA RTX 2070 SUPER OC', 'NVIDIA RTX 2070 SUPER')).toBe(false)
   })
 
   it('rejects a wrong GPU and driver through the system validation', () => {

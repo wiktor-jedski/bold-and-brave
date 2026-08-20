@@ -130,20 +130,40 @@ export function readGpuDriverInfo(): { gpu: string; driver: string } | null {
 }
 
 /**
- * Whether the vendor-reported GPU matches the promised GPU.
+ * Marketing product-line labels removed before comparing GPU names.
  *
- * Every whitespace-separated token of the promised GPU name must appear in
- * the vendor-reported name (case-insensitive), so the promised
- * `NVIDIA RTX 2070 SUPER` matches the vendor-reported
- * `NVIDIA GeForce RTX 2070 SUPER` and a different model, vendor, or tier
- * is rejected (REQ-012).
+ * The NVIDIA vendor string reports the promise's GPU as
+ * `NVIDIA GeForce RTX 2070 SUPER`: `GeForce` is the product-line label,
+ * not part of the model name. Removing known labels before comparing lets
+ * the promised model match its vendor report without accepting a variant.
+ */
+const GPU_LINE_LABELS: readonly string[] = ['geforce']
+
+/**
+ * Whether the vendor-reported GPU matches the promised GPU exactly.
+ *
+ * Both names are lower-cased and tokenized; known marketing product-line
+ * labels (`GeForce`) are removed from the vendor report, and the promised
+ * name must then match the vendor report token-for-token (set equality).
+ * The promised `NVIDIA RTX 2070 SUPER` matches the vendor-reported
+ * `NVIDIA GeForce RTX 2070 SUPER` but rejects every different model,
+ * vendor, tier, or variant (e.g. `RTX 3080`, `GTX 2070 SUPER`,
+ * `RTX 2070 SUPER Mobile`, `RTX 2070 SUPER Ti`) and every missing or
+ * extra token (REQ-012).
  */
 export function matchesPromisedGpu(vendorReported: string, promised: string): boolean {
-  const normalized = vendorReported.toLowerCase()
-  return promised
-    .split(/\s+/)
-    .filter((token) => token !== '')
-    .every((token) => normalized.includes(token.toLowerCase()))
+  const modelTokens = (name: string): string[] =>
+    name
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((token) => token !== '' && !GPU_LINE_LABELS.includes(token))
+      .sort()
+  const vendorTokens = modelTokens(vendorReported)
+  const promisedTokens = modelTokens(promised)
+  return (
+    vendorTokens.length === promisedTokens.length &&
+    vendorTokens.every((token, index) => token === promisedTokens[index])
+  )
 }
 
 /**
