@@ -156,7 +156,7 @@ flowchart TD
 | PVS-FLW-013 | MUST | Freeze active combat on the first tick that produces an outcome. Move directly to victory resolution or the defeat summary. Do not continue attacks, movement, damage, or Simulation time after the outcome. | `CP-FLOW-EARLY`, `CP-FLOW-DEFEAT` |
 | PVS-FLW-014 | MUST | After victory, resolve the enemy Agent fate, resolve all Downed ordinary bandits with one aggregate choice when any exist, show the outcome summary, offer one Feat, and then return to the changed settlement. | `CP-FLOW-EARLY`, `CP-FEAT` |
 | PVS-FLW-015 | MUST | After defeat, skip all survivor-fate choices and the Feat choice, show the current losses, and return to the changed settlement. | `CP-FLOW-DEFEAT` |
-| PVS-FLW-016 | MUST | After a Resolved or Failed result, keep the Journal read-only for contract and preparation changes. Make `Talk` with both named settlement Agents show their changed authored reactions. Do not provide a retry. | `CP-REL-FAILURE`, `CP-SPEC-END-TO-END` |
+| PVS-FLW-016 | MUST | After a Resolved or Failed result, keep the Journal read-only for contract and preparation changes. Make `Talk` with Village Elder show the changed authored reaction. Do not provide a retry. | `CP-REL-FAILURE`, `CP-SPEC-END-TO-END` |
 | PVS-FLW-020 | MUST | Make the river impassable except at the bridge. Give both banks small staging and formation areas with limited flanking room and no alternate crossing. Start the Band and five residents on the settlement side and the six raiders on the far bank. | `CP-FLOW-EARLY` |
 | PVS-FLW-021 | MUST | Make every outcome summary show victory or defeat, Band and resident casualties, enemy survivor fates when resolved, Captive count, Settlement condition, and Local Contract state. | `CP-SPEC-END-TO-END`, `CP-FLOW-DEFEAT` |
 | PVS-FLW-022 | SHOULD | Keep the Overworld free-roaming and keep its travel model able to add more locations without changing this slice's one-destination behavior. | `CP-SPEC-AUDIT` |
@@ -304,18 +304,17 @@ PVS-CMD-001 (`MUST`): expose the Companion and recruited Troops as two independe
 | Transitions | The Agent fate and relationship tables define all legal changes. Victory moves through survivor decisions, summary, and Feat choice. Defeat skips these choices. |
 | Outputs and player-visible feedback | The fate view, confirmation cue, outcome summary, changed Agent reactions, Captive count, and Journal show the result. |
 | Failure and edge behavior | Captive and Executed Agent fates are terminal in this slice. A non-Active Agent has no Disposition. A repeated or unavailable choice is rejected. No ordinary-bandit choice changes a named-Agent relationship. |
-| Fixed values or targets | The model has three named Agents, three Dispositions, three Grievance causes, three Agent fates, three survivor actions, and three Feats with the exact modifiers below. |
+| Fixed values or targets | The model has two named Agents, three Dispositions, three Grievance causes, three Agent fates, three survivor actions, and three Feats with the exact modifiers below. |
 | Evidence checkpoints | `CP-REL-RELEASE`, `CP-REL-CAPTURE`, `CP-REL-EXECUTE`, `CP-REL-FAILURE`, `CP-FEAT` |
 
 ### Initial Agent state
 
-PVS-REL-001 (`MUST`): create only these three persistent named Agents for relationship acceptance. Generic residents do not enter this model. Evidence: `CP-REL-RELEASE`.
+PVS-REL-001 (`MUST`): create only these two persistent named Agents for relationship acceptance. Miro and generic settlement residents do not enter this model. Evidence: `CP-REL-RELEASE`.
 
-| Agent role | Initial Agent fate | Initial Disposition | Initial Grievances |
-| --- | --- | --- | --- |
-| Contract-giver Agent | `Active` | `Neutral` | None |
-| Affected-resident Agent | `Active` | `Neutral` | None |
-| Enemy Agent | `Active` | `Hostile` | None |
+| Agent ID | Player-facing name | Agent role | Initial Agent fate | Initial Disposition | Initial Grievances |
+| --- | --- | --- | --- | --- | --- |
+| `poc-contract-giver` | Village Elder | Contract-giver Agent | `Active` | `Neutral` | None |
+| `poc-enemy-agent` | Varek | Enemy Agent | `Active` | `Hostile` | None |
 
 ### Agent fate state table
 
@@ -335,12 +334,12 @@ PVS-REL-002 (`MUST`): apply only these Agent fate transitions. The enemy Agent a
 
 PVS-REL-003 (`MUST`): apply changes when the enemy Agent fate choice is confirmed. Show them first when the player returns to the settlement. Grievances never clear during the slice. Evidence: `CP-REL-RELEASE`, `CP-REL-CAPTURE`, `CP-REL-EXECUTE`, `CP-REL-FAILURE`.
 
-| Contract result and enemy Agent choice | Contract-giver Agent | Affected-resident Agent | Enemy Agent |
-| --- | --- | --- | --- |
-| Resolved; `Release` | `Friendly`; no new Grievance | `Neutral`; no new Grievance | `Active`, `Neutral`; no new Grievance |
-| Resolved; `Capture` | `Friendly`; no new Grievance | `Friendly`; no new Grievance | `Captive`; add `Agent captured`; no Disposition |
-| Resolved; `Execute` | `Hostile`; add `Agent executed` | `Friendly`; no new Grievance | `Executed`; no Disposition |
-| Failed by Band defeat or resident loss | `Hostile`; add `Settlement harmed` | `Hostile`; add `Settlement harmed` | `Active`, `Hostile`; no new Grievance |
+| Contract result and enemy Agent choice | Village Elder, Contract-giver Agent | Varek, Enemy Agent |
+| --- | --- | --- |
+| Resolved; `Release` | `Friendly`; no new Grievance | `Active`, `Neutral`; no new Grievance |
+| Resolved; `Capture` | `Friendly`; no new Grievance | `Captive`; add `Agent captured`; no Disposition |
+| Resolved; `Execute` | `Hostile`; add `Agent executed` | `Executed`; no Disposition |
+| Failed by Band defeat or resident loss | `Hostile`; add `Settlement harmed` | `Active`, `Hostile`; no new Grievance |
 
 ### Ordinary-bandit survivor result
 
@@ -376,12 +375,12 @@ PVS-FEA-001 (`MUST`): after both applicable survivor decisions and the victory s
 | Transitions | Recruitment moves one candidate into the Band and subtracts Coin. Moving travel accumulates member-days and removes Provisions in 0.1-Provision steps. |
 | Outputs and player-visible feedback | The Journal shows Band members, fixed equipment, Coin, Provisions to one decimal place, and unavailable candidates. |
 | Failure and edge behavior | Recruitment fails without 25 Coin or after the raid starts. Provisions stop at zero and do not block travel. Captives are not Band members and consume no Provisions. |
-| Fixed values or targets | Start with 100 Coin and 10.0 Provisions. One Companion costs 0 Coin. Four Troops cost 25 Coin each. Consumption is 0.2 Provisions per Band member per Overworld day. The default preparation recruits two Troops and leaves 50 Coin. |
+| Fixed values or targets | Start with 100 Coin and 10.0 Provisions. Miro (`poc-companion`), the one fixed Companion, costs 0 Coin. Four Troops cost 25 Coin each. Consumption is 0.2 Provisions per Band member per Overworld day. The default preparation recruits two Troops and leaves 50 Coin. |
 | Evidence checkpoints | `CP-PREP-RECRUIT`, `CP-PREP-PROVISIONS`, `CP-SAVE-RESTORE` |
 
 | ID | Class | Contract | Evidence |
 | --- | --- | --- | --- |
-| PVS-PRP-001 | MUST | Start the player character with 100 Coin and 10.0 Provisions. Add the one fixed Companion for 0 Coin. | `CP-PREP-RECRUIT` |
+| PVS-PRP-001 | MUST | Start the player character with 100 Coin and 10.0 Provisions. Add Miro (`poc-companion`) as the one fixed Companion for 0 Coin. | `CP-PREP-RECRUIT` |
 | PVS-PRP-002 | MUST | Offer four fixed Troop candidates before battle. Let the player recruit zero to four. Charge 25 Coin once for each recruited Troop and never let Coin become negative. | `CP-PREP-RECRUIT` |
 | PVS-PRP-003 | MUST | Give every Troop the fixed staff loadout, the Companion the fixed sword loadout, and the player character the fixed sword-and-shield loadout. Do not provide equipment selection. | `CP-PREP-RECRUIT`, `CP-COMBAT-GUARD` |
 | PVS-PRP-004 | MUST | Make recruitment available from the Journal while the Local Contract is Available or Accepted and no battle is active. Make recruited membership and Coin cost persist immediately. | `CP-PREP-RECRUIT`, `CP-SAVE-RESTORE` |
@@ -602,12 +601,12 @@ PVS-WEB-001 (`MUST`): follow these ordered delivery transitions. Evidence: `CP-S
 | `CP-COMBAT-CASUALTY` | `SCN-09-CASUALTY-MATRIX`/1303 | Each role reaches its required zero-health result; recorded random values below 0.20 are Downed and values at or above 0.20 are killed; inactive Combatants receive no later damage. | PNG that does not reveal Downed versus killed; PNG of post-battle reveal |
 | `CP-COMMAND-GROUPS` | `SCN-10-COMMAND-GROUPS`/1401 | Both groups follow their order tables; invalid Hold keeps prior state; markers and off-screen indication track the authoritative position; retarget occurs on the next tick. | PNG of Hold and off-screen indicator; WebM of Follow/Hold/Engage transitions |
 | `CP-COMMAND-AI` | `SCN-10-COMMAND-GROUPS`/1401 | Formation roles, resident behavior, target choice, pressure values, and two-raider committed-attack cap hold for every sampled tick. | WebM that shows readable capped pressure and resident flee behavior |
-| `CP-REL-RELEASE` | `SCN-01-FULL-EARLY-RELEASE`/1101 | Release produces the exact Active/Neutral enemy, Friendly contract-giver, Neutral affected-resident, and unchanged Grievance sets. | PNG of kneeling choice and returned Agent reactions |
-| `CP-REL-CAPTURE` | `SCN-02-FULL-EARLY-CAPTURE`/1102 | Capture produces Captive with no Disposition and `Agent captured`; both settlement Agents are Friendly; aggregate Captive count is exact. | PNG of choice, outcome summary, and Journal result |
-| `CP-REL-EXECUTE` | `SCN-03-FULL-EARLY-EXECUTE`/1103 | Execute produces Executed with no Disposition; contract-giver is Hostile with `Agent executed`; affected-resident is Friendly. | PNG of choice, outcome summary, and changed reactions |
-| `CP-REL-FAILURE` | `SCN-05-BAND-DEFEAT`/1202 | Both settlement Agents are Hostile with `Settlement harmed`; enemy Agent remains Active/Hostile; survivor and Feat commands are unavailable. | PNG of defeat summary and both changed reactions |
+| `CP-REL-RELEASE` | `SCN-01-FULL-EARLY-RELEASE`/1101 | Release produces Varek as exact `Active`/`Neutral`, Village Elder as exact `Friendly`, and unchanged Grievance sets. | PNG of the kneeling choice and returned Village Elder reaction |
+| `CP-REL-CAPTURE` | `SCN-02-FULL-EARLY-CAPTURE`/1102 | Capture produces Varek as `Captive` with no Disposition and `Agent captured`; Village Elder is `Friendly`; aggregate Captive count is exact. | PNG of choice, outcome summary, and Journal result |
+| `CP-REL-EXECUTE` | `SCN-03-FULL-EARLY-EXECUTE`/1103 | Execute produces Varek as `Executed` with no Disposition; Village Elder is `Hostile` with `Agent executed`. | PNG of choice, outcome summary, and changed Village Elder reaction |
+| `CP-REL-FAILURE` | `SCN-05-BAND-DEFEAT`/1202 | Village Elder is `Hostile` with `Settlement harmed`; Varek remains `Active`/`Hostile`; survivor and Feat commands are unavailable. | PNG of defeat summary and changed Village Elder reaction |
 | `CP-FEAT` | `SCN-12-FEAT-MATRIX`/1601 | Rapid Guard values are 0.20 and 0.16 seconds; Rapid Attack uses a 0.80 multiplier; Rapid Stamina is 30 stamina/second with a 1.2-second delay; exactly one victory choice persists; defeat has none. | PNG of Feat choice and Journal; WebM of one before/after timing comparison |
-| `CP-PREP-RECRUIT` | `SCN-11-PREPARATION-TRAVEL`/1501 | Candidate count, membership, fixed loadouts, 25-Coin cost, zero-Coin rejection, and default 50-Coin remainder equal the contract. | PNG of Journal before and after default recruitment |
+| `CP-PREP-RECRUIT` | `SCN-11-PREPARATION-TRAVEL`/1501 | A new campaign has Miro (`poc-companion`), 100 Coin, and 10.0 Provisions with no Companion deduction; candidate count, membership, fixed loadouts, 25-Coin cost, zero-Coin rejection, and default 50-Coin remainder equal the contract. | PNG of Journal before and after default recruitment |
 | `CP-PREP-PROVISIONS` | `SCN-11-PREPARATION-TRAVEL`/1501 | Moving member-days consume exactly 0.2 Provisions/member/day in 0.1 steps; speed and pause are equivalent; non-travel states consume 0.0; save/load preserves remainder; zero does not block travel. | PNG of Journal at 10.0 and 0.0 Provisions; no clip |
 | `CP-UI-HUD` | `SCN-18-PRESENTATION-AUDIO`/1901 | DOM and projection states contain only the required passive HUD elements and contextual panels; time is `HH:MM`; the render backend reports the required camera and visual manifest. | PNG at settlement, attack preview, Directional Guard, and Journal checkpoints |
 | `CP-UI-FATE` | `SCN-18-PRESENTATION-AUDIO`/1901 | Fate input remains pending until confirmation; the Agent pose, three actions, and resulting state agree; battle presentation does not expose ordinary survival. | PNG of battle bodies and kneeling fate view |

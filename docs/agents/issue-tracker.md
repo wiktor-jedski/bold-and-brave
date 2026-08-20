@@ -34,3 +34,9 @@ Read the file at the referenced path. The user will normally pass the path or th
 ### Clarifications
 
 - The project owner selected a boundary-only tracer. This phase does not add a typed gameplay command or advance a Simulation tick. The initial immutable projection contains only Simulation tick 0; later phases add real command and tick behavior.
+
+## Phase 4 — Initial campaign state
+
+### Testing coverage deviations
+
+- Phase 4 does not run `CP-REL-RELEASE` or `CP-PREP-RECRUIT` end to end because their battle, Journal, recruitment, and evidence surfaces belong to later phases. As allowed by the phase plan, `src/core/simulation/simulation.test.ts` creates two new Simulations and checks the same exact initial state and projection claims. Browser evidence stays assigned to the later evidence phases.

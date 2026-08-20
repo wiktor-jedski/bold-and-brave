@@ -10,7 +10,7 @@ What characters, contextual actions, short dialogues, panels, contract states, a
 
 ## Answer
 
-Keep the first version to one defense path and two named settlement Agents: the contract-giver and the affected-resident Agent already defined by **Define Agent relationships, grievances, and enemy fates**. No other persistent settlement Agents are required. Generic armed and unarmed settlement residents can exist as battle targets without becoming part of the relationship model.
+Keep the first version to one defense path and one named settlement Agent: Village Elder (`poc-contract-giver`), the Contract-giver Agent already defined by **Define Agent relationships, grievances, and enemy fates**. No other persistent settlement Agent is required. Generic armed and unarmed settlement residents can exist as battle targets without becoming part of the relationship model.
 
 The settlement Scene uses four contextual actions: `Talk`, `Wait`, `Journal`, and `Leave`.
 
@@ -28,4 +28,4 @@ The Raid deadline changes the battle start within the one settlement Scene:
 
 In the settlement-center battle, armed residents defend while above 20% health and flee below 20%; unarmed residents flee immediately. Both groups remain possible raid targets. The raiders seek to kill all settlement residents. The Band wins when all raiders are Downed or killed. The Band loses when all Band members are defeated or no settlement residents remain. A late victory still resolves the Local Contract and offers the two survivor-fate decisions, but the Settlement condition remains `Damaged` because the attack reached the settlement. An early bridge victory can leave it `Safe`.
 
-Use short text-only dialogue with no voice and no branching conversation tree. After `Resolved` or `Failed`, the Journal is read-only and `Talk` with both named Agents shows the changed reaction for the outcome and enemy Agent fate. There is no retry in the slice.
+Use short text-only dialogue with no voice and no branching conversation tree. After `Resolved` or `Failed`, the Journal is read-only and `Talk` with Village Elder shows the changed reaction for the outcome and Varek's fate. There is no retry in the slice.
