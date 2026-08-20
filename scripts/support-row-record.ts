@@ -23,7 +23,9 @@ import type { SupportPromise } from '../src/browser/support'
  * promised-row browser launches. `platform` is the promised operating
  * system architecture ("Linux x64") and `architecture` is its architecture
  * part ("x64"); neither carries a Linux distribution version (REQ-012,
- * PVS-SCP-007).
+ * PVS-SCP-007). `gpuRows` is the count of GPU rows the system reported;
+ * the gate accepts the environment only when exactly one row exists and
+ * matches the promise.
  */
 export interface SystemFacts {
   /** The resolved system Chromium executable path. */
@@ -40,6 +42,8 @@ export interface SystemFacts {
   readonly gpu: string
   /** The GPU driver version reported by the system. */
   readonly driver: string
+  /** The number of GPU rows the system reported; the gate accepts exactly one. */
+  readonly gpuRows: number
 }
 
 /**

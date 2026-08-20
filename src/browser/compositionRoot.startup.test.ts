@@ -220,6 +220,25 @@ function createRecordingHandoff(
   }
 }
 
+/** The recording startup-record recorder, proving what the product reports. */
+interface RecordingRecorder {
+  /** Every startup record published, in call order. */
+  readonly records: unknown[]
+  /** Capture one published startup record. */
+  record(record: unknown): void
+}
+
+/** Build a recording startup-record recorder. */
+function createRecordingRecorder(): RecordingRecorder {
+  const records: unknown[] = []
+  return {
+    records,
+    record(record: unknown) {
+      records.push(record)
+    },
+  }
+}
+
 /**
  * Assert the runtime frame loop stayed stopped: no pending frame request
  * exists, so a failed startup started neither the runtime nor any later
@@ -256,10 +275,12 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     const handoff = createRecordingHandoff(handoffInvocations)
 
     const application = createBrowserApplication(createSimulation, scheduler)
+    const recorder = createRecordingRecorder()
     await runApplicationStartup(application, surface, {
       environment,
       factory,
       handoff,
+      recorder,
     })
 
     // The delivery state stayed at `Startup` while the checks ran and no
@@ -279,8 +300,53 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
       'requestDevice',
     ])
     expect(captured.deviceDescriptors).toEqual([{}])
-    expect(backendOperations).toEqual(['factory.create', 'renderer.init', 'renderer.backend'])
+    // The backend gate created the renderer with the exact device, waited
+    // for initialization, and inspected the backend; the record composer
+    // re-reads the same stable backend identity for the machine-readable
+    // startup record (REQ-011, REQ-134).
+    expect(backendOperations).toEqual([
+      'factory.create',
+      'renderer.init',
+      'renderer.backend',
+      'renderer.backend',
+    ])
     expect(captured.factoryDevices).toEqual([GATE_DEVICE])
+
+    // The product published exactly one machine-readable startup record
+    // with the exact reported gate facts: the secure context, the exact
+    // gate order, the `high-performance` power-preference hint, the full
+    // adapter information and every reported limit, the empty core-only
+    // device request, the WebGPU backend, no WebGL fallback, and the
+    // `Loading Scene` delivery state (REQ-011, REQ-014, REQ-134,
+    // REQ-135).
+    expect(recorder.records).toHaveLength(1)
+    expect(recorder.records[0]).toEqual({
+      secureContext: true,
+      gates: [
+        'secure-context',
+        'webgpu-presence',
+        'physical-adapter',
+        'core-device',
+        'webgpu-backend',
+      ],
+      powerPreference: 'high-performance',
+      adapter: {
+        vendor: 'AMD',
+        isFallbackAdapter: false,
+        info: ADAPTER_INFO,
+        limits: ADAPTER_LIMITS,
+      },
+      device: {
+        descriptor: {},
+        optionalFeatures: [],
+        requiredLimits: {},
+      },
+      backend: {
+        selected: 'webgpu',
+        webglFallback: false,
+      },
+      deliveryState: 'Loading Scene',
+    })
 
     // Success started exactly one runtime frame loop and invoked the
     // Scene-loading handoff exactly once with the initialized renderer
@@ -354,7 +420,13 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     const handoff = createRecordingHandoff(handoffInvocations)
 
     const application = createBrowserApplication(createSimulation, scheduler)
-    await runApplicationStartup(application, surface, { environment, factory, handoff })
+    const recorder = createRecordingRecorder()
+    await runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      recorder,
+    })
 
     // The gate performed no later capability operation and the backend gate
     // never ran (a failed check cannot run a later gate).
@@ -364,6 +436,8 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     expect(captured.factoryDevices).toEqual([])
     expectRuntimeStopped(scheduler)
     expect(handoffInvocations).toEqual([])
+    // A failed startup publishes no startup record (REQ-134).
+    expect(recorder.records).toEqual([])
     // One specific semantic `Unsupported` alert with the exact readable
     // message of the failed check (REQ-134).
     expect(surface.calls).toEqual(['startup', 'unsupported'])

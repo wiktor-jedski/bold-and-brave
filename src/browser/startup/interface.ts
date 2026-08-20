@@ -78,7 +78,12 @@ export interface StartupInspectionRecord {
  *
  * The Three.js backend check receives the selected adapter, the one
  * usable device requested with an empty descriptor, and the immutable
- * inspection record recorded before device use.
+ * inspection record recorded before device use. The result also reports
+ * the exact facts of the performed checks — the secure-context value read
+ * at the first check, the single `high-performance` power-preference hint
+ * of the adapter request, and the exact empty core-only device descriptor
+ * — so the composed startup record is grounded in what the gate actually
+ * did (REQ-014, REQ-135).
  */
 export interface StartupSuccess {
   /** Discriminates the success result from the failure result. */
@@ -89,6 +94,28 @@ export interface StartupSuccess {
   readonly device: GPUDevice
   /** The immutable inspection record recorded before device use (REQ-135). */
   readonly inspection: StartupInspectionRecord
+  /**
+   * The secure-context value read at the first check (REQ-134).
+   *
+   * The value comes from the single `isSecureContext` read the gate
+   * performs, so reporting it never repeats a capability operation.
+   */
+  readonly secureContext: boolean
+  /**
+   * The exact power-preference hint of the adapter request (REQ-014).
+   *
+   * `high-performance` is the only power preference the gate ever passes;
+   * it is a hint only and never proves a physical adapter.
+   */
+  readonly powerPreference: 'high-performance'
+  /**
+   * The exact device descriptor of the core-only request (REQ-135).
+   *
+   * The gate always passes the empty descriptor, so no optional feature
+   * or raised limit is required. The composed startup record derives its
+   * emptiness proof from this exact descriptor.
+   */
+  readonly deviceDescriptor: GPUDeviceDescriptor
 }
 
 /** The result of the ordered startup capability gate. */
