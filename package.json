@@ -13,6 +13,7 @@
     "test:runtime": "vitest run src/browser/runtime",
     "test:support": "vitest run src/browser/support",
     "test:startup": "vitest run src/browser/startup",
+    "test:presentation": "vitest run src/browser/presentation",
     "test:support-row": "vitest run scripts/check-support-row.test.ts",
     "check:support-row": "bun scripts/check-support-row.ts",
     "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
@@ -21,8 +22,12 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@types/three": "^0.185.4",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
   }
 }

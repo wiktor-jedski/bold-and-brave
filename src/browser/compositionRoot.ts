@@ -16,6 +16,16 @@
  * runtime frame loop (ARCH-008); no second Simulation, timing loop, or
  * gameplay state exists (REQ-113).
  *
+ * The composition root also exposes the Three.js WebGPU backend gate
+ * (ARCH-009). The backend gate is the renderer part of the Phase 6 startup
+ * sequence: it creates the `WebGPURenderer` with the exact device the
+ * capability gate selects, waits for initialization, and accepts the
+ * renderer only when its backend identifies itself as WebGPU (REQ-011,
+ * REQ-134, REQ-135). Startup wiring invokes the gate after the capability
+ * gate; this production reference keeps the Three.js WebGPU renderer in
+ * the production bundle, so the built product carries the WebGPU-only
+ * rendering dependency and no WebGL fallback path (REQ-011, PVS-SCP-006).
+ *
  * Browser bootstrap dependencies point toward the ports the core owns; the
  * composition root imports no private Simulation implementation file.
  */
@@ -24,6 +34,7 @@ import { createSimulation } from '../core/simulation'
 import type { Simulation, SimulationProjection } from '../core/simulation'
 import { createBrowserRuntime } from './runtime'
 import type { BrowserRuntime, FrameScheduler } from './runtime'
+import { runWebGPUBackendGate } from './presentation'
 
 /** The production scheduler bound to `window.requestAnimationFrame` (ARCH-024). */
 const productionFrameScheduler: FrameScheduler = {
@@ -50,6 +61,16 @@ export interface BrowserApplication {
    * scheduler. Only the loop lifecycle is exposed — nothing more.
    */
   readonly runtime: BrowserRuntime
+  /**
+   * The Three.js WebGPU backend gate (ARCH-009, REQ-011, REQ-134).
+   *
+   * Startup runs this gate with the exact device the capability gate
+   * selected; it returns one typed, readable WebGPU-backend `Unsupported`
+   * result or the initialized WebGPU renderer. The reference keeps the
+   * Three.js WebGPU renderer in the production bundle (REQ-011,
+   * PVS-SCP-006).
+   */
+  readonly runWebGPUBackendGate: typeof runWebGPUBackendGate
 }
 
 /**
@@ -75,5 +96,6 @@ export function createBrowserApplication(
     simulation,
     initialProjection: simulation.readProjection(),
     runtime,
+    runWebGPUBackendGate,
   }
 }
