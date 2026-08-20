@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSimulation } from './index'
 import type { AgentRecord, Simulation, SimulationProjection } from './index'
+import { INITIAL_BAND, MIRO, PLAYER_CHARACTER } from '../content'
 import type { Disposition, Grievance } from '../content'
 
 describe('Simulation module', () => {
@@ -234,8 +235,7 @@ describe('Simulation module', () => {
     const projection = createSimulation().readProjection()
 
     // Miro has ID `poc-companion` and is present in the Band while Coin
-    // remains 100: Miro's fixed 0-Coin cost applies no Coin deduction when
-    // the new campaign starts (REQ-077, PVS-PRP-001).
+    // remains 100 (REQ-077, PVS-PRP-001).
     expect(projection.band).toEqual([
       { id: 'poc-player-character', name: 'Player Character' },
       { id: 'poc-companion', name: 'Miro' },
@@ -243,6 +243,13 @@ describe('Simulation module', () => {
     expect(projection.band.some((member) => member.id === 'poc-companion' && member.name === 'Miro')).toBe(true)
     expect(projection.coin).toBe(100)
     expect(projection.provisions).toBe(10.0)
+
+    // The no-deduction behavior comes from authored content: both initial
+    // Band members have a fixed 0-Coin join cost, so the new campaign starts
+    // at the full 100 Coin even with Miro in the Band (ARCH-016).
+    expect(PLAYER_CHARACTER.costCoin).toBe(0)
+    expect(MIRO.costCoin).toBe(0)
+    expect(INITIAL_BAND.reduce((total, member) => total + member.costCoin, 0)).toBe(0)
   })
 
   it('projects value-equal complete state from two new Simulations with separate deep-immutable nested data', () => {

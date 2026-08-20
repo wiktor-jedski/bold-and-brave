@@ -70,9 +70,11 @@ export function createSimulation(): Simulation {
   // Private Band membership: each new Simulation owns a copy of the
   // authored identities, never a reference into the catalog.
   const band: BandMemberRecord[] = INITIAL_BAND.map(copyBandMemberContent)
-  // Private initial resources (REQ-077): Miro's 0-Coin cost means Coin
-  // stays at its initial 100 when the new campaign starts.
-  let coin = INITIAL_COIN
+  // Private initial resources (REQ-077): Coin starts at the initial 100
+  // minus the total fixed join cost of the initial Band members. Both the
+  // player character and Miro cost 0 Coin, so no Coin deduction is applied
+  // when Miro joins the new campaign (PVS-PRP-001).
+  let coin = INITIAL_COIN - INITIAL_BAND.reduce((total, member) => total + member.costCoin, 0)
   let provisions = INITIAL_PROVISIONS
 
   return {
