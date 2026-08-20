@@ -7,4 +7,4 @@
  * seam remains deep.
  */
 export { createSimulation } from './implementation'
-export type { Simulation, SimulationProjection, AgentRecord } from './interface'
+export type { Simulation, SimulationProjection, AgentRecord, BandMemberRecord } from './interface'
