@@ -70,15 +70,15 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 4 — Initial campaign state
 
-**Result:** A new campaign has the three specified named Agents. Their Agent fates, Dispositions, and Grievances have the exact initial values. The player has 100 Coin, 10.0 Provisions, and the fixed Companion at no Coin cost.
+**Result:** A new campaign has exactly Village Elder (`poc-contract-giver`) and Varek (`poc-enemy-agent`) in the Agent relationship model. Their Agent fates, Dispositions, and Grievances have the exact initial values. The player has 100 Coin, 10.0 Provisions, and Miro (`poc-companion`) as the fixed Companion at no Coin cost.
 
-**Requirements closed:** REQ-067, REQ-077.
+**Requirements closed:** REQ-077, REQ-167.
 
 **Phase check:** Create two new campaigns and compare their initial plain-state projections with the required values.
 
 **Acceptance link:** `CP-PREP-RECRUIT`, `CP-REL-RELEASE`.
 
-**Review focus:** Confirm that generic settlement residents do not enter the Agent relationship model.
+**Review focus:** Confirm that Miro and generic settlement residents do not enter the Agent relationship model.
 
 ### Phase 5 — Support promise
 
@@ -424,11 +424,11 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 33 — Relationships and reactions
 
-**Result:** Enemy Agent choices and contract failure apply the exact Disposition and Grievance changes. The changed state first appears after return to the settlement. Grievances remain. After resolution or failure, preparation is read-only, both named settlement Agents have authored reactions, and retry is unavailable.
+**Result:** Varek's fate choices and contract failure apply the exact Village Elder and Varek Disposition and Grievance changes. The changed state first appears after return to the settlement. Grievances remain. After resolution or failure, preparation is read-only, Village Elder has the authored reaction, and retry is unavailable.
 
-**Requirements closed:** REQ-032, REQ-069.
+**Requirements closed:** REQ-168, REQ-169.
 
-**Phase check:** Exercise Release, Capture, Execute, and failure. Compare all three Agent records before choice, before return, and after return.
+**Phase check:** Exercise Release, Capture, Execute, and failure. Compare the Village Elder and Varek records before choice, before return, and after return.
 
 **Acceptance link:** `CP-REL-RELEASE`, `CP-REL-CAPTURE`, `CP-REL-EXECUTE`, `CP-REL-FAILURE`.
 

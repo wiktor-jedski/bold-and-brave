@@ -32,7 +32,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-004, REQ-007–REQ-009, REQ-017–REQ-032, REQ-034, REQ-036–REQ-053, REQ-055–REQ-059, REQ-061–REQ-066, REQ-068–REQ-076, REQ-078, REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-110–REQ-111, REQ-114, REQ-116, REQ-121 |
+| Requirements | REQ-001–REQ-002, REQ-004, REQ-007–REQ-009, REQ-017–REQ-031, REQ-034, REQ-036–REQ-053, REQ-055–REQ-059, REQ-061–REQ-066, REQ-068, REQ-070–REQ-076, REQ-078, REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-110–REQ-111, REQ-114, REQ-116, REQ-121, REQ-168–REQ-169 |
 | Dependencies | ARCH-002, ARCH-003, ARCH-004, ARCH-005, ARCH-013, ARCH-014, ARCH-016 |
 
 **Responsibility:** Own all mutable gameplay state and apply all campaign and battle rules.
@@ -58,7 +58,7 @@ flowchart LR
 | --- | --- |
 | Type | Data |
 | Status | Active |
-| Requirements | REQ-001, REQ-008–REQ-009, REQ-017–REQ-018, REQ-021, REQ-024–REQ-032, REQ-034, REQ-036–REQ-038, REQ-043–REQ-047, REQ-051–REQ-054, REQ-056–REQ-059, REQ-061, REQ-067–REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-123 |
+| Requirements | REQ-001, REQ-008–REQ-009, REQ-017–REQ-018, REQ-021, REQ-024–REQ-031, REQ-034, REQ-036–REQ-038, REQ-043–REQ-047, REQ-051–REQ-054, REQ-056–REQ-059, REQ-061, REQ-068, REQ-070–REQ-080, REQ-082–REQ-086, REQ-088, REQ-095, REQ-123, REQ-167–REQ-169 |
 | Dependencies | ARCH-016 |
 
 **Responsibility:** Hold the only mutable truth for campaign and battle play.
@@ -159,7 +159,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-016, REQ-022–REQ-023, REQ-025, REQ-027, REQ-030–REQ-032, REQ-034, REQ-038, REQ-070, REQ-073, REQ-078, REQ-080, REQ-084, REQ-086, REQ-088, REQ-091, REQ-096–REQ-098, REQ-110, REQ-121, REQ-131–REQ-133 |
+| Requirements | REQ-001–REQ-002, REQ-016, REQ-022–REQ-023, REQ-025, REQ-027, REQ-030–REQ-031, REQ-034, REQ-038, REQ-070, REQ-073, REQ-078, REQ-080, REQ-084, REQ-086, REQ-088, REQ-091, REQ-096–REQ-098, REQ-110, REQ-121, REQ-131–REQ-133, REQ-169 |
 | Dependencies | ARCH-002, ARCH-006, ARCH-007 |
 
 **Responsibility:** Present essential text and actions through semantic HTML and CSS.
@@ -241,7 +241,7 @@ flowchart LR
 | --- | --- |
 | Type | Data |
 | Status | Active |
-| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-032–REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-067, REQ-069, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121 |
+| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121, REQ-167–REQ-169 |
 | Dependencies | None |
 
 **Responsibility:** Define immutable authored gameplay and presentation content.
@@ -464,7 +464,6 @@ flowchart LR
 | REQ-029 | Combat outcome freeze | ARCH-001, ARCH-003, ARCH-005, ARCH-008 |
 | REQ-030 | Victory resolution sequence | ARCH-001, ARCH-003, ARCH-010 |
 | REQ-031 | Defeat resolution sequence | ARCH-001, ARCH-003, ARCH-010 |
-| REQ-032 | Post-result restrictions and reactions | ARCH-001, ARCH-003, ARCH-010, ARCH-016 |
 | REQ-033 | Bridge battlefield layout | ARCH-009, ARCH-013, ARCH-014, ARCH-015, ARCH-016 |
 | REQ-034 | Outcome summary contents | ARCH-001, ARCH-003, ARCH-010 |
 | REQ-035 | Extensible free-roaming Overworld | ARCH-014, ARCH-015, ARCH-016 |
@@ -499,9 +498,7 @@ flowchart LR
 | REQ-064 | Raider target selection | ARCH-001, ARCH-004, ARCH-014, ARCH-015 |
 | REQ-065 | Raider attack concurrency | ARCH-001, ARCH-004 |
 | REQ-066 | Raider and resident objectives | ARCH-001, ARCH-004, ARCH-014, ARCH-015 |
-| REQ-067 | Initial named-Agent state | ARCH-003, ARCH-016 |
 | REQ-068 | Agent fate transitions | ARCH-001, ARCH-003, ARCH-004 |
-| REQ-069 | Relationship outcomes | ARCH-001, ARCH-003, ARCH-016 |
 | REQ-070 | Ordinary-bandit survivor choice | ARCH-001, ARCH-003, ARCH-010 |
 | REQ-071 | Ordinary-bandit survivor outcomes | ARCH-001, ARCH-003 |
 | REQ-072 | Named-Agent isolation from ordinary-bandit choice | ARCH-001, ARCH-003, ARCH-004 |
@@ -585,3 +582,6 @@ flowchart LR
 | REQ-151 | Generated evidence provenance | ARCH-026, ARCH-027 |
 | REQ-165 | Specification completeness gate | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
 | REQ-166 | Specification audit lifecycle | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
+| REQ-167 | Initial named-Agent identities and state | ARCH-003, ARCH-016 |
+| REQ-168 | Relationship outcomes for Village Elder and Varek | ARCH-001, ARCH-003, ARCH-016 |
+| REQ-169 | Post-result restrictions and Village Elder reaction | ARCH-001, ARCH-003, ARCH-010, ARCH-016 |

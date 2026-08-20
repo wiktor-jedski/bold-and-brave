@@ -13,7 +13,7 @@ What minimal prices, inventory rules, recruitment choices, equipment persistence
 Use a fixed, deliberately small preparation model for the Playable Vertical Slice:
 
 - The player character starts with `100 Coin` and `10 Provisions`.
-- One fixed Companion is available. The Companion does not cost Coin.
+- Miro (`poc-companion`) is the one fixed Companion. Miro does not cost Coin.
 - The settlement offers four Troop candidates. The player may recruit any or all of them before the Raid.
 - Each recruited Troop costs `25 Coin`.
 - Every Troop has one predetermined `Staff` loadout. The player does not choose or change a Troop's equipment.

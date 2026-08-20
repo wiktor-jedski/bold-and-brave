@@ -381,10 +381,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Behavior |
-| Status | Active |
-| Verification | At `CP-REL-FAILURE` and `CP-SPEC-END-TO-END`, reach both Resolved and Failed results, confirm that contract and preparation changes cannot be made in the Journal, confirm changed authored reactions from both named settlement Agents, and confirm that no retry control or transition is available. |
+| Status | Deprecated |
+| Verification | Not applicable; REQ-169 replaces this requirement. |
 
-**Notes:** Source: `PVS-FLW-016`.
+**Notes:** Source: `PVS-FLW-016`. Deprecated because the approved content decision removed the Affected-resident Agent and left Village Elder as the only settlement Agent with a relationship record. Replaced by REQ-169.
 
 ## REQ-033 — Bridge battlefield layout
 
@@ -801,10 +801,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
-| Status | Active |
-| Verification | At `CP-REL-RELEASE`, the persistent relationship data contains exactly the three named Agents with the specified initial Agent fates, Dispositions, and empty Grievance sets, and no generic resident has an entry. |
+| Status | Deprecated |
+| Verification | Not applicable; REQ-167 replaces this requirement. |
 
-**Notes:** Source: `PVS-REL-001`.
+**Notes:** Source: `PVS-REL-001`. Deprecated because the approved content decision removed the Affected-resident Agent and defined exact identities for the two remaining relationship records. Replaced by REQ-167.
 
 ## REQ-068 — Agent fate transitions
 
@@ -825,10 +825,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Behavior |
-| Status | Active |
-| Verification | At `CP-REL-RELEASE`, `CP-REL-CAPTURE`, and `CP-REL-EXECUTE`, confirming each Enemy Agent fate choice immediately produces the corresponding governed Agent fates, Dispositions, and Grievance changes in relationship state, while those changes are first shown to the player upon return to the settlement. At `CP-REL-FAILURE`, separate Band-defeat and resident-loss runs each produce the governed failure outcome and first show it upon return to the settlement. In every run, all pre-existing Grievances remain present through the slice. |
+| Status | Deprecated |
+| Verification | Not applicable; REQ-168 replaces this requirement. |
 
-**Notes:** Source: `PVS-REL-003`. Governed outcomes: Resolved + `Release` → Contract-giver Agent `Friendly` with no new Grievance; Affected-resident Agent `Neutral` with no new Grievance; Enemy Agent `Active`, `Neutral`, with no new Grievance. Resolved + `Capture` → Contract-giver Agent `Friendly` with no new Grievance; Affected-resident Agent `Friendly` with no new Grievance; Enemy Agent `Captive`, adds `Agent captured`, and has no Disposition. Resolved + `Execute` → Contract-giver Agent `Hostile` and adds `Agent executed`; Affected-resident Agent `Friendly` with no new Grievance; Enemy Agent `Executed` with no Disposition. Failed by Band defeat or resident loss → Contract-giver Agent `Hostile` and adds `Settlement harmed`; Affected-resident Agent `Hostile` and adds `Settlement harmed`; Enemy Agent `Active`, `Hostile`, with no new Grievance.
+**Notes:** Source: `PVS-REL-003`. Deprecated because the approved content decision removed every Affected-resident Agent outcome. Replaced by REQ-168.
 
 ## REQ-070 — Ordinary-bandit survivor choice
 
@@ -916,13 +916,13 @@ This document specifies the active product, delivery, evidence, and scope requir
 
 ## REQ-077 — Initial preparation resources
 
-**Statement:** The initial campaign state shall give the player character 100 Coin and 10.0 Provisions and add the one fixed Companion for 0 Coin.
+**Statement:** The initial campaign state shall give the player character 100 Coin and 10.0 Provisions and add Miro (`poc-companion`) as the one fixed Companion for 0 Coin.
 
 | Attribute | Value |
 | --- | --- |
 | Type | Constraint |
 | Status | Active |
-| Verification | `CP-PREP-RECRUIT` passes when a new campaign shows 100 Coin, 10.0 Provisions, and the fixed Companion, with no Coin deducted for the Companion. |
+| Verification | `CP-PREP-RECRUIT` passes when a new campaign shows 100 Coin, 10.0 Provisions, and Miro (`poc-companion`) as the fixed Companion, with no Coin deducted for Miro. |
 
 **Notes:** Source: `PVS-PRP-001`.
 
@@ -1828,12 +1828,12 @@ This document specifies the active product, delivery, evidence, and scope requir
 | `CP-COMBAT-CASUALTY` | `SCN-09-CASUALTY-MATRIX`/1303 | Each role reaches its required zero-health result; recorded random values below 0.20 are Downed and values at or above 0.20 are killed; inactive Combatants receive no later damage. | PNG that does not reveal Downed versus killed; PNG of post-battle reveal |
 | `CP-COMMAND-GROUPS` | `SCN-10-COMMAND-GROUPS`/1401 | Both groups follow their order tables; invalid Hold keeps prior state; markers and off-screen indication track the authoritative position; retarget occurs on the next tick. | PNG of Hold and off-screen indicator; WebM of Follow/Hold/Engage transitions |
 | `CP-COMMAND-AI` | `SCN-10-COMMAND-GROUPS`/1401 | Formation roles, resident behavior, target choice, pressure values, and two-raider committed-attack cap hold for every sampled tick. | WebM that shows readable capped pressure and resident flee behavior |
-| `CP-REL-RELEASE` | `SCN-01-FULL-EARLY-RELEASE`/1101 | Release produces the exact Active/Neutral enemy, Friendly contract-giver, Neutral affected-resident, and unchanged Grievance sets. | PNG of kneeling choice and returned Agent reactions |
-| `CP-REL-CAPTURE` | `SCN-02-FULL-EARLY-CAPTURE`/1102 | Capture produces Captive with no Disposition and `Agent captured`; both settlement Agents are Friendly; aggregate Captive count is exact. | PNG of choice, outcome summary, and Journal result |
-| `CP-REL-EXECUTE` | `SCN-03-FULL-EARLY-EXECUTE`/1103 | Execute produces Executed with no Disposition; contract-giver is Hostile with `Agent executed`; affected-resident is Friendly. | PNG of choice, outcome summary, and changed reactions |
-| `CP-REL-FAILURE` | `SCN-05-BAND-DEFEAT`/1202 | Both settlement Agents are Hostile with `Settlement harmed`; enemy Agent remains Active/Hostile; survivor and Feat commands are unavailable. | PNG of defeat summary and both changed reactions |
+| `CP-REL-RELEASE` | `SCN-01-FULL-EARLY-RELEASE`/1101 | Release produces Varek as exact `Active`/`Neutral`, Village Elder as exact `Friendly`, and unchanged Grievance sets. | PNG of the kneeling choice and returned Village Elder reaction |
+| `CP-REL-CAPTURE` | `SCN-02-FULL-EARLY-CAPTURE`/1102 | Capture produces Varek as `Captive` with no Disposition and `Agent captured`; Village Elder is `Friendly`; aggregate Captive count is exact. | PNG of choice, outcome summary, and Journal result |
+| `CP-REL-EXECUTE` | `SCN-03-FULL-EARLY-EXECUTE`/1103 | Execute produces Varek as `Executed` with no Disposition; Village Elder is `Hostile` with `Agent executed`. | PNG of choice, outcome summary, and changed Village Elder reaction |
+| `CP-REL-FAILURE` | `SCN-05-BAND-DEFEAT`/1202 | Village Elder is `Hostile` with `Settlement harmed`; Varek remains `Active`/`Hostile`; survivor and Feat commands are unavailable. | PNG of defeat summary and changed Village Elder reaction |
 | `CP-FEAT` | `SCN-12-FEAT-MATRIX`/1601 | Rapid Guard values are 0.20 and 0.16 seconds; Rapid Attack uses a 0.80 multiplier; Rapid Stamina is 30 stamina/second with a 1.2-second delay; exactly one victory choice persists; defeat has none. | PNG of Feat choice and Journal; WebM of one before/after timing comparison |
-| `CP-PREP-RECRUIT` | `SCN-11-PREPARATION-TRAVEL`/1501 | Candidate count, membership, fixed loadouts, 25-Coin cost, zero-Coin rejection, and default 50-Coin remainder equal the contract. | PNG of Journal before and after default recruitment |
+| `CP-PREP-RECRUIT` | `SCN-11-PREPARATION-TRAVEL`/1501 | A new campaign has Miro (`poc-companion`), 100 Coin, and 10.0 Provisions with no Companion deduction; candidate count, membership, fixed loadouts, 25-Coin cost, zero-Coin rejection, and default 50-Coin remainder equal the contract. | PNG of Journal before and after default recruitment |
 | `CP-PREP-PROVISIONS` | `SCN-11-PREPARATION-TRAVEL`/1501 | Moving member-days consume exactly 0.2 Provisions/member/day in 0.1 steps; speed and pause are equivalent; non-travel states consume 0.0; save/load preserves remainder; zero does not block travel. | PNG of Journal at 10.0 and 0.0 Provisions; no clip |
 | `CP-UI-HUD` | `SCN-18-PRESENTATION-AUDIO`/1901 | DOM and projection states contain only the required passive HUD elements and contextual panels; time is `HH:MM`; the render backend reports the required camera and visual manifest. | PNG at settlement, attack preview, Directional Guard, and Journal checkpoints |
 | `CP-UI-FATE` | `SCN-18-PRESENTATION-AUDIO`/1901 | Fate input remains pending until confirmation; the Agent pose, three actions, and resulting state agree; battle presentation does not expose ordinary survival. | PNG of battle bodies and kneeling fate view |
@@ -2049,3 +2049,39 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Verification | At `CP-SPEC-AUDIT`, make a controlled normative edit that invalidates one item and pass when the rerun clears that item and blocks handoff; restore the source and pass when all valid items return, with no gameplay interface added by the checklist. |
 
 **Notes:** Source: `spec.md`, Section 10 transition and output contracts.
+
+## REQ-167 — Initial named-Agent identities and state
+
+**Statement:** The relationship model shall create exactly Village Elder (`poc-contract-giver`), the Contract-giver Agent, as `Active` and `Neutral` with no Grievances and Varek (`poc-enemy-agent`), the Enemy Agent, as `Active` and `Hostile` with no Grievances, and shall create no relationship record for Miro, a generic settlement resident, or any other character.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Constraint |
+| Status | Active |
+| Verification | At `CP-REL-RELEASE`, reset two campaigns and pass when each initial plain-state projection contains exactly the Village Elder and Varek relationship records with the specified IDs, names, roles, Agent fates, Dispositions, and empty Grievance sets, when both projections are value-equal, and when Miro and generic settlement residents have no relationship record. |
+
+**Notes:** Source: `PVS-REL-001`. Replaces REQ-067.
+
+## REQ-168 — Relationship outcomes for Village Elder and Varek
+
+**Statement:** WHEN Varek's Enemy Agent fate choice is confirmed or the Local Contract fails, the relationship state shall apply only the governed Village Elder and Varek changes, retain all Grievances, and first show the changes when the player returns to the settlement.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Behavior |
+| Status | Active |
+| Verification | At `CP-REL-RELEASE`, `CP-REL-CAPTURE`, and `CP-REL-EXECUTE`, confirm each choice and pass when the exact governed Village Elder and Varek state applies immediately but first becomes visible after return to the settlement. At `CP-REL-FAILURE`, run separate Band-defeat and resident-loss cases and pass when each produces the governed failure state after return. In every run, all pre-existing Grievances remain present and no other relationship record changes. |
+
+**Notes:** Source: `PVS-REL-003`. Governed outcomes: Resolved + `Release` → Village Elder `Friendly` with no new Grievance; Varek `Active`, `Neutral`, with no new Grievance. Resolved + `Capture` → Village Elder `Friendly` with no new Grievance; Varek `Captive`, adds `Agent captured`, and has no Disposition. Resolved + `Execute` → Village Elder `Hostile` and adds `Agent executed`; Varek `Executed` with no Disposition. Failed by Band defeat or resident loss → Village Elder `Hostile` and adds `Settlement harmed`; Varek `Active`, `Hostile`, with no new Grievance. Replaces REQ-069.
+
+## REQ-169 — Post-result restrictions and Village Elder reaction
+
+**Statement:** After a Resolved or Failed result, the Journal shall be read-only for contract and preparation changes, `Talk` with Village Elder shall show the changed authored reaction, and no retry shall be available.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Behavior |
+| Status | Active |
+| Verification | At `CP-REL-FAILURE` and `CP-SPEC-END-TO-END`, reach both Resolved and Failed results and pass when the Journal permits no contract or preparation change, `Talk` with Village Elder shows the authored reaction for the result and Varek outcome, and no retry control or transition is available. |
+
+**Notes:** Source: `PVS-FLW-016`. Replaces REQ-032.
