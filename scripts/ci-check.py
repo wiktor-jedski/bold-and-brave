@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check CI dependencies and run every project test script."""
+"""Check CI dependencies, validate the project, run tests, and build."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_JSON = PROJECT_ROOT / "package.json"
 REQUIRED_EXECUTABLES = ("bun",)
+CHECK_SCRIPTS = ("typecheck:core", "typecheck:browser", "check:dependencies")
+BUILD_SCRIPT = "build"
 
 
 def check_executables() -> bool:
@@ -27,11 +29,20 @@ def check_executables() -> bool:
     return False
 
 
-def read_test_scripts() -> list[str]:
+def read_ci_scripts() -> list[str]:
     package = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
     scripts = package.get("scripts")
     if not isinstance(scripts, dict):
         raise ValueError("package.json must contain a scripts object")
+
+    required_scripts = (*CHECK_SCRIPTS, BUILD_SCRIPT)
+    missing_scripts = [
+        name for name in required_scripts if not isinstance(scripts.get(name), str)
+    ]
+    if missing_scripts:
+        raise ValueError(
+            "package.json is missing required CI scripts: " + ", ".join(missing_scripts)
+        )
 
     test_scripts = [
         name
@@ -40,7 +51,8 @@ def read_test_scripts() -> list[str]:
     ]
     if not test_scripts:
         raise ValueError("package.json contains no test:* scripts")
-    return test_scripts
+
+    return [*CHECK_SCRIPTS, BUILD_SCRIPT, *test_scripts]
 
 
 def run(command: list[str]) -> bool:
@@ -61,19 +73,19 @@ def main() -> int:
         return 1
 
     try:
-        test_scripts = read_test_scripts()
+        ci_scripts = read_ci_scripts()
     except (OSError, json.JSONDecodeError, ValueError) as error:
-        print(f"Cannot read project test scripts: {error}", file=sys.stderr)
+        print(f"Cannot read project CI scripts: {error}", file=sys.stderr)
         return 1
 
     if not run(["bun", "install", "--frozen-lockfile"]):
         return 1
 
-    for script in test_scripts:
+    for script in ci_scripts:
         if not run(["bun", "run", script]):
             return 1
 
-    print(f"\nCI check passed: {len(test_scripts)} test suites")
+    print(f"\nCI check passed: {len(ci_scripts)} scripts")
     return 0
 
 
