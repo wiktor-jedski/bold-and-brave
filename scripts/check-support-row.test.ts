@@ -42,6 +42,7 @@ const VALID_SYSTEM_FACTS: SystemFacts = Object.freeze({
   architecture: 'x64',
   gpu: 'NVIDIA RTX 2070 SUPER',
   driver: '610.57.04',
+  gpuRows: 1,
 })
 
 /** Valid browser-side measurements matching REQ-013. */

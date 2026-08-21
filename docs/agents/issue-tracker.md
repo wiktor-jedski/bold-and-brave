@@ -51,3 +51,10 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 - Phase 5 uses a focused support-row check instead of running `CP-SUPPORT-GATE` and `CP-PERFORMANCE` end to end. WebGPU startup gates, the representative bridge battle, performance metrics, and the evidence harness belong to later phases.
 - Pull-request CI uses Playwright's bundled Chromium for general browser checks and does not produce promised-row evidence. The focused Phase 5 support-row check runs manually on the promised workstation. REQ-015 remains open until Phase 38 verifies usable normal keyboard-and-mouse play.
+
+## Phase 6 — WebGPU startup
+
+### Testing coverage deviations
+
+- Phase 6 stops at the `Loading Scene` handoff. It proves that each failed gate prevents that handoff, but it does not test download, decode, GPU upload, Scene readiness, or the `Ready` state. Phase 7 owns those checks.
+- Phase 6 uses focused Vitest and Playwright checks and the local promised-row command. It does not generate the linked `CP-SUPPORT-GATE` PNG set or final evidence manifest. Phases 42–44 own the acceptance catalog, checkpoint data, and visual provenance.
