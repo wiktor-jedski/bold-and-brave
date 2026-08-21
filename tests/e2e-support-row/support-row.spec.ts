@@ -156,6 +156,93 @@ function captureSceneLoadConsoleRecords(page: Page): {
   return { records, pending }
 }
 
+/** The record shape with every `readonly` modifier removed for mutation. */
+type DeepMutable<T> = { -readonly [Key in keyof T]: DeepMutable<T[Key]> }
+
+/**
+ * Hostile-record evidence: every malformed variant of the reported record
+ * must be rejected by the exact validator that gates the Scene-load
+ * evidence file, so invalid data makes the promised-row command nonzero
+ * and leaves no passing Scene-load record (REQ-134, REQ-136, REQ-137).
+ */
+function expectSceneLoadEvidenceRejected(
+  valid: SceneLoadRecord,
+  mutate: (record: DeepMutable<SceneLoadRecord>) => void,
+  validator: (record: SceneLoadRecord, names: readonly string[]) => string[],
+  authoredAnimationNames: readonly string[],
+): void {
+  const record = structuredClone(valid) as DeepMutable<SceneLoadRecord>
+  mutate(record)
+  expect(validator(record as unknown as SceneLoadRecord, authoredAnimationNames)).not.toEqual([])
+}
+
+/**
+ * The hostile mutators shared by both journey validators: a duplicate
+ * non-progress record, an arbitrary unknown property on every record, a
+ * wrong applicable stage, a missing byte field, a mismatched declared
+ * total, decreasing received bytes, and a WebGL backend.
+ */
+const SHARED_HOSTILE_MUTATIONS: Array<(record: DeepMutable<SceneLoadRecord>) => void> = [
+  // A duplicate non-progress record must not be hidden by collapsing.
+  (record) => {
+    record.events = [record.events[0], record.events[1], ...record.events.slice(1)]
+  },
+  // An arbitrary unknown property on every record must be rejected.
+  (record) => {
+    record.events = record.events.map((event) => ({ ...event, unexpected: 'x' }))
+  },
+  // A wrong applicable stage must be rejected.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'decode' ? { ...event, stage: 'upload' } : event,
+    )
+  },
+  // A missing applicable byte field must be rejected.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'progress' ? { ...event, receivedBytes: undefined } : event,
+    )
+  },
+  // One consistent declared total across the journey must hold.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'download' ? { ...event, totalBytes: 100 } : event,
+    )
+  },
+  // Received bytes must be monotonic: a decreasing progress update fails.
+  (record) => {
+    const index = record.events.findIndex((event) => event.event === 'progress')
+    const decreasing = { ...record.events[index], receivedBytes: 1 }
+    record.events = [
+      ...record.events.slice(0, index + 1),
+      decreasing,
+      ...record.events.slice(index + 1),
+    ]
+  },
+  // The WebGL fallback backend must be rejected.
+  (record) => {
+    record.backend = 'webgl'
+  },
+]
+
+/** The failure-specific hostile mutators of the retried journey. */
+const RETRIED_HOSTILE_MUTATIONS: Array<(record: DeepMutable<SceneLoadRecord>) => void> = [
+  // The first error record must carry a non-empty readable message.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'failure' ? { ...event, message: '' } : event,
+    )
+  },
+  // A second failure is an automatic retry and must be rejected.
+  (record) => {
+    record.events = [
+      ...record.events.slice(0, 2),
+      record.events[1],
+      ...record.events.slice(2),
+    ]
+  },
+]
+
 /**
  * The local promised-row command launches the system Chromium at the
  * promised viewport and device-pixel ratio, measures the actual
@@ -486,66 +573,20 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
 
   // Hostile-record evidence: the same validator that gates the Scene-load
   // evidence must reject every malformed diagnostic record — a duplicate
-  // non-progress record, a missing applicable stage, a missing byte field,
-  // an invalid byte relationship, and a WebGL backend — so invalid data
-  // makes the command nonzero and leaves no passing Scene-load record.
+  // non-progress record, an unknown property, a missing applicable stage,
+  // a missing byte field, a mismatched declared total, decreasing received
+  // bytes, and a WebGL backend — so invalid data makes the command nonzero
+  // and leaves no passing Scene-load record (REQ-134, REQ-136, REQ-137).
   const valid = reported as SceneLoadRecord
-  expect(
-    validateSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: [
-          valid.events[0],
-          valid.events[1],
-          ...valid.events.slice(1),
-        ],
-      },
-      readAuthoredAnimationNames(PROJECT_ROOT),
-    ),
-  ).not.toEqual([])
-  expect(
-    validateSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'decode' ? { ...event, stage: 'upload' } : event,
-        ),
-      },
-      readAuthoredAnimationNames(PROJECT_ROOT),
-    ),
-  ).not.toEqual([])
-  expect(
-    validateSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'progress'
-            ? { ...event, receivedBytes: undefined }
-            : event,
-        ),
-      },
-      readAuthoredAnimationNames(PROJECT_ROOT),
-    ),
-  ).not.toEqual([])
-  expect(
-    validateSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'ready'
-            ? { ...event, receivedBytes: event.totalBytes === null ? undefined : 0 }
-            : event,
-        ),
-      },
-      readAuthoredAnimationNames(PROJECT_ROOT),
-    ),
-  ).not.toEqual([])
-  expect(
-    validateSceneLoadEvidenceRecord(
-      { ...valid, backend: 'webgl' },
-      readAuthoredAnimationNames(PROJECT_ROOT),
-    ),
-  ).not.toEqual([])
+  const authoredAnimationNames = readAuthoredAnimationNames(PROJECT_ROOT)
+  for (const mutate of SHARED_HOSTILE_MUTATIONS) {
+    expectSceneLoadEvidenceRejected(
+      valid,
+      mutate,
+      validateSceneLoadEvidenceRecord,
+      authoredAnimationNames,
+    )
+  }
 })
 
 /**
@@ -690,77 +731,21 @@ test('the promised row stops at the first asset failure with Load failed and one
 
   // Hostile-record evidence: the same validator that gates the Scene-load
   // evidence must reject every malformed diagnostic record — a duplicate
-  // non-progress record, a missing applicable stage, a missing byte field,
-  // an empty failure message, an automatic-retry journey, and a WebGL
-  // backend — so invalid data makes the command nonzero and leaves no
-  // passing Scene-load record (REQ-134, REQ-136, REQ-137).
+  // non-progress record, an unknown property, a missing applicable stage,
+  // a missing byte field, a mismatched declared total, decreasing received
+  // bytes, an empty failure message, an automatic-retry journey, and a
+  // WebGL backend — so invalid data makes the command nonzero and leaves
+  // no passing Scene-load record (REQ-134, REQ-136, REQ-137).
   const valid = reported as SceneLoadRecord
   const authoredAnimationNames = readAuthoredAnimationNames(PROJECT_ROOT)
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: [
-          valid.events[0],
-          valid.events[1],
-          ...valid.events.slice(1),
-        ],
-      },
+  for (const mutate of [...SHARED_HOSTILE_MUTATIONS, ...RETRIED_HOSTILE_MUTATIONS]) {
+    expectSceneLoadEvidenceRejected(
+      valid,
+      mutate,
+      validateRetriedSceneLoadEvidenceRecord,
       authoredAnimationNames,
-    ),
-  ).not.toEqual([])
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'download' ? { ...event, receivedBytes: 1 } : event,
-        ),
-      },
-      authoredAnimationNames,
-    ),
-  ).not.toEqual([])
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'upload' ? { ...event, totalBytes: undefined } : event,
-        ),
-      },
-      authoredAnimationNames,
-    ),
-  ).not.toEqual([])
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: valid.events.map((event) =>
-          event.event === 'failure' ? { ...event, message: '' } : event,
-        ),
-      },
-      authoredAnimationNames,
-    ),
-  ).not.toEqual([])
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      {
-        ...valid,
-        events: [
-          ...valid.events.slice(0, 2),
-          valid.events[1],
-          ...valid.events.slice(2),
-        ],
-      },
-      authoredAnimationNames,
-    ),
-  ).not.toEqual([])
-  expect(
-    validateRetriedSceneLoadEvidenceRecord(
-      { ...valid, backend: 'webgl' },
-      authoredAnimationNames,
-    ),
-  ).not.toEqual([])
+    )
+  }
 
   // Machine-readable Phase 7 Scene-load evidence of the retried journey,
   // written only after validation passes.

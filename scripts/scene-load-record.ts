@@ -18,7 +18,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { STARTUP_SCENE } from '../src/core/content'
-import type { SceneLoadDiagnosticEvent, SceneLoadRecord } from '../src/browser/scene'
+import type { SceneLoadDiagnosticEvent, SceneLoadDiagnosticEventType, SceneLoadRecord } from '../src/browser/scene'
 
 /** The ordered Scene-load stage names required by the contract (PVS-WEB-003). */
 export const REQUIRED_SCENE_LOAD_STAGES: readonly string[] = [
@@ -118,6 +118,24 @@ export function collapsedSceneLoadEventKinds(
 /** The Scene-load stage names an event may carry. */
 const SCENE_LOAD_STAGE_NAMES: readonly string[] = ['download', 'decode', 'upload', 'ready']
 
+/**
+ * The exact allowed property names of each diagnostic event kind.
+ *
+ * A record with any other property — an unknown field, a typo, or a
+ * smuggled value — is rejected, so the machine-readable evidence can never
+ * be padded with unvalidated data.
+ */
+const SCENE_LOAD_EVENT_KEYS: Readonly<Record<SceneLoadDiagnosticEventType, readonly string[]>> = {
+  'scene-load': ['event', 'sceneId', 'assetId'],
+  download: ['event', 'sceneId', 'assetId', 'stage', 'receivedBytes', 'totalBytes'],
+  progress: ['event', 'sceneId', 'assetId', 'stage', 'receivedBytes', 'totalBytes'],
+  decode: ['event', 'sceneId', 'assetId', 'stage', 'receivedBytes', 'totalBytes'],
+  upload: ['event', 'sceneId', 'assetId', 'stage', 'receivedBytes', 'totalBytes'],
+  ready: ['event', 'sceneId', 'assetId', 'stage', 'receivedBytes', 'totalBytes'],
+  complete: ['event', 'sceneId', 'assetId'],
+  failure: ['event', 'sceneId', 'assetId', 'stage', 'message'],
+}
+
 /** Whether `value` is a finite number (JSON-safe and bounded). */
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -138,9 +156,9 @@ function isValidTotalBytes(value: unknown): value is number | null {
  * within the declared total; the decode, GPU-upload, and readiness records
  * carry the finished-download byte counts (equal to the declared total);
  * and the failure record carries a non-empty readable message. A record
- * with a missing applicable field, an unexpected field, a wrong stage, or
- * an invalid byte relationship is rejected, so a malformed diagnostic
- * record can never produce passing Scene-load evidence.
+ * with a missing applicable field, an arbitrary unknown property, a wrong
+ * stage, or an invalid byte relationship is rejected, so a malformed
+ * diagnostic record can never produce passing Scene-load evidence.
  */
 export function validateSceneLoadEventPayload(
   event: SceneLoadDiagnosticEvent,
@@ -148,6 +166,16 @@ export function validateSceneLoadEventPayload(
   const rejections: string[] = []
   const kind = event.event
   const { stage, receivedBytes, totalBytes, message } = event
+
+  // Reject any arbitrary unknown property on the record: the machine
+  // evidence may carry only the exact applicable fields of the kind, so
+  // `{event: 'scene-load', ..., unexpected: 'x'}` fails acceptance.
+  const allowedKeys = SCENE_LOAD_EVENT_KEYS[kind]
+  for (const key of Object.keys(event)) {
+    if (!allowedKeys.includes(key)) {
+      rejections.push(`The ${kind} record carries unexpected property ${key}.`)
+    }
+  }
 
   switch (kind) {
     case 'scene-load':
@@ -264,6 +292,61 @@ export function validateSceneLoadEventPayload(
 }
 
 /**
+ * Validate the cross-event byte invariants of one Scene-load journey
+ * (PVS-WEB-003, REQ-137).
+ *
+ * The byte-carrying records of a journey — download, progress, decode,
+ * GPU upload, and readiness — must declare one consistent total across all
+ * of them (a record that declares a number must match the journey total,
+ * and no record may mix a declared total with a missing one), and the
+ * received byte counts must be monotonic non-decreasing in event order:
+ * the download stage starts at zero, each progress update grows toward the
+ * declared total, and decode/upload/readiness carry the finished-download
+ * count. A mismatched total or a decreasing received count is rejected.
+ */
+function validateSceneLoadByteInvariants(
+  events: readonly SceneLoadDiagnosticEvent[],
+): string[] {
+  const rejections: string[] = []
+  const byteKinds = new Set(['download', 'progress', 'decode', 'upload', 'ready'])
+  let declaredTotal: number | null = null
+  let hasDeclaredTotal = false
+  let previousBytes = -1
+  let byteIndex = 0
+
+  for (const event of events) {
+    if (!byteKinds.has(event.event)) {
+      continue
+    }
+    if (typeof event.totalBytes === 'number') {
+      if (!hasDeclaredTotal) {
+        declaredTotal = event.totalBytes
+        hasDeclaredTotal = true
+      } else if (event.totalBytes !== declaredTotal) {
+        rejections.push(
+          `Diagnostic byte record ${byteIndex} declares total ${event.totalBytes}; the journey declares ${declaredTotal}. One consistent declared total is required.`,
+        )
+      }
+    } else if (hasDeclaredTotal) {
+      rejections.push(
+        `Diagnostic byte record ${byteIndex} carries no declared total; the journey declares ${declaredTotal}.`,
+      )
+    }
+    if (typeof event.receivedBytes === 'number') {
+      if (event.receivedBytes < previousBytes) {
+        rejections.push(
+          `Diagnostic byte record ${byteIndex} reports ${event.receivedBytes} received bytes after ${previousBytes}; received bytes must not decrease.`,
+        )
+      }
+      previousBytes = event.receivedBytes
+    }
+    byteIndex += 1
+  }
+
+  return rejections
+}
+
+/**
  * Validate the diagnostic event log of one Scene-load journey (REQ-137,
  * PVS-WEB-004, REQ-134).
  *
@@ -273,9 +356,10 @@ export function validateSceneLoadEventPayload(
  * collapse, because their count depends on the response stream), so a
  * missing stage, a duplicate non-progress record, a later stage after the
  * first error, or an automatic retry changes the sequence and is
- * rejected. When the journey must contain the first error, exactly one
- * `failure` record at the download stage with a readable message is
- * required.
+ * rejected. The byte-carrying records must declare one consistent total
+ * with monotonic received-byte progress. When the journey must contain
+ * the first error, exactly one `failure` record at the download stage with
+ * a readable message is required.
  */
 export function validateSceneLoadEventLog(
   events: readonly SceneLoadDiagnosticEvent[],
@@ -298,6 +382,8 @@ export function validateSceneLoadEventLog(
     }
     rejections.push(...validateSceneLoadEventPayload(event))
   }
+
+  rejections.push(...validateSceneLoadByteInvariants(events))
 
   const kinds = collapsedSceneLoadEventKinds(events)
   if (kinds.length !== expectedKinds.length || kinds.some((kind, index) => kind !== expectedKinds[index])) {
