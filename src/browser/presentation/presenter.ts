@@ -103,12 +103,14 @@ export function createScenePresenter(
 ): ScenePresenter {
   // Adapter-owned state (ARCH-009, REQ-118): the bound Band nodes are
   // Three.js objects; the presented-frame count is frame metrics; the
-  // animation time is interpolation history. No projection, resource
-  // value, combat result, relationship result, fate result, or outcome is
-  // stored.
+  // animation time and the last-presented node IDs are interpolation
+  // history. No projection, resource value, combat result, relationship
+  // result, fate result, or outcome is stored.
   const bandNodes = new Map<string, PresentedNode>()
   let presentedFrames = 0
   let animationTime = 0
+  /** The Band-member node IDs shown by the last presented projection. */
+  let presentedNodeIds: string[] = []
 
   return {
     present(projection: SimulationProjection, interpolation: number): void {
@@ -136,6 +138,18 @@ export function createScenePresenter(
         }
       }
 
+      // Record the Band-member node IDs presented by this frame: exactly
+      // the projected members whose nodes exist in the loaded Scene. A
+      // bound node hidden because its member is no longer projected is
+      // not reported, so the record always matches the last presented
+      // projection (ARCH-009).
+      presentedNodeIds = []
+      for (const member of projection.band) {
+        if (bandNodes.has(member.id)) {
+          presentedNodeIds.push(member.id)
+        }
+      }
+
       // Advance the authored animation from the current projection tick
       // and interpolation value: one Simulation second per 60 fixed ticks
       // (ARCH-005, ARCH-008, REQ-118).
@@ -149,10 +163,11 @@ export function createScenePresenter(
     },
     readFramePresentation(): FramePresentationRecord {
       // The record carries presentation-only facts: the presented node
-      // names (Three.js objects), the frame count, and the animation time
-      // (interpolation history). No gameplay value enters it (REQ-118).
+      // IDs of the last presented projection, the frame count, and the
+      // animation time (interpolation history). No gameplay value enters
+      // it (REQ-118).
       return Object.freeze({
-        presentedNodes: Object.freeze([...bandNodes.keys()]),
+        presentedNodes: Object.freeze([...presentedNodeIds]),
         presentedFrames,
         animationTime,
       })

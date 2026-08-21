@@ -135,7 +135,14 @@ export type PresentationResult = PresentationUnsupported | PresentationSuccess
  * projection tick and interpolation value on the existing frame loop.
  */
 export interface FramePresentationRecord {
-  /** The names of the presented Band-member nodes of the last presented frame. */
+  /**
+   * The Band-member node IDs shown by the last presented projection.
+   *
+   * Exactly the projected members whose nodes exist in the loaded Scene
+   * are reported, in projection order. A bound node hidden because its
+   * member is no longer projected is not reported, so the record always
+   * matches the last presented projection.
+   */
   readonly presentedNodes: readonly string[]
   /** The count of presented frames since the Scene was bound. */
   readonly presentedFrames: number
