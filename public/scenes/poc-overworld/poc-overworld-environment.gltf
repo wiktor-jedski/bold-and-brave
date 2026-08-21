@@ -1,0 +1,189 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "bold-and-brave-playable-vertical-slice"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "poc-overworld",
+      "nodes": [
+        0,
+        1
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "poc-player-character",
+      "mesh": 0,
+      "translation": [
+        -1.2,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "poc-companion",
+      "mesh": 1,
+      "translation": [
+        1.2,
+        0,
+        0
+      ]
+    }
+  ],
+  "meshes": [
+    {
+      "name": "player-character-box",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0
+        }
+      ]
+    },
+    {
+      "name": "companion-box",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 1
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "player-character-material",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.18,
+          0.49,
+          0.2,
+          1
+        ]
+      }
+    },
+    {
+      "name": "companion-material",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.2,
+          0.32,
+          0.55,
+          1
+        ]
+      }
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 392,
+      "uri": "data:application/octet-stream;base64,AAAAvwAAAL8AAAC/AAAAPwAAAL8AAAC/AAAAPwAAAD8AAAC/AAAAvwAAAD8AAAC/AAAAvwAAAL8AAAA/AAAAPwAAAL8AAAA/AAAAPwAAAD8AAAA/AAAAvwAAAD8AAAA/AAAAvwAAAL8AAAC/AAAAvwAAAD8AAAC/AAAAvwAAAD8AAAA/AAAAvwAAAL8AAAA/AAAAPwAAAL8AAAC/AAAAPwAAAD8AAAC/AAAAPwAAAD8AAAA/AAAAPwAAAL8AAAA/AAAAvwAAAL8AAAC/AAAAvwAAAL8AAAA/AAAAPwAAAL8AAAA/AAAAPwAAAL8AAAC/AAAAvwAAAD8AAAC/AAAAvwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAC/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMAFAAVABYAFAAWABcAAAAAAAAAgD+amRm/AAAAAAAAAACamRk/AAAAAAAAAAA="
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 72,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 360,
+      "byteLength": 8
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 368,
+      "byteLength": 24
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "max": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 36,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 2,
+      "type": "SCALAR",
+      "min": [
+        0
+      ],
+      "max": [
+        1
+      ]
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 2,
+      "type": "VEC3",
+      "min": [
+        -0.6,
+        0,
+        0
+      ],
+      "max": [
+        0.6,
+        0,
+        0
+      ]
+    }
+  ],
+  "animations": [
+    {
+      "name": "poc-band-idle",
+      "samplers": [
+        {
+          "input": 2,
+          "output": 3,
+          "interpolation": "LINEAR"
+        }
+      ],
+      "channels": [
+        {
+          "sampler": 0,
+          "target": {
+            "node": 0,
+            "path": "translation"
+          }
+        }
+      ]
+    }
+  ]
+}

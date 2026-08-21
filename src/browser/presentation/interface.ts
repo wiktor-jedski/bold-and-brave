@@ -18,13 +18,37 @@
  * a recording fake, so the gate proves its device handoff, initialization
  * order, backend inspection, and disposal without a GPU. The gate never
  * renders a frame and never loads a Scene: those operations belong to
- * later delivery states (REQ-134, PVS-WEB-001).
+ * later delivery states (REQ-134, PVS-WEB-001). The Scene loader (ARCH-022)
+ * uses the render, GPU-upload, canvas, and sizing operations after every
+ * gate passes.
  */
 export interface PresentationRenderer {
   /** Wait for renderer initialization to complete. */
   init(): Promise<unknown>
   /** Release the renderer and its GPU resources. */
   dispose(): void
+  /**
+   * Render one frame of `scene` from `camera` (ARCH-009).
+   *
+   * The Scene loader renders exactly one frame after the load succeeds;
+   * later frames belong to the one Browser Runtime frame loop (ARCH-008).
+   */
+  render(scene: unknown, camera: unknown): void
+  /**
+   * Prepare GPU resources (shaders and textures) for `scene` from `camera`
+   * (ARCH-009, PVS-WEB-003).
+   *
+   * This is the GPU-upload stage of the Scene load: the promise settles
+   * when the renderer finished compiling the decoded Scene.
+   */
+  compileAsync(scene: unknown, camera: unknown): Promise<unknown>
+  /**
+   * Resize the renderer's drawing buffer to `width` by `height` CSS pixels
+   * (ARCH-024).
+   */
+  setSize(width: number, height: number): void
+  /** The renderer's canvas, added to the product surface after the load. */
+  readonly domElement: HTMLCanvasElement
   /** The initialized backend the renderer selected. */
   readonly backend: PresentationRendererBackend
 }

@@ -28,9 +28,10 @@ interface CapturedCalls {
 }
 
 /**
- * The fake renderer surface, extended with the `render` operation the gate
- * must never invoke. The render method throws if called, so any accidental
- * render call fails the test immediately instead of silently passing.
+ * The fake renderer surface of the backend gate. The `render` operation
+ * throws if called, so any accidental render call fails the test
+ * immediately instead of silently passing: the gate never renders a frame
+ * and never loads a Scene (REQ-011, PVS-WEB-001).
  */
 interface FakeRenderer extends PresentationRenderer {
   render(): void
@@ -55,8 +56,16 @@ function createFakeRenderer(
       operations.push('renderer.dispose')
     },
     render() {
-      operations.push('renderer.render')
       throw new Error('the backend gate must never render a frame')
+    },
+    compileAsync() {
+      throw new Error('the backend gate must never prepare GPU resources')
+    },
+    setSize() {
+      throw new Error('the backend gate must never resize the canvas')
+    },
+    get domElement(): HTMLCanvasElement {
+      throw new Error('the backend gate must never touch the canvas')
     },
   }
 }

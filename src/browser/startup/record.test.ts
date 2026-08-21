@@ -67,6 +67,18 @@ function makeRenderer(
       return Promise.resolve()
     },
     dispose() {},
+    render() {
+      throw new Error('the startup record tests never render a frame')
+    },
+    compileAsync() {
+      throw new Error('the startup record tests never prepare GPU resources')
+    },
+    setSize() {
+      throw new Error('the startup record tests never resize a canvas')
+    },
+    get domElement(): HTMLCanvasElement {
+      throw new Error('the startup record tests never touch the canvas')
+    },
   }
 }
 

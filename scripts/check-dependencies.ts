@@ -1,6 +1,6 @@
 /**
- * Dependency rules for the Simulation boundary (ARCH-001, ARCH-002,
- * ARCH-024, REQ-121).
+ * Dependency rules for the Simulation boundary and the content catalog
+ * (ARCH-001, ARCH-002, ARCH-016, ARCH-024, REQ-121).
  *
  * Enforced rules:
  *   1. `core-to-browser`: a file under `src/core` must not import a file
@@ -9,6 +9,10 @@
  *      import a private Simulation implementation file — any entry of
  *      `src/core/simulation` other than the public module entry
  *      `index.ts` (ARCH-002).
+ *   3. `core-content-import`: a file under `src/core/content` — the
+ *      Typed Content Catalog — must not import browser code or the
+ *      Three.js package, so the platform-neutral manifest can never
+ *      depend on a browser or rendering library (ARCH-016, REQ-121).
  *
  * Import extraction is a TypeScript AST traversal. The `typescript` package
  * already in the toolchain (v7) ships its native compiler as a server
@@ -50,7 +54,7 @@ import {
 import type { Node, NoSubstitutionTemplateLiteral, SourceFile, StringLiteral } from 'typescript/unstable/ast'
 import type { FileSystem } from 'typescript/unstable/fs'
 
-export type RuleId = 'core-to-browser' | 'browser-private-simulation'
+export type RuleId = 'core-to-browser' | 'browser-private-simulation' | 'core-content-import'
 
 export interface DependencyViolation {
   readonly rule: RuleId
@@ -71,6 +75,8 @@ export interface ImportSpecifier {
 
 const CORE_ZONE = 'core'
 const BROWSER_ZONE = 'browser'
+const CONTENT_DIR = 'content'
+const THREE_PACKAGE = 'three'
 const SIMULATION_DIR = 'simulation'
 const PUBLIC_SIMULATION_ENTRY = 'index.ts'
 
@@ -277,25 +283,57 @@ export function zoneOf(srcRoot: string, file: string): string | null {
   return first === CORE_ZONE || first === BROWSER_ZONE ? first : null
 }
 
+/** Whether a bare specifier is the Three.js package or one of its entries. */
+export function isThreeImport(specifier: string): boolean {
+  return specifier === THREE_PACKAGE || specifier.startsWith(`${THREE_PACKAGE}/`)
+}
+
 /** Apply the boundary rules to one resolved import. */
 export function checkRules(
   srcRoot: string,
   importerFile: string,
-  importedFile: string,
+  importedFile: string | null,
   specifier: string,
   line: number,
 ): DependencyViolation | null {
   const importerZone = zoneOf(srcRoot, importerFile)
-  const importedRel = relative(srcRoot, importedFile)
+  const importerRel = relative(srcRoot, importerFile)
+  const importerInContent =
+    importerZone === CORE_ZONE && importerRel.startsWith(`${CORE_ZONE}${sep}${CONTENT_DIR}${sep}`)
 
-  if (importerZone === CORE_ZONE && importedRel.startsWith(`${BROWSER_ZONE}${sep}`)) {
-    return { rule: 'core-to-browser', importer: toPosix(relative(srcRoot, importerFile)), imported: toPosix(importedRel), specifier, line }
+  // The Typed Content Catalog must stay platform-neutral: a core content
+  // file must not import browser code or the Three.js package (ARCH-016,
+  // REQ-121). Bare package specifiers resolve to no file, so the rule also
+  // inspects the specifier itself.
+  if (importerInContent) {
+    const importedRel = importedFile === null ? null : relative(srcRoot, importedFile)
+    const browserImport = importedRel?.startsWith(`${BROWSER_ZONE}${sep}`) ?? false
+    const threeImport = importedFile === null && isThreeImport(specifier)
+    if (browserImport || threeImport) {
+      return {
+        rule: 'core-content-import',
+        importer: toPosix(relative(srcRoot, importerFile)),
+        imported: toPosix(importedRel ?? specifier),
+        specifier,
+        line,
+      }
+    }
   }
 
-  if (importerZone === BROWSER_ZONE && importedRel.startsWith(`${CORE_ZONE}${sep}${SIMULATION_DIR}${sep}`)) {
-    const tail = importedRel.slice(`${CORE_ZONE}${sep}${SIMULATION_DIR}${sep}`.length)
-    if (tail !== PUBLIC_SIMULATION_ENTRY) {
-      return { rule: 'browser-private-simulation', importer: toPosix(relative(srcRoot, importerFile)), imported: toPosix(importedRel), specifier, line }
+  if (importerZone === CORE_ZONE && importedFile !== null) {
+    const importedRel = relative(srcRoot, importedFile)
+    if (importedRel.startsWith(`${BROWSER_ZONE}${sep}`)) {
+      return { rule: 'core-to-browser', importer: toPosix(relative(srcRoot, importerFile)), imported: toPosix(importedRel), specifier, line }
+    }
+  }
+
+  if (importerZone === BROWSER_ZONE && importedFile !== null) {
+    const importedRel = relative(srcRoot, importedFile)
+    if (importedRel.startsWith(`${CORE_ZONE}${sep}${SIMULATION_DIR}${sep}`)) {
+      const tail = importedRel.slice(`${CORE_ZONE}${sep}${SIMULATION_DIR}${sep}`.length)
+      if (tail !== PUBLIC_SIMULATION_ENTRY) {
+        return { rule: 'browser-private-simulation', importer: toPosix(relative(srcRoot, importerFile)), imported: toPosix(importedRel), specifier, line }
+      }
     }
   }
 
@@ -324,9 +362,6 @@ export async function checkProject(srcRoot: string): Promise<DependencyViolation
       }
       for (const { specifier, line } of collectSpecifiers(sourceFile)) {
         const imported = resolveImportedFile(importerFile, specifier)
-        if (imported === null) {
-          continue
-        }
         const violation = checkRules(srcRoot, importerFile, imported, specifier, line)
         if (violation !== null) {
           violations.push(violation)
@@ -370,7 +405,9 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  console.log('Dependency rules OK: no core-to-browser or private-Simulation import found.')
+  console.log(
+    'Dependency rules OK: no core-to-browser, private-Simulation, or core-content-import found.',
+  )
 }
 
 if (import.meta.main) {
