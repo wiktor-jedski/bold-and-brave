@@ -128,7 +128,7 @@ Phase 38 completes and audits visual consistency. It must not be the first phase
 
 **Result:** A lost rendering device stops the Simulation immediately. No hidden tick or gameplay event occurs after the loss. The product shows Reload, and Reload repeats all startup gates.
 
-**Requirements closed:** REQ-138.
+**Requirements closed:** None.
 
 **Phase check:** Cause device loss during active Simulation work. Compare the tick at loss with all ticks before Reload.
 
@@ -558,7 +558,7 @@ Phase 38 completes and audits visual consistency. It must not be the first phase
 
 **Result:** Every required checkpoint emits a validated machine-readable snapshot and conventional assertions. The generated evidence manifest contains every required identity, input, state, result, path, artifact, and metric field. Every catalog mapping exists. A scenario resets, applies only its exact public commands, and stops at fixed checkpoints. It cannot force an outcome after start.
 
-**Requirements closed:** REQ-143, REQ-144, REQ-149, REQ-150.
+**Requirements closed:** REQ-138, REQ-143, REQ-144, REQ-149, REQ-150.
 
 **Phase check:** Run every scenario to every checkpoint. Validate each snapshot, assertion set, manifest field, and scenario-to-checkpoint mapping.
 
