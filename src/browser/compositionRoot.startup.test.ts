@@ -190,13 +190,20 @@ function createControlledFrameScheduler(): ControlledFrameScheduler {
 }
 
 /** One recorded delivery-state transition of the injected surface. */
-type SurfaceCall = 'startup' | 'unsupported' | 'loading-scene' | 'progress' | 'ready' | 'mount-canvas'
+type SurfaceCall =
+  | 'startup'
+  | 'unsupported'
+  | 'loading-scene'
+  | 'progress'
+  | 'load-failed'
+  | 'ready'
+  | 'mount-canvas'
 
 /** The recording delivery-state surface, proving the exact ordered state trace. */
 interface RecordingSurface extends DeliveryStateSurface {
   /** Every state transition in call order. */
   readonly calls: SurfaceCall[]
-  /** Every `Unsupported` message received, in call order. */
+  /** Every `Unsupported` or `Load failed` message received, in call order. */
   readonly messages: string[]
 }
 
@@ -219,6 +226,10 @@ function createRecordingSurface(): RecordingSurface {
     },
     showProgress() {
       calls.push('progress')
+    },
+    showLoadFailed(message: string) {
+      calls.push('load-failed')
+      messages.push(message)
     },
     showReady() {
       calls.push('ready')
