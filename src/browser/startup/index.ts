@@ -21,6 +21,8 @@ export {
   productionDeviceReload,
 } from './deviceLoss'
 export type { DeviceLossCoordinator, DeviceLossOptions } from './deviceLoss'
+export { productionDeviceLossObservationPublisher } from './deviceLossObservation'
+export type { DeviceLossObservation } from './deviceLossObservation'
 export type {
   StartupCapabilityEnvironment,
   StartupInspectionRecord,

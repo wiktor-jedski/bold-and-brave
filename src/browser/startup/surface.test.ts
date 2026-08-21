@@ -442,6 +442,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       runtime: application.runtime,
       surface,
       reload() {},
+      readProjection: () => application.simulation.readProjection(),
     })
     const handoff = createSceneLoadingHandoff(
       coordinator.surface,
@@ -537,6 +538,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       runtime: application.runtime,
       surface,
       reload() {},
+      readProjection: () => application.simulation.readProjection(),
     })
     const handoff = createSceneLoadingHandoff(
       coordinator.surface,

@@ -27,9 +27,12 @@
  * (REQ-134, PVS-WEB-001). Production binds `window.location.reload`;
  * tests inject a recording reload operation.
  */
+import type { SimulationProjection } from '../../core/simulation'
 import type { BrowserRuntime } from '../runtime'
 import type { SceneLoadProgress } from '../scene'
 import type { DeliveryStateSurface } from './surface'
+import { productionDeviceLossObservationPublisher } from './deviceLossObservation'
+import type { DeviceLossObservation } from './deviceLossObservation'
 
 /** The one readable semantic failure of the terminal `Device lost` state (REQ-134). */
 export const DEVICE_LOST_MESSAGE =
@@ -76,6 +79,26 @@ export interface DeviceLossOptions {
    * reload to prove one call even after repeated loss signals.
    */
   readonly reload: () => void
+  /**
+   * Read the current complete immutable projection (ARCH-002, REQ-138).
+   *
+   * The coordinator uses this read-only seam to capture the complete
+   * projection at loss and to expose the current pre-Reload projection
+   * through the published device-loss observation, so the acceptance can
+   * prove that no hidden tick or projection change follows the loss
+   * (PVS-WEB-005). The observation exposes no device and no state-changing
+   * command.
+   */
+  readonly readProjection: () => SimulationProjection
+  /**
+   * Publish the read-only device-loss observation getter (ARCH-024).
+   *
+   * Production binds the observation getter on the browser global object
+   * before the runtime or Scene-loading handoff starts; tests inject a
+   * capturing publisher to prove the exact observation content before and
+   * after the loss.
+   */
+  readonly publishObservation?: (getObservation: () => DeviceLossObservation) => void
 }
 
 /**
@@ -133,6 +156,26 @@ export function createDeviceLossCoordinator(
 ): DeviceLossCoordinator {
   let terminal = false
   let deliveryState: DeliveryStateName = 'Startup'
+  /**
+   * The complete projection captured at the moment of loss, or `null`
+   * before any loss resolved (REQ-138, PVS-WEB-005).
+   */
+  let lossProjection: SimulationProjection | null = null
+
+  // Publish the read-only device-loss observation before the runtime or
+  // Scene-loading handoff starts (ARCH-024, REQ-138): the acceptance reads
+  // the complete projection — advancing before loss, frozen at the loss
+  // tick after loss — and the current pre-Reload projection through the
+  // public read-only `readProjection` seam. No device and no
+  // state-changing command is exposed.
+  const publishObservation =
+    options.publishObservation ?? productionDeviceLossObservationPublisher.publish
+  publishObservation(() =>
+    Object.freeze({
+      lossProjection,
+      currentProjection: options.readProjection(),
+    }),
+  )
 
   // The guarded surface: it forwards every delivery-state transition to
   // the underlying surface while the coordinator is not terminal, and
@@ -213,6 +256,13 @@ export function createDeviceLossCoordinator(
     // Enter the terminal state before any further delivery operation: the
     // guarded surface swallows every later callback from here on.
     terminal = true
+
+    // Capture the complete projection at the loss: the projection after
+    // the last tick before the loss signal resolves (REQ-138,
+    // PVS-WEB-005). The runtime terminal-stop below keeps every later
+    // projection read equal to this one, so the published observation
+    // exposes the same complete projection at loss and before Reload.
+    lossProjection = options.readProjection()
 
     // Terminal-stop the Browser Runtime before another tick (REQ-138,
     // PVS-WEB-005): the stop cancels the pending frame, discards the frame

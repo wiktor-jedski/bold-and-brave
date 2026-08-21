@@ -4,6 +4,7 @@ import type { SimulationProjection } from '../core/simulation'
 import { createBrowserApplication, runApplicationStartup } from './compositionRoot'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './startup/surface'
 import { createDeviceLossCoordinator, DEVICE_LOST_MESSAGE } from './startup/deviceLoss'
+import type { DeviceLossObservation } from './startup/deviceLossObservation'
 import type { StartupCapabilityEnvironment } from './startup'
 import type { PresentationRenderer, WebGPURendererFactory } from './presentation'
 import type { FrameCallback, FramePresenter, FrameScheduler } from './runtime'
@@ -789,6 +790,7 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     const surface = createRecordingSurface()
     const application = createBrowserApplication(createSimulation, scheduler)
     const reloadCalls: string[] = []
+    const observations: Array<() => DeviceLossObservation> = []
     // The coordinator is wired with the exact device before the runtime or
     // Scene-loading handoff starts (REQ-134, REQ-138, PVS-WEB-005); the
     // handoff enters `Loading Scene` through its guarded surface.
@@ -798,6 +800,10 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
       surface,
       reload() {
         reloadCalls.push('reload')
+      },
+      readProjection: () => application.simulation.readProjection(),
+      publishObservation(getObservation) {
+        observations.push(getObservation)
       },
     })
     const handoff: SceneLoadingHandoff = () => {
@@ -816,12 +822,25 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     expect(surface.calls).toEqual(['startup', 'loading-scene'])
     expect(application.runtime.acceptsGameplayInput()).toBe(true)
     expect(scheduler.pendingCount()).toBe(1)
+    // The read-only device-loss observation is published as soon as the
+    // coordinator is wired, before the runtime starts: before any loss the
+    // complete projection is live and the loss projection is absent
+    // (ARCH-024, REQ-138).
+    expect(observations).toHaveLength(1)
+    expect(observations[0]().lossProjection).toBeNull()
 
     // The active Simulation advances: one delayed rendered frame of 200 ms
     // owes 12 fixed intervals, processed at most five per frame.
     scheduler.fire(0)
     scheduler.fire(200)
     expect(application.simulation.readProjection().tick).toBe(5)
+
+    // The observation exposes the advancing complete projection through
+    // the read-only seam, and no device or state-changing command.
+    expect(observations[0]().currentProjection.tick).toBe(5)
+    expect(observations[0]().currentProjection).toEqual(
+      application.simulation.readProjection(),
+    )
 
     // The complete projection at the loss is the projection after the last
     // tick before the loss signal resolves.
@@ -843,6 +862,14 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     // The loss tick and the complete projection never change.
     expect(application.simulation.readProjection().tick).toBe(5)
     expect(application.simulation.readProjection()).toEqual(projectionAtLoss)
+
+    // The device-loss observation now exposes the complete projection at
+    // loss and the current pre-Reload projection — equal, read-only, with
+    // no device or state-changing command (REQ-138, PVS-WEB-005).
+    const observed = observations[0]()
+    expect(observed.lossProjection).toEqual(projectionAtLoss)
+    expect(observed.currentProjection).toEqual(projectionAtLoss)
+    expect(observed.currentProjection).toEqual(observed.lossProjection)
 
     // Runtime restart cannot reopen the gate and schedules no frame: the
     // terminal stop is irreversible.
@@ -887,12 +914,17 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     const surface = createRecordingSurface()
     const application = createBrowserApplication(createSimulation, scheduler)
     const reloadCalls: string[] = []
+    const observations: Array<() => DeviceLossObservation> = []
     const coordinator = createDeviceLossCoordinator({
       device,
       runtime: application.runtime,
       surface,
       reload() {
         reloadCalls.push('reload')
+      },
+      readProjection: () => application.simulation.readProjection(),
+      publishObservation(getObservation) {
+        observations.push(getObservation)
       },
     })
     const presented: SimulationProjection[] = []
@@ -920,6 +952,11 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
 
     expect(surface.calls).toEqual(['startup', 'loading-scene', 'mount-canvas', 'ready'])
     expect(application.runtime.acceptsGameplayInput()).toBe(true)
+    // The read-only device-loss observation was published when the
+    // coordinator was wired; before any loss the complete projection is
+    // live and the loss projection is absent (ARCH-024, REQ-138).
+    expect(observations).toHaveLength(1)
+    expect(observations[0]().lossProjection).toBeNull()
 
     // The active Simulation advances and presents on the one frame loop:
     // the baseline frame presents tick 0, the delayed 200 ms frame
@@ -928,6 +965,13 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     scheduler.fire(200)
     expect(application.simulation.readProjection().tick).toBe(5)
     expect(presented).toHaveLength(2)
+
+    // The observation exposes the advancing complete projection through
+    // the read-only seam — no device and no state-changing command.
+    expect(observations[0]().currentProjection.tick).toBe(5)
+    expect(observations[0]().currentProjection).toEqual(
+      application.simulation.readProjection(),
+    )
 
     const projectionAtLoss = application.simulation.readProjection()
     lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
@@ -954,6 +998,14 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     // presenter call can run after the loss.
     expect(application.simulation.readProjection()).toEqual(projectionAtLoss)
     expect(presented).toHaveLength(2)
+
+    // The device-loss observation now exposes the complete projection at
+    // loss and the current pre-Reload projection — equal, read-only, with
+    // no device or state-changing command (REQ-138, PVS-WEB-005).
+    const observed = observations[0]()
+    expect(observed.lossProjection).toEqual(projectionAtLoss)
+    expect(observed.currentProjection).toEqual(projectionAtLoss)
+    expect(observed.currentProjection).toEqual(observed.lossProjection)
 
     // Runtime restart cannot reopen the gate and schedules no frame.
     application.runtime.start()
@@ -1013,6 +1065,7 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
       device,
       runtime: application.runtime,
       surface,
+      readProjection: () => application.simulation.readProjection(),
       reload() {
         reloadRuns += 1
         const reloadDevice = createFakeDevice(new Promise<GPUDeviceLostInfo>(() => {}))
