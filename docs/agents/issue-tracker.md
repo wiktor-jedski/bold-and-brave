@@ -70,3 +70,16 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 - The project owner selected real WebGPU e2e verification. Phase 7 adds no focused unit test because unit tests are forbidden on phase and master branches. General CI checks types, dependency direction, architecture, the build, existing browser seams, and the real public-content-catalog-to-Scene-asset contract. The promised-workstation Playwright command exercises the real successful and failed WebGPU Scene loads.
 - The project owner assigned the final `CP-SUPPORT-LOAD` WebM files and evidence manifest to Phases 42–44, which own the scenario catalog, checkpoint data, and visual provenance.
+
+## Phase 8 — Rendering device loss
+
+### Clarifications
+
+- The project owner selected Playwright capture and destroy for promised-row loss induction. The check wraps the browser's real `GPUAdapter.requestDevice`, retains the exact returned device only inside Playwright, and calls `GPUDevice.destroy()` after `Ready`. This resolves the production `GPUDevice.lost` promise and adds no product-side loss command.
+- The project owner selected one Browser Runtime `acceptsGameplayInput()` gate. It is open only while the normal runtime runs and closes permanently on terminal device loss. Phase 9 must make its Input Adapter consult this gate before it creates or submits a gameplay command. Phase 8 adds no generic command module and no incomplete gameplay-command payload.
+- REQ-138 remains Active after Phase 8. Phase 43 closes it after the complete `SCN-16-WEBGPU-DEVICE-LOSS` state and gameplay-event checks pass. Phase 44 adds the required WebM and provenance.
+
+### Testing coverage deviations
+
+- Phase 8 does not run `SCN-16-WEBGPU-DEVICE-LOSS` during an active battle or check the later typed gameplay-event stream because combat and that event stream do not exist yet. The local check instead runs the active fixed-tick Simulation, compares the complete immutable projection at loss with every pre-Reload sample, and confirms that presentation stops. Phase 43 runs the complete scenario and checks the no-post-loss-event claim.
+- No gameplay Input Adapter exists before Phase 9. Phase 8 therefore checks every `acceptsGameplayInput()` lifecycle state, permanent closure after device loss, refused runtime restart, and the Reload-only `Device lost` surface. Phase 9 performs the first check with a real gameplay command.

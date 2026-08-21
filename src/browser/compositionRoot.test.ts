@@ -122,4 +122,29 @@ describe('browser composition root (ARCH-024)', () => {
     application.runtime.stop()
     expect(scheduler.pendingCount()).toBe(0)
   })
+
+  it('exposes the gameplay-input gate and irreversible terminal stop on the composed runtime', () => {
+    const factory = vi.fn(createSimulation)
+    const scheduler = createControlledFrameScheduler()
+    const application = createBrowserApplication(factory, scheduler)
+
+    // The composed runtime starts with the input gate closed.
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+
+    // Startup would start the one runtime; while it runs the gate is open.
+    application.runtime.start()
+    expect(application.runtime.acceptsGameplayInput()).toBe(true)
+    expect(scheduler.pendingCount()).toBe(1)
+
+    // The terminal stop cancels the pending frame and closes the gate.
+    application.runtime.terminalStop()
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+    expect(scheduler.pendingCount()).toBe(0)
+
+    // A later `start` schedules no frame: no second frame loop can exist
+    // after a terminal stop (REQ-113, REQ-138).
+    application.runtime.start()
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+  })
 })

@@ -77,6 +77,38 @@ export interface BrowserRuntime {
   readonly presenterSlot: PresenterSlot
   /** Start the frame loop. Scheduling the first frame is idempotent while running. */
   start(): void
-  /** Stop the frame loop and cancel the pending frame request. */
+  /**
+   * Stop the frame loop and cancel the pending frame request.
+   *
+   * This is the ordinary lifecycle stop (ARCH-006): the runtime remains
+   * restartable, and a later `start` begins a fresh frame loop with a new
+   * time baseline. The accumulated frame debt is discarded by the next
+   * `start`, which resets the accumulator.
+   */
   stop(): void
+  /**
+   * Terminal-stop the runtime irreversibly (REQ-138, PVS-WEB-005).
+   *
+   * The terminal stop cancels the one pending frame, discards the
+   * accumulated frame debt and the time baseline, clears the presenter
+   * slot, and makes every later `start` call a no-op, so no hidden tick
+   * can be dispatched and no frame can be presented while no frame can be
+   * shown. It never advances or replaces the Simulation: the complete
+   * immutable projection stays equal to the projection at the stop. The
+   * ordinary restartable `stop` remains for normal lifecycle work
+   * (ARCH-006, ARCH-023).
+   */
+  terminalStop(): void
+  /**
+   * Whether the runtime currently accepts gameplay input (ARCH-006,
+   * ARCH-007).
+   *
+   * Returns `true` only while the normal runtime runs; returns `false`
+   * during an ordinary lifecycle stop and remains `false` after a
+   * terminal stop, even after a later `start` attempt. The Input Adapter
+   * consults this gate before it creates or submits any gameplay command
+   * (REQ-138, ARCH-007). No generic command module or gameplay-command
+   * payload exists in this phase.
+   */
+  acceptsGameplayInput(): boolean
 }
