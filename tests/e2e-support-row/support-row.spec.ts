@@ -287,6 +287,20 @@ const RETRIED_HOSTILE_MUTATIONS: Array<(record: DeepMutable<SceneLoadRecord>) =>
       event.event === 'download' ? { ...event, totalBytes: null } : event,
     )
   },
+  // The recorded first-error summary must match the failure diagnostic
+  // event in stage: a contradictory stage fails.
+  (record) => {
+    if (record.failure !== null) {
+      record.failure = { stage: 'upload', message: record.failure.message }
+    }
+  },
+  // The recorded first-error summary must match the failure diagnostic
+  // event in message: a contradictory message fails.
+  (record) => {
+    if (record.failure !== null) {
+      record.failure = { stage: record.failure.stage, message: 'a different readable error' }
+    }
+  },
 ]
 
 /**
@@ -774,9 +788,10 @@ test('the promised row stops at the first asset failure with Load failed and one
   // bytes, an empty failure message, an automatic-retry journey, a failure
   // at the not-applicable readiness stage, a failure stage that does not
   // match the attempt's stopping stage, a numeric/null total mix within an
-  // attempt, and a WebGL backend — so invalid data makes the command
-  // nonzero and leaves no passing Scene-load record (REQ-134, REQ-136,
-  // REQ-137, PVS-WEB-001).
+  // attempt, a first-error summary contradicting the failure diagnostic
+  // event in stage or message, and a WebGL backend — so invalid data makes
+  // the command nonzero and leaves no passing Scene-load record (REQ-134,
+  // REQ-136, REQ-137, PVS-WEB-001).
   const valid = reported as SceneLoadRecord
   const authoredAnimationNames = readAuthoredAnimationNames(PROJECT_ROOT)
   for (const mutate of [...SHARED_HOSTILE_MUTATIONS, ...RETRIED_HOSTILE_MUTATIONS]) {

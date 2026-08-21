@@ -584,6 +584,7 @@ export function validateRetriedSceneLoadEvidenceRecord(
       `Retry count ${record.retries} does not match the required 1 for one explicit retry.`,
     )
   }
+  const failureEvent = record.events.find((event) => event.event === 'failure')
   if (record.failure === null) {
     rejections.push('A retried load must record its first error.')
   } else {
@@ -594,6 +595,23 @@ export function validateRetriedSceneLoadEvidenceRecord(
     }
     if (record.failure.message === '') {
       rejections.push('The first error record carries no readable error message.')
+    }
+    // The recorded first-error summary must exactly match the failure
+    // diagnostic event: a contradictory summary (different stage or
+    // message) fails acceptance.
+    if (failureEvent === undefined) {
+      rejections.push('The recorded first error has no matching failure diagnostic event.')
+    } else {
+      if (record.failure.stage !== failureEvent.stage) {
+        rejections.push(
+          `The recorded first error stage ${record.failure.stage ?? 'none'} does not match the failure diagnostic event stage ${failureEvent.stage ?? 'none'}.`,
+        )
+      }
+      if (record.failure.message !== failureEvent.message) {
+        rejections.push(
+          'The recorded first error message does not match the failure diagnostic event message.',
+        )
+      }
     }
   }
 
