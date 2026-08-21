@@ -46,6 +46,25 @@
  * identifiers, first-error stop, one explicit retry, WebGPU backend, and
  * final state — and only then writes
  * `test-results/support-row/scene-load.json` (REQ-136, REQ-137).
+ *
+ * The same headed launch also induces loss of the exact device the built
+ * product selected (ARCH-024, REQ-134, REQ-138, PVS-WEB-001, PVS-WEB-005):
+ * a Playwright initialization wrapper captures the device returned by the
+ * production `GPUAdapter.requestDevice` call without adding a product-side
+ * loss command, the spec observes `Ready` and an advancing complete
+ * projection through the read-only device-loss observation the product
+ * publishes, destroys that exact device, and follows the real
+ * `device.lost` promise path into the terminal `Device lost` state with
+ * the readable failure and exactly one Reload action. It proves that every
+ * sampled complete projection equals the projection at loss and that the
+ * frame-presentation record stops, then drives one Reload that requests a
+ * new adapter and device, repeats the Three.js backend gate and Scene
+ * load, and reaches `Ready`. The machine-readable device-loss record of
+ * that journey — the exact loss tick, equal pre-Reload samples, stopped
+ * presentation, visible Reload, repeated gate order, and final state — is
+ * validated, and only then is `test-results/support-row/device-loss.json`
+ * written (REQ-134, REQ-138, PVS-WEB-005).
+ *
  * GitHub-hosted pull-request CI runs the general `playwright.config.ts`
  * checks and never this spec.
  */
@@ -53,16 +72,24 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { SUPPORT_PROMISE } from '../../src/browser/support'
-import type { StartupRecord } from '../../src/browser/startup'
+import type { SimulationProjection } from '../../src/core/simulation'
+import { DEVICE_LOST_MESSAGE } from '../../src/browser/startup'
+import type { DeviceLossObservation, StartupRecord } from '../../src/browser/startup'
 import type { SceneLoadDiagnosticEvent, SceneLoadRecord } from '../../src/browser/scene'
 import type { FramePresentationRecord } from '../../src/browser/presentation'
 import {
+  DEVICE_LOSS_RECORD_PATH,
   ENVIRONMENT_RECORD_PATH,
   FRAME_PRESENTATION_RECORD_PATH,
   SCENE_LOAD_RECORD_PATH,
   STARTUP_RECORD_PATH,
   SYSTEM_FACTS_PATH,
 } from '../../scripts/check-support-row'
+import {
+  REQUIRED_STARTUP_GATES,
+  validateDeviceLossEvidenceRecord,
+} from '../../scripts/device-loss-record'
+import type { DeviceLossEvidenceRecord } from '../../scripts/device-loss-record'
 import {
   buildSupportRowEnvironmentRecord,
   validateSupportRowEnvironment,
@@ -100,6 +127,9 @@ const SCENE_LOAD_RECORD_FILE = join(PROJECT_ROOT, SCENE_LOAD_RECORD_PATH)
 
 /** The machine-readable frame-presentation evidence file written only after validation passes. */
 const FRAME_PRESENTATION_RECORD_FILE = join(PROJECT_ROOT, FRAME_PRESENTATION_RECORD_PATH)
+
+/** The machine-readable Phase 8 device-loss evidence file written only after validation passes. */
+const DEVICE_LOSS_RECORD_FILE = join(PROJECT_ROOT, DEVICE_LOSS_RECORD_PATH)
 
 /**
  * Whether an arbitrary console argument is one structured Scene-load
@@ -830,4 +860,274 @@ test('the promised row stops at the first asset failure with Load failed and one
   // written only after validation passes.
   mkdirSync(dirname(SCENE_LOAD_RECORD_FILE), { recursive: true })
   writeFileSync(SCENE_LOAD_RECORD_FILE, `${JSON.stringify(reported, null, 2)}\n`)
+})
+
+/**
+ * The real device-loss stop of the built product on the promised row
+ * (ARCH-002, ARCH-006, ARCH-008, ARCH-009, ARCH-010, ARCH-023, ARCH-024,
+ * REQ-134, REQ-138, PVS-WEB-001, PVS-WEB-005).
+ *
+ * A Playwright initialization wrapper captures the exact device returned
+ * by the production `GPUAdapter.requestDevice` call without adding a
+ * product-side loss command. After `Ready` and an observable complete-
+ * projection advance through the read-only device-loss observation the
+ * product publishes, the spec calls `GPUDevice.destroy()` on that exact
+ * device and follows the real `device.lost` promise path: the product
+ * terminal-stops the Simulation — the observation exposes the same
+ * complete projection at loss and before Reload, every sampled projection
+ * equals it, and the frame-presentation record stops — and the visible
+ * state is `Device lost` with the readable failure and exactly one Reload
+ * action. One Reload requests a new adapter and device, repeats the
+ * Three.js WebGPU-backend gate and Scene load, and reaches `Ready`. The
+ * machine-readable device-loss record of this journey is validated — the
+ * exact loss tick, equal pre-Reload samples, stopped presentation, visible
+ * Reload, repeated gate order, and final state — and only then is
+ * `test-results/support-row/device-loss.json` written (REQ-134, REQ-138,
+ * PVS-WEB-005).
+ */
+test('the promised row stops at a real device loss, keeps the projection and presentation frozen, and reaches Ready again after one Reload', async ({
+  page,
+}) => {
+  // The Playwright initialization wrapper runs before any page script on
+  // every document: it captures the exact device returned by the
+  // production `GPUAdapter.requestDevice` call and records the ordered
+  // adapter and device requests, without adding a product-side loss
+  // command (REQ-138, PVS-WEB-005).
+  await page.addInitScript(() => {
+    const originalRequestAdapter = GPU.prototype.requestAdapter
+    const originalRequestDevice = GPUAdapter.prototype.requestDevice
+    const trace: string[] = []
+    ;(window as unknown as { __boldAndBraveGateTrace: string[] }).__boldAndBraveGateTrace = trace
+    ;(window as unknown as { __boldAndBraveAdapterRequests: number }).__boldAndBraveAdapterRequests = 0
+    ;(window as unknown as { __boldAndBraveDeviceRequests: number }).__boldAndBraveDeviceRequests = 0
+    ;(window as unknown as { __boldAndBraveDeviceCapture?: GPUDevice }).__boldAndBraveDeviceCapture =
+      undefined
+    ;(window as unknown as { __boldAndBraveDeviceCaptureLost: boolean }).__boldAndBraveDeviceCaptureLost =
+      false
+    GPU.prototype.requestAdapter = function (...args: unknown[]) {
+      ;(window as unknown as { __boldAndBraveAdapterRequests: number }).__boldAndBraveAdapterRequests += 1
+      trace.push('adapter-request')
+      return originalRequestAdapter.apply(this, args as [GPURequestAdapterOptions?])
+    }
+    GPUAdapter.prototype.requestDevice = function (...args: unknown[]) {
+      ;(window as unknown as { __boldAndBraveDeviceRequests: number }).__boldAndBraveDeviceRequests += 1
+      trace.push('device-request')
+      const result = originalRequestDevice.apply(this, args as [GPUDeviceDescriptor?])
+      result.then((device) => {
+        const state = window as unknown as {
+          __boldAndBraveDeviceCapture?: GPUDevice
+          __boldAndBraveDeviceCaptureLost: boolean
+        }
+        if (state.__boldAndBraveDeviceCapture === undefined) {
+          state.__boldAndBraveDeviceCapture = device
+        }
+        // Watch the exact captured device's own `lost` promise so the
+        // acceptance can prove the reloaded document runs a fresh, live
+        // device — never the destroyed one.
+        device.lost.then(() => {
+          state.__boldAndBraveDeviceCaptureLost = true
+        })
+      })
+      return result
+    }
+  })
+
+  await page.goto('/')
+
+  // The real headed startup repeats every gate and reaches `Ready`
+  // (REQ-136, PVS-WEB-001).
+  const state = page.locator('#delivery-state')
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  // The product published the read-only device-loss observation when the
+  // coordinator was wired: before any loss the complete projection is live
+  // and the loss projection is absent (ARCH-024, REQ-138).
+  const readObservation = (): Promise<DeviceLossObservation | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveDeviceLossObservation?: () => DeviceLossObservation
+      }).__boldAndBraveDeviceLossObservation
+      return read === undefined ? null : read()
+    })
+  const first = await readObservation()
+  expect(first).not.toBeNull()
+  expect(first?.lossProjection).toBeNull()
+  const firstTick = first?.currentProjection.tick as number
+
+  // Observable Simulation-tick advance through the complete projection:
+  // over a real second the runtime dispatches fixed 60 Hz ticks, so the
+  // complete projection tick strictly advances (ARCH-006, REQ-138).
+  await page.waitForTimeout(1500)
+  const advanced = await readObservation()
+  expect((advanced?.currentProjection.tick as number) ?? 0).toBeGreaterThan(firstTick)
+
+  // The wrapper captured the exact production-selected device: the first
+  // document made exactly one adapter and one device request, and the
+  // captured device is present (REQ-135, PVS-WEB-005).
+  const firstDocument = await page.evaluate(() => {
+    const state = window as unknown as {
+      __boldAndBraveAdapterRequests: number
+      __boldAndBraveDeviceRequests: number
+      __boldAndBraveDeviceCapture?: GPUDevice
+    }
+    return {
+      adapterRequests: state.__boldAndBraveAdapterRequests,
+      deviceRequests: state.__boldAndBraveDeviceRequests,
+      captured: state.__boldAndBraveDeviceCapture !== undefined,
+    }
+  })
+  expect(firstDocument.adapterRequests).toBe(1)
+  expect(firstDocument.deviceRequests).toBe(1)
+  expect(firstDocument.captured).toBe(true)
+
+  // Induce loss of the exact production-selected device: `destroy()` makes
+  // the browser resolve the device's own `lost` promise, and the product
+  // follows that real promise path into the terminal `Device lost` state
+  // (REQ-134, REQ-138, PVS-WEB-005). No product-side loss command exists.
+  await page.evaluate(() => {
+    const state = window as unknown as { __boldAndBraveDeviceCapture?: GPUDevice }
+    state.__boldAndBraveDeviceCapture?.destroy()
+  })
+
+  // The visible state is the terminal `Device lost` with the readable
+  // semantic failure and exactly one Reload action; the terminal state
+  // exposes no Retry or gameplay action (REQ-134, PVS-WEB-001).
+  await expect(state).toHaveText('Device lost', { timeout: 120_000 })
+  await expect(page.getByRole('alert')).toHaveText(DEVICE_LOST_MESSAGE)
+  const reload = page.getByRole('button', { name: 'Reload' })
+  await expect(reload).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(0)
+  await expect(page.getByRole('button')).toHaveCount(1)
+
+  // The observation now exposes the complete projection at loss and the
+  // current pre-Reload projection — equal, read-only, with no device or
+  // state-changing command (REQ-138, PVS-WEB-005).
+  const atLoss = await readObservation()
+  expect(atLoss?.lossProjection).not.toBeNull()
+  const lossProjection = atLoss?.lossProjection as SimulationProjection
+  expect(atLoss?.currentProjection).toEqual(lossProjection)
+
+  // Every sampled complete projection before Reload equals the projection
+  // at loss: a changed tick or projection after the loss means a hidden
+  // tick ran while no frame could be shown (PVS-WEB-005).
+  const samples: SimulationProjection[] = [lossProjection]
+  for (let index = 0; index < 3; index += 1) {
+    await page.waitForTimeout(500)
+    const sample = await readObservation()
+    expect(sample?.currentProjection).toEqual(lossProjection)
+    expect(sample?.lossProjection).toEqual(lossProjection)
+    samples.push(sample?.currentProjection as SimulationProjection)
+  }
+
+  // The frame-presentation record stops: no frame is presented after the
+  // loss (ARCH-008, REQ-138, PVS-WEB-005).
+  const readPresentation = (): Promise<FramePresentationRecord | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveFramePresentation?: () => FramePresentationRecord
+      }).__boldAndBraveFramePresentation
+      return read === undefined ? null : read()
+    })
+  const presentationAtLoss = await readPresentation()
+  expect(presentationAtLoss).not.toBeNull()
+  await page.waitForTimeout(1500)
+  const presentationAfter = await readPresentation()
+  expect(presentationAfter?.presentedFrames).toBe(presentationAtLoss?.presentedFrames)
+
+  // One explicit Reload performs the browser reload operation: the fresh
+  // document runs the normal composition root, which requests a new
+  // adapter and device, repeats the Three.js backend gate and Scene load,
+  // and reaches `Ready` (REQ-134, PVS-WEB-001).
+  await reload.click()
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  // The reloaded document requested exactly one new adapter and one new
+  // device in the ordered trace, the captured device of that document is a
+  // fresh live device (its own `lost` promise has not resolved), and the
+  // product published the startup and Scene-load records of the repeated
+  // journey (REQ-134, PVS-WEB-001).
+  const secondDocument = await page.evaluate(() => {
+    const state = window as unknown as {
+      __boldAndBraveAdapterRequests: number
+      __boldAndBraveDeviceRequests: number
+      __boldAndBraveGateTrace: string[]
+      __boldAndBraveDeviceCaptureLost: boolean
+      __boldAndBraveStartupRecord?: unknown
+      __boldAndBraveSceneLoadRecord?: unknown
+    }
+    return {
+      adapterRequests: state.__boldAndBraveAdapterRequests,
+      deviceRequests: state.__boldAndBraveDeviceRequests,
+      gateTrace: state.__boldAndBraveGateTrace,
+      deviceCaptureLost: state.__boldAndBraveDeviceCaptureLost,
+      startup: state.__boldAndBraveStartupRecord ?? null,
+      sceneLoad: state.__boldAndBraveSceneLoadRecord ?? null,
+    }
+  })
+  expect(secondDocument.adapterRequests).toBe(1)
+  expect(secondDocument.deviceRequests).toBe(1)
+  expect(secondDocument.gateTrace).toEqual(['adapter-request', 'device-request'])
+  expect(secondDocument.deviceCaptureLost).toBe(false)
+  const repeatedStartup = secondDocument.startup as StartupRecord
+  expect(repeatedStartup).not.toBeNull()
+  // The Three.js WebGPU backend gate repeated and passed: the startup
+  // record reports the ordered capability gates ending in the WebGPU
+  // backend and no WebGL fallback (REQ-011, REQ-134).
+  expect(repeatedStartup.backend.selected).toBe('webgpu')
+  expect(repeatedStartup.backend.webglFallback).toBe(false)
+  expect(repeatedStartup.gates).toEqual([...REQUIRED_STARTUP_GATES])
+  // The Scene load repeated and passed: the Scene-load record reports the
+  // final `Ready` delivery state (REQ-136, REQ-134).
+  const repeatedSceneLoad = secondDocument.sceneLoad as SceneLoadRecord
+  expect(repeatedSceneLoad).not.toBeNull()
+  expect(repeatedSceneLoad.deliveryState).toBe('Ready')
+
+  // The observed repeated gate order of the reload journey: the wrapper's
+  // ordered trace proves the adapter and device requests in order, the
+  // startup record proves the repeated Three.js WebGPU-backend gate, the
+  // Scene-load record proves the repeated Scene load, and the delivery
+  // surface proves the final `Ready` (REQ-134, PVS-WEB-001).
+  const gateOrder: string[] = [
+    ...secondDocument.gateTrace,
+    'webgpu-backend',
+    'scene-load',
+    'ready',
+  ]
+
+  // The machine-readable Phase 8 device-loss record of the journey
+  // (REQ-138, PVS-WEB-005).
+  const record: DeviceLossEvidenceRecord = {
+    lossTick: lossProjection.tick,
+    lossProjection,
+    samples,
+    presentation: {
+      presentedFramesAtLoss: presentationAtLoss?.presentedFrames ?? 0,
+      presentedFramesAfter: presentationAfter?.presentedFrames ?? 0,
+    },
+    visibleState: 'Device lost',
+    reloadActions: 1,
+    adapterRequests: {
+      beforeReload: firstDocument.adapterRequests,
+      afterReload: secondDocument.adapterRequests,
+    },
+    deviceRequests: {
+      beforeReload: firstDocument.deviceRequests,
+      afterReload: secondDocument.deviceRequests,
+    },
+    gateOrder,
+    startupGates: [...repeatedStartup.gates],
+    finalState: 'Ready',
+  }
+
+  // A changed tick or projection, a post-loss frame, an in-process retry,
+  // a missing or reordered startup gate, or a missing final `Ready` fails
+  // here, before the evidence file is written (REQ-134, REQ-138,
+  // PVS-WEB-005).
+  const rejections = validateDeviceLossEvidenceRecord(record)
+  expect(rejections).toEqual([])
+
+  // Machine-readable Phase 8 device-loss evidence, written only after
+  // validation passes.
+  mkdirSync(dirname(DEVICE_LOSS_RECORD_FILE), { recursive: true })
+  writeFileSync(DEVICE_LOSS_RECORD_FILE, `${JSON.stringify(record, null, 2)}\n`)
 })

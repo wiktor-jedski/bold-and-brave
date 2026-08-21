@@ -263,6 +263,13 @@ export async function runApplicationStartup(
       runtime: application.runtime,
       surface,
       reload: productionDeviceReload,
+      // Publish the read-only device-loss observation for the promised-row
+      // acceptance: the coordinator captures the complete projection at
+      // loss and exposes the current pre-Reload projection through the
+      // public read-only `readProjection` seam of the core-owned
+      // Simulation interface — no device and no state-changing command
+      // (ARCH-002, ARCH-024, REQ-138, PVS-WEB-005).
+      readProjection: () => application.simulation.readProjection(),
     })
   const deliverySurface = loss.surface
 

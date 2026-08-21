@@ -42,6 +42,21 @@
  * value on the existing frame loop — and writes
  * `test-results/support-row/frame-presentation.json` only after the
  * presentation record passes validation (ARCH-008, REQ-118, PVS-ARC-008).
+ * The same headed run also induces loss of the exact device the built
+ * product selected: a Playwright initialization wrapper captures the
+ * device returned by the production `GPUAdapter.requestDevice` call
+ * without adding a product-side loss command, the spec destroys that
+ * exact device after `Ready` and an observable Simulation-tick advance,
+ * follows the real `device.lost` promise path into the terminal `Device
+ * lost` state, proves that every sampled complete projection equals the
+ * projection at loss and that the frame-presentation record stops, and
+ * drives one Reload that requests a new adapter and device, repeats the
+ * Three.js backend gate and Scene load, and reaches `Ready`. The
+ * machine-readable device-loss record of that journey — the exact loss
+ * tick, equal pre-Reload samples, stopped presentation, visible Reload,
+ * repeated gate order, and final state — passes validation before the
+ * spec writes `test-results/support-row/device-loss.json` (REQ-134,
+ * REQ-138, PVS-WEB-005).
  *
  * GitHub-hosted pull-request CI keeps the existing general Playwright
  * browser check and never runs this command, so it produces no
@@ -131,6 +146,21 @@ export const FRAME_PRESENTATION_RECORD_PATH = join(
   'support-row',
   'frame-presentation.json',
 )
+
+/**
+ * The machine-readable Phase 8 device-loss evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * entered the terminal `Device lost` state through the real `device.lost`
+ * promise path of the exact production-selected device, the Reload journey
+ * repeated every startup gate and reached `Ready`, and the device-loss
+ * record of that journey passes validation — the exact loss tick, equal
+ * pre-Reload samples, stopped presentation, visible Reload, repeated gate
+ * order, and final state (REQ-134, REQ-138, PVS-WEB-005). The gate removes
+ * any stale file before a new run so the only `device-loss.json` present
+ * belongs to the latest accepted run.
+ */
+export const DEVICE_LOSS_RECORD_PATH = join('test-results', 'support-row', 'device-loss.json')
 
 /**
  * Parse the product name and version from a Chromium `--version` output
@@ -406,12 +436,14 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
 function main(): void {
   // Remove any stale evidence from a previous run up front: whatever the
   // outcome of this run, the only `environment.json`, `startup.json`,
-  // `scene-load.json`, and `frame-presentation.json` that may exist
-  // afterwards belong to an accepted run of this invocation (REQ-013).
+  // `scene-load.json`, `frame-presentation.json`, and `device-loss.json`
+  // that may exist afterwards belong to an accepted run of this invocation
+  // (REQ-013).
   rmSync(ENVIRONMENT_RECORD_PATH, { force: true })
   rmSync(STARTUP_RECORD_PATH, { force: true })
   rmSync(SCENE_LOAD_RECORD_PATH, { force: true })
   rmSync(FRAME_PRESENTATION_RECORD_PATH, { force: true })
+  rmSync(DEVICE_LOSS_RECORD_PATH, { force: true })
 
   const { facts, rejections } = checkSupportRowSystem(SUPPORT_PROMISE)
   if (rejections.length > 0) {
