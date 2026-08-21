@@ -97,8 +97,15 @@ export function createBrowserRuntime(
       presenter.present(projection, interpolation)
     }
 
-    previousTimestamp = timestamp
-    frameHandle = scheduler.requestFrame(frame)
+    // Schedule the next rendered frame only while the runtime is still
+    // running. A presenter can call `stop` or `terminalStop` re-entrantly
+    // from inside this frame (a terminal delivery failure observed during
+    // presentation), and such a stop must prevent any later frame from
+    // being scheduled (REQ-138, PVS-WEB-005).
+    if (running) {
+      previousTimestamp = timestamp
+      frameHandle = scheduler.requestFrame(frame)
+    }
   }
 
   return {

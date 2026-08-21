@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createSimulation } from '../../core/simulation'
 import type { SimulationProjection } from '../../core/simulation'
 import { createBrowserRuntime } from './index'
-import type { FrameCallback, FramePresenter, FrameScheduler } from './index'
+import type { BrowserRuntime, FrameCallback, FramePresenter, FrameScheduler } from './index'
 
 /** A controlled `requestAnimationFrame`-style scheduler for deterministic frame timestamps. */
 interface ControlledFrameScheduler extends FrameScheduler {
@@ -264,5 +264,39 @@ describe('Browser Runtime timing loop (ARCH-006, ARCH-008)', () => {
     runtime.start()
     expect(runtime.acceptsGameplayInput()).toBe(false)
     expect(runtime.acceptsGameplayInput()).toBe(false)
+  })
+
+  it('schedules no later frame when a presenter terminal-stops re-entrantly from inside a frame', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    let runtime: BrowserRuntime
+    let stopped = false
+    const presenter: FramePresenter = {
+      present(): void {
+        // A terminal delivery failure observed during presentation calls
+        // the runtime's terminal stop synchronously from inside the
+        // rendered frame (REQ-138, PVS-WEB-005).
+        if (!stopped) {
+          stopped = true
+          runtime.terminalStop()
+        }
+      },
+    }
+    runtime = createBrowserRuntime(simulation, scheduler, { presenter })
+
+    runtime.start()
+    // The baseline frame runs the presenter, which terminal-stops the
+    // runtime from inside the frame; no later frame may be scheduled.
+    scheduler.fire(0)
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(runtime.acceptsGameplayInput()).toBe(false)
+    expect(simulation.readProjection().tick).toBe(0)
+
+    // The terminal stop stays irreversible: later `start` calls schedule
+    // no frame, and the one Simulation never advanced.
+    runtime.start()
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(runtime.acceptsGameplayInput()).toBe(false)
+    expect(simulation.readProjection().tick).toBe(0)
   })
 })
