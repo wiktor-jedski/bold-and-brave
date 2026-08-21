@@ -102,9 +102,8 @@ describe('Three.js frame presenter integration with the real startup Scene (ARCH
     }
     const renderer = createRenderer()
     // The diagnostics console is a recording no-op: this integration test
-    // proves the load-to-presenter seam, not the console records (those
-    // belong to the handoff integration test and the promised-row
-    // acceptance).
+    // proves the load-to-presenter seam; the structured console records
+    // are covered by the promised-row acceptance.
     const diagnostics = createSceneLoadDiagnostics({ info() {}, error() {} })
     const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter, diagnostics)
 
