@@ -9,12 +9,15 @@
  * reports the ordered Scene-load stages — download, decode, GPU upload,
  * and Scene readiness — enters `Load failed` with the readable error and
  * one semantic Retry action at the first failed asset stage without an
- * automatic retry, and enters `Ready` after the real load passes (REQ-136,
- * PVS-WEB-003, REQ-134, PVS-WEB-001). The state text, the progress stages,
- * the alert text, and the Retry action are the only product statements
- * about the delivery state; the startup orchestration drives them through
- * the `DeliveryStateSurface` seam, so tests can inject a recording surface
- * and the built product observes the same transitions.
+ * automatic retry, enters `Ready` after the real load passes, and enters
+ * the terminal `Device lost` state with one readable semantic failure and
+ * one Reload action when the rendering device is lost (REQ-136,
+ * PVS-WEB-003, REQ-134, PVS-WEB-001, PVS-WEB-005). The state text, the
+ * progress stages, the alert text, and the Retry and Reload actions are
+ * the only product statements about the delivery state; the startup
+ * orchestration drives them through the `DeliveryStateSurface` seam, so
+ * tests can inject a recording surface and the built product observes the
+ * same transitions.
  *
  * The module also owns the production Scene-loading handoff seam
  * (REQ-134, PVS-WEB-001, REQ-136): the composition root invokes the
@@ -100,6 +103,17 @@ export interface DeliveryStateSurface {
    */
   showReady(): void
   /**
+   * Enter the terminal `Device lost` state (REQ-134, PVS-WEB-001).
+   *
+   * The device-loss coordinator calls this after a resolved `GPUDevice.lost`
+   * in `Loading Scene` or `Ready`. The surface shows the readable semantic
+   * failure and one Reload action; the terminal state exposes no other
+   * action — any Retry action of an earlier failed load is removed. The
+   * `reload` callback performs the browser reload operation and is invoked
+   * at most once even after repeated loss signals.
+   */
+  showDeviceLost(message: string, reload: () => void): void
+  /**
    * Add the renderer canvas to the existing product surface (ARCH-024).
    *
    * The canvas is the one WebGPU canvas of the product; no second renderer
@@ -152,7 +166,12 @@ export interface SceneLoadingHandoff {
  * `dependencies`, `recorder`, and `consoleSeam` are injectable so tests
  * drive the real handoff with recording collaborators; production uses the
  * real Scene-load dependencies, the browser recorder, and the real browser
- * console.
+ * console. `isAborted` is the device-loss abort guard: the composition
+ * root binds the device-loss coordinator's terminal state, so an already
+ * resolving Scene-load completion or failure after a device-loss terminal
+ * stop records nothing, creates or attaches no presentation, publishes
+ * nothing, and schedules no later delivery work (REQ-134, REQ-138,
+ * PVS-WEB-005).
  */
 export function createSceneLoadingHandoff(
   surface: DeliveryStateSurface,
@@ -160,6 +179,18 @@ export function createSceneLoadingHandoff(
   dependencies: SceneLoadDependencies = productionSceneLoadDependencies,
   recorder: SceneLoadRecorder = productionSceneLoadRecorder,
   consoleSeam: SceneLoadConsole = productionSceneLoadConsole,
+  /**
+   * Whether the delivery was aborted by a resolved `GPUDevice.lost`
+   * (REQ-134, REQ-138, PVS-WEB-005).
+   *
+   * The composition root binds the device-loss coordinator's terminal
+   * state. An aborted delivery ignores an already resolving Scene-load
+   * completion or failure: it records no Scene-load record, creates or
+   * attaches no presentation, publishes no frame-presentation facts, and
+   * schedules no later delivery work — no `Ready`, `Load failed`, Retry,
+   * or re-run — after the terminal stop (REQ-134, PVS-WEB-001).
+   */
+  isAborted: () => boolean = () => false,
 ): SceneLoadingHandoff {
   return (renderer: PresentationRenderer): void => {
     // One diagnostics log per handoff invocation: the log accumulates
@@ -183,6 +214,15 @@ export function createSceneLoadingHandoff(
 
       void loadStartupScene(renderer, STARTUP_SCENE, dependencies, reporter, diagnostics)
         .then((result) => {
+          // An already resolving Scene-load completion after a device-loss
+          // terminal stop is ignored: it records nothing, creates or
+          // attaches no presentation, publishes nothing, and schedules no
+          // later delivery work (REQ-134, REQ-138, PVS-WEB-005). The
+          // guarded surface also swallows the surface calls, so the
+          // delivery stays at the terminal `Device lost` state.
+          if (isAborted()) {
+            return
+          }
           // Add the renderer canvas to the existing product surface
           // (ARCH-024): the one WebGPU canvas of the product.
           surface.mountCanvas(renderer.domElement)
@@ -208,6 +248,13 @@ export function createSceneLoadingHandoff(
           surface.showReady()
         })
         .catch((error: unknown) => {
+          // An already resolving Scene-load failure after a device-loss
+          // terminal stop schedules no later delivery work: no `Load
+          // failed` surface and no Retry action appear after the terminal
+          // `Device lost` state (REQ-134, PVS-WEB-001, PVS-WEB-005).
+          if (isAborted()) {
+            return
+          }
           // The first failed stage entered `Load failed` and ran no later
           // stage (REQ-134, PVS-WEB-001): show the readable error and one
           // semantic Retry action. The Retry uses the same initialized
@@ -253,6 +300,10 @@ export function renderDeliveryState(host: HTMLElement): DeliveryStateSurface {
   let progress: HTMLElement | null = null
   let retryButton: HTMLButtonElement | null = null
   let retryAction: (() => void) | null = null
+  let reloadButton: HTMLButtonElement | null = null
+  let reloadAction: (() => void) | null = null
+  /** Guards the one reload call of the terminal state (REQ-134, PVS-WEB-001). */
+  let reloadInvoked = false
   const stageItems = new Map<string, HTMLLIElement>()
 
   /** Remove the failure alert and the one Retry action. */
@@ -345,6 +396,39 @@ export function renderDeliveryState(host: HTMLElement): DeliveryStateSurface {
     showReady(): void {
       state.textContent = SCENE_LOAD_READY_STATE
       removeFailure()
+    },
+    showDeviceLost(message: string, reload: () => void): void {
+      // The terminal `Device lost` state (REQ-134, PVS-WEB-001): it shows
+      // the readable semantic failure and one Reload action and exposes no
+      // other action — any Retry action of an earlier failed load and the
+      // visible progress list are removed.
+      state.textContent = 'Device lost'
+      removeFailure()
+      removeProgress()
+      if (alert === null) {
+        alert = document.createElement('div')
+        alert.setAttribute('role', 'alert')
+        host.append(alert)
+      }
+      alert.textContent = message
+      reloadAction = reload
+      // One semantic Reload action. The reload performs the browser reload
+      // operation; the terminal state exposes no Retry or gameplay action,
+      // and repeated loss signals or clicks cannot repeat the one reload
+      // call (REQ-134, PVS-WEB-001).
+      if (reloadButton === null) {
+        reloadButton = document.createElement('button')
+        reloadButton.type = 'button'
+        reloadButton.textContent = 'Reload'
+        reloadButton.addEventListener('click', () => {
+          if (reloadInvoked) {
+            return
+          }
+          reloadInvoked = true
+          reloadAction?.()
+        })
+        host.append(reloadButton)
+      }
     },
     mountCanvas(canvas: HTMLCanvasElement): void {
       host.append(canvas)
