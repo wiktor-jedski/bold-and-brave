@@ -35,6 +35,17 @@ const MAX_CATCH_UP_TICKS_PER_FRAME = 5
  * binds the Three.js presenter into the slot after the real load passes
  * (ARCH-022). While no presenter is bound the runtime dispatches ticks and
  * schedules the next frame without presenting.
+ *
+ * Lifecycle: `start` begins the loop and is idempotent while running; the
+ * ordinary `stop` cancels the pending frame and stays restartable. The
+ * irreversible `terminalStop` (REQ-138, PVS-WEB-005) cancels the pending
+ * frame, discards the accumulated frame debt and the time baseline, clears
+ * the presenter slot, and makes every later `start` a no-op, so no hidden
+ * tick can be dispatched and no frame can be presented while no frame can
+ * be shown. `acceptsGameplayInput` is the input gate of ARCH-007: open only
+ * while the normal runtime runs, closed during an ordinary stop, and
+ * permanently closed after a terminal stop. The terminal stop never
+ * advances or replaces the Simulation.
  */
 export function createBrowserRuntime(
   simulation: Simulation,
@@ -42,6 +53,8 @@ export function createBrowserRuntime(
   presenterSlot: PresenterSlot = { presenter: null },
 ): BrowserRuntime {
   let running = false
+  /** Whether the runtime received the irreversible terminal stop (REQ-138). */
+  let terminal = false
   /** Elapsed time accumulated in fixed-tick units since the last dispatched tick. */
   let accumulatedTicks = 0
   /** Timestamp of the last rendered frame, or `null` before the first frame. */
@@ -51,6 +64,9 @@ export function createBrowserRuntime(
 
   /** One rendered frame: accumulate elapsed time, dispatch due ticks, and present. */
   function frame(timestamp: number): void {
+    // A callback the environment already handed out can still run after a
+    // stop or terminal stop; the guard makes such an already-held callback
+    // a no-op that cannot advance the Simulation or present (REQ-138).
     if (!running) {
       return
     }
@@ -88,7 +104,10 @@ export function createBrowserRuntime(
   return {
     presenterSlot,
     start(): void {
-      if (running) {
+      // A terminal stop is irreversible: every later `start` is a no-op,
+      // so no frame can be scheduled and no hidden tick can be dispatched
+      // after a terminal delivery failure (REQ-138, PVS-WEB-005).
+      if (running || terminal) {
         return
       }
       running = true
@@ -105,6 +124,30 @@ export function createBrowserRuntime(
         scheduler.cancelFrame(frameHandle)
         frameHandle = null
       }
+    },
+    terminalStop(): void {
+      if (terminal) {
+        return
+      }
+      terminal = true
+      running = false
+      if (frameHandle !== null) {
+        scheduler.cancelFrame(frameHandle)
+        frameHandle = null
+      }
+      // Discard the accumulated frame debt and the time baseline: no
+      // retained whole interval or fractional remainder may later
+      // dispatch a hidden tick while no frame can be shown (REQ-138).
+      accumulatedTicks = 0
+      previousTimestamp = null
+      // Clear the presenter slot so no later presentation can occur.
+      presenterSlot.presenter = null
+    },
+    acceptsGameplayInput(): boolean {
+      // The gate is open only while the normal runtime runs. The terminal
+      // stop keeps `running` false forever and blocks every later `start`,
+      // so the gate stays closed permanently (REQ-138, ARCH-007).
+      return running && !terminal
     },
   }
 }
