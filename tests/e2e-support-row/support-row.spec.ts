@@ -74,8 +74,6 @@ import {
 } from '../../scripts/startup-record'
 import {
   readAuthoredAnimationNames,
-  RETRIED_SCENE_LOAD_EVENT_KINDS,
-  SUCCESS_SCENE_LOAD_EVENT_KINDS,
   validateRetriedSceneLoadEvidenceRecord,
   validateSceneLoadEvidenceRecord,
   validateSceneLoadEventLog,
@@ -240,6 +238,54 @@ const RETRIED_HOSTILE_MUTATIONS: Array<(record: DeepMutable<SceneLoadRecord>) =>
       record.events[1],
       ...record.events.slice(2),
     ]
+  },
+  // The failure must stop at an applicable download/decode/upload stage,
+  // never at the readiness stage.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'failure' ? { ...event, stage: 'ready' } : event,
+    )
+  },
+  // The failure stage must match where the attempt actually stopped: an
+  // attempt that reached decode and upload cannot fail at download.
+  (record) => {
+    const downloadIndex = record.events.findIndex((event) => event.event === 'download')
+    const progressIndex = record.events.findIndex((event) => event.event === 'progress')
+    const download = record.events[downloadIndex] as SceneLoadDiagnosticEvent
+    const progress = record.events[progressIndex] as SceneLoadDiagnosticEvent
+    const totalBytes = download.totalBytes ?? null
+    const finishedBytes = typeof totalBytes === 'number' ? totalBytes : 0
+    const decode: SceneLoadDiagnosticEvent = {
+      event: 'decode',
+      sceneId: download.sceneId,
+      assetId: download.assetId,
+      stage: 'decode',
+      receivedBytes: finishedBytes,
+      totalBytes,
+    }
+    const upload: SceneLoadDiagnosticEvent = {
+      event: 'upload',
+      sceneId: download.sceneId,
+      assetId: download.assetId,
+      stage: 'upload',
+      receivedBytes: finishedBytes,
+      totalBytes,
+    }
+    record.events = [
+      record.events[0],
+      { ...download, receivedBytes: 0 } as SceneLoadDiagnosticEvent,
+      { ...progress } as SceneLoadDiagnosticEvent,
+      decode,
+      upload,
+      ...record.events.slice(1),
+    ]
+  },
+  // Within one attempt, a numeric total and `null` must not mix in either
+  // order: the first declared total (even `null`) binds the attempt.
+  (record) => {
+    record.events = record.events.map((event) =>
+      event.event === 'download' ? { ...event, totalBytes: null } : event,
+    )
   },
 ]
 
@@ -561,11 +607,7 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
   // machine-readable record, so `Ready` was reached only after the
   // required console records.
   await Promise.all(consoleCapture.pending)
-  const consoleRejections = validateSceneLoadEventLog(
-    consoleCapture.records,
-    SUCCESS_SCENE_LOAD_EVENT_KINDS,
-    false,
-  )
+  const consoleRejections = validateSceneLoadEventLog(consoleCapture.records, false)
   expect(consoleRejections).toEqual([])
   expect(consoleCapture.records).toHaveLength(
     (reported as SceneLoadRecord).events.length,
@@ -719,11 +761,7 @@ test('the promised row stops at the first asset failure with Load failed and one
   // PVS-WEB-004): the same complete event-log validation that gates the
   // machine-readable record also gates the console records.
   await Promise.all(consoleCapture.pending)
-  const consoleRejections = validateSceneLoadEventLog(
-    consoleCapture.records,
-    RETRIED_SCENE_LOAD_EVENT_KINDS,
-    true,
-  )
+  const consoleRejections = validateSceneLoadEventLog(consoleCapture.records, true)
   expect(consoleRejections).toEqual([])
   expect(consoleCapture.records).toHaveLength(
     (reported as SceneLoadRecord).events.length,
@@ -733,9 +771,12 @@ test('the promised row stops at the first asset failure with Load failed and one
   // evidence must reject every malformed diagnostic record — a duplicate
   // non-progress record, an unknown property, a missing applicable stage,
   // a missing byte field, a mismatched declared total, decreasing received
-  // bytes, an empty failure message, an automatic-retry journey, and a
-  // WebGL backend — so invalid data makes the command nonzero and leaves
-  // no passing Scene-load record (REQ-134, REQ-136, REQ-137).
+  // bytes, an empty failure message, an automatic-retry journey, a failure
+  // at the not-applicable readiness stage, a failure stage that does not
+  // match the attempt's stopping stage, a numeric/null total mix within an
+  // attempt, and a WebGL backend — so invalid data makes the command
+  // nonzero and leaves no passing Scene-load record (REQ-134, REQ-136,
+  // REQ-137, PVS-WEB-001).
   const valid = reported as SceneLoadRecord
   const authoredAnimationNames = readAuthoredAnimationNames(PROJECT_ROOT)
   for (const mutate of [...SHARED_HOSTILE_MUTATIONS, ...RETRIED_HOSTILE_MUTATIONS]) {
@@ -746,6 +787,29 @@ test('the promised row stops at the first asset failure with Load failed and one
       authoredAnimationNames,
     )
   }
+
+  // Valid partial-progress retry evidence: a first attempt that made
+  // partial download progress before failing at the download stage, then
+  // one explicit Retry that starts a new attempt at download (byte state
+  // resets at the attempt boundary) and completes. The validator must
+  // accept this legitimate journey (REQ-134, PVS-WEB-001, PVS-WEB-003).
+  const partialProgress = structuredClone(valid) as DeepMutable<SceneLoadRecord>
+  const downloadIndex = partialProgress.events.findIndex((event) => event.event === 'download')
+  const progressIndex = partialProgress.events.findIndex((event) => event.event === 'progress')
+  const totalBytes = partialProgress.events[downloadIndex].totalBytes
+  const partialProgressRecord: SceneLoadRecord = {
+    ...partialProgress,
+    events: [
+      partialProgress.events[0],
+      { ...partialProgress.events[downloadIndex], receivedBytes: 0 },
+      { ...partialProgress.events[progressIndex], receivedBytes: 100 },
+      partialProgress.events[1],
+      ...partialProgress.events.slice(2),
+    ],
+  }
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(partialProgressRecord, authoredAnimationNames),
+  ).toEqual([])
 
   // Machine-readable Phase 7 Scene-load evidence of the retried journey,
   // written only after validation passes.

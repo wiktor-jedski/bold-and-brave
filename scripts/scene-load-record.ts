@@ -34,44 +34,6 @@ export const REQUIRED_SCENE_LOAD_BACKEND = 'webgpu'
 /** The final delivery state after the real load passes (REQ-136). */
 export const REQUIRED_SCENE_LOAD_STATE = 'Ready'
 
-/**
- * The exact ordered diagnostic event kinds of a first-attempt success
- * (REQ-137, PVS-WEB-004).
- *
- * Consecutive `progress` records collapse to one kind because the number
- * of download-progress updates depends on the response stream; every other
- * event appears exactly once in this order.
- */
-export const SUCCESS_SCENE_LOAD_EVENT_KINDS: readonly string[] = Object.freeze([
-  'scene-load',
-  'download',
-  'progress',
-  'decode',
-  'upload',
-  'ready',
-  'complete',
-])
-
-/**
- * The exact ordered diagnostic event kinds of one failed-then-retried
- * load journey (REQ-134, PVS-WEB-001, REQ-137).
- *
- * The first failed attempt stops at the first error (`failure` after
- * `scene-load`), runs no later stage, and the one explicit Retry restarts
- * the load from its first stage; the journey ends in `complete`.
- */
-export const RETRIED_SCENE_LOAD_EVENT_KINDS: readonly string[] = Object.freeze([
-  'scene-load',
-  'failure',
-  'scene-load',
-  'download',
-  'progress',
-  'decode',
-  'upload',
-  'ready',
-  'complete',
-])
-
 /** The committed authored glTF file of the startup asset. */
 export function authoredGltfPath(projectRoot: string): string {
   return join(projectRoot, 'public', STARTUP_SCENE.assets[0].source)
@@ -115,8 +77,16 @@ export function collapsedSceneLoadEventKinds(
     })
 }
 
-/** The Scene-load stage names an event may carry. */
-const SCENE_LOAD_STAGE_NAMES: readonly string[] = ['download', 'decode', 'upload', 'ready']
+/**
+ * The stage names a failed load attempt may stop at (PVS-WEB-001,
+ * REQ-134).
+ *
+ * The first asset-stage error can stop the download stage (before or
+ * after progress), the decode stage, or the GPU-upload stage; the
+ * readiness stage is the final success stage, so a failure there is not
+ * an applicable failure.
+ */
+const FAILURE_STAGE_NAMES: readonly string[] = ['download', 'decode', 'upload']
 
 /**
  * The exact allowed property names of each diagnostic event kind.
@@ -275,8 +245,10 @@ export function validateSceneLoadEventPayload(
       if (typeof message !== 'string' || message === '') {
         rejections.push('The failure record carries no readable error message.')
       }
-      if (stage !== undefined && !SCENE_LOAD_STAGE_NAMES.includes(stage)) {
-        rejections.push(`The failure record carries unknown stage ${stage}.`)
+      if (stage === undefined || !FAILURE_STAGE_NAMES.includes(stage)) {
+        rejections.push(
+          `The failure record must carry the download, decode, or upload stage; found ${stage ?? 'none'}.`,
+        )
       }
       if (receivedBytes !== undefined) {
         rejections.push(`The failure record must not carry received bytes; found ${receivedBytes}.`)
@@ -291,51 +263,112 @@ export function validateSceneLoadEventPayload(
   return rejections
 }
 
+/** The exact collapsed stage kinds of one successful load attempt (PVS-WEB-003). */
+const SUCCESS_ATTEMPT_KINDS: readonly string[] = Object.freeze([
+  'download',
+  'progress',
+  'decode',
+  'upload',
+  'ready',
+  'complete',
+])
+
 /**
- * Validate the cross-event byte invariants of one Scene-load journey
- * (PVS-WEB-003, REQ-137).
+ * The valid failed-attempt stage kinds and the stage the failure record
+ * must report (PVS-WEB-001, REQ-134).
  *
- * The byte-carrying records of a journey — download, progress, decode,
- * GPU upload, and readiness — must declare one consistent total across all
- * of them (a record that declares a number must match the journey total,
- * and no record may mix a declared total with a missing one), and the
- * received byte counts must be monotonic non-decreasing in event order:
- * the download stage starts at zero, each progress update grows toward the
- * declared total, and decode/upload/readiness carry the finished-download
- * count. A mismatched total or a decreasing received count is rejected.
+ * The first asset-stage error can stop the download stage before any
+ * progress, during progress, at the decode stage, or at the GPU-upload
+ * stage; every pattern ends with the failure record, which must report
+ * the stage where the attempt stopped. No later stage runs after the
+ * failure.
  */
-function validateSceneLoadByteInvariants(
+const FAILED_ATTEMPT_KINDS: ReadonlyArray<{ kinds: readonly string[]; failureStage: string }> =
+  Object.freeze([
+    { kinds: Object.freeze(['failure']), failureStage: 'download' },
+    { kinds: Object.freeze(['download', 'failure']), failureStage: 'download' },
+    { kinds: Object.freeze(['download', 'progress', 'failure']), failureStage: 'download' },
+    { kinds: Object.freeze(['download', 'progress', 'decode', 'failure']), failureStage: 'decode' },
+    {
+      kinds: Object.freeze(['download', 'progress', 'decode', 'upload', 'failure']),
+      failureStage: 'upload',
+    },
+  ])
+
+/**
+ * Split the event log into load attempts at every `scene-load` record.
+ *
+ * One explicit Retry starts a new attempt with a new `scene-load` record,
+ * so each attempt is validated independently (REQ-134, PVS-WEB-001).
+ */
+function splitSceneLoadAttempts(
   events: readonly SceneLoadDiagnosticEvent[],
+): SceneLoadDiagnosticEvent[][] {
+  const attempts: SceneLoadDiagnosticEvent[][] = []
+  let current: SceneLoadDiagnosticEvent[] = []
+  for (const event of events) {
+    if (event.event === 'scene-load') {
+      if (current.length > 0) {
+        attempts.push(current)
+      }
+      current = [event]
+    } else {
+      current.push(event)
+    }
+  }
+  if (current.length > 0) {
+    attempts.push(current)
+  }
+  return attempts
+}
+
+/**
+ * Validate the byte invariants within one load attempt (PVS-WEB-003,
+ * REQ-137).
+ *
+ * The byte state resets at every attempt boundary: a retried download
+ * restarts at zero after any partial first-attempt progress. Within the
+ * attempt, the first byte-carrying record declares the attempt total — a
+ * number or `null` — and every later byte record must declare exactly the
+ * same total, so mixing `null` with a numeric total in either order is
+ * rejected. Received bytes must be monotonic non-decreasing within the
+ * attempt.
+ */
+function validateSceneLoadAttemptBytes(
+  attempt: readonly SceneLoadDiagnosticEvent[],
+  attemptIndex: number,
 ): string[] {
   const rejections: string[] = []
-  const byteKinds = new Set(['download', 'progress', 'decode', 'upload', 'ready'])
-  let declaredTotal: number | null = null
-  let hasDeclaredTotal = false
+  let firstTotalDeclared = false
+  let firstTotal: number | null = null
   let previousBytes = -1
   let byteIndex = 0
 
-  for (const event of events) {
-    if (!byteKinds.has(event.event)) {
+  for (const event of attempt) {
+    if (
+      event.event !== 'download' &&
+      event.event !== 'progress' &&
+      event.event !== 'decode' &&
+      event.event !== 'upload' &&
+      event.event !== 'ready'
+    ) {
       continue
     }
-    if (typeof event.totalBytes === 'number') {
-      if (!hasDeclaredTotal) {
-        declaredTotal = event.totalBytes
-        hasDeclaredTotal = true
-      } else if (event.totalBytes !== declaredTotal) {
-        rejections.push(
-          `Diagnostic byte record ${byteIndex} declares total ${event.totalBytes}; the journey declares ${declaredTotal}. One consistent declared total is required.`,
-        )
-      }
-    } else if (hasDeclaredTotal) {
+    const total = event.totalBytes === undefined ? null : event.totalBytes
+    if (!firstTotalDeclared) {
+      // Track the first declared total even when it is null: a later
+      // numeric total must not replace it silently.
+      firstTotal = total
+      firstTotalDeclared = true
+    } else if (total !== firstTotal) {
       rejections.push(
-        `Diagnostic byte record ${byteIndex} carries no declared total; the journey declares ${declaredTotal}.`,
+        `Byte record ${byteIndex} of load attempt ${attemptIndex} declares total ${total === null ? 'none' : total}; the attempt declares ${firstTotal === null ? 'none' : firstTotal}. One consistent declared total is required within the attempt.`,
       )
     }
     if (typeof event.receivedBytes === 'number') {
       if (event.receivedBytes < previousBytes) {
         rejections.push(
-          `Diagnostic byte record ${byteIndex} reports ${event.receivedBytes} received bytes after ${previousBytes}; received bytes must not decrease.`,
+          `Byte record ${byteIndex} of load attempt ${attemptIndex} reports ${event.receivedBytes} received bytes after ${previousBytes}; received bytes must not decrease within the attempt.`,
         )
       }
       previousBytes = event.receivedBytes
@@ -347,23 +380,131 @@ function validateSceneLoadByteInvariants(
 }
 
 /**
+ * Validate the structure and byte invariants of one load attempt.
+ *
+ * A failed attempt follows one of the governed failed patterns and stops
+ * at its failure record with the matching stage; a successful attempt
+ * follows the download, progress, decode, GPU-upload, readiness, and
+ * completion pattern.
+ */
+function validateSceneLoadAttempt(
+  attempt: readonly SceneLoadDiagnosticEvent[],
+  attemptIndex: number,
+): string[] {
+  const rejections: string[] = []
+  if (attempt[0]?.event !== 'scene-load') {
+    rejections.push(`Load attempt ${attemptIndex} does not start with a scene-load record.`)
+    return rejections
+  }
+
+  const kinds = collapsedSceneLoadEventKinds(attempt).slice(1)
+  const failure = attempt.find((event) => event.event === 'failure')
+
+  if (failure !== undefined) {
+    // The first error stops the attempt: no later stage may run
+    // (REQ-134, PVS-WEB-001).
+    if (attempt[attempt.length - 1]?.event !== 'failure') {
+      rejections.push(`Load attempt ${attemptIndex} runs a stage after its failure record.`)
+    }
+    const match = FAILED_ATTEMPT_KINDS.find(
+      (pattern) =>
+        pattern.kinds.length === kinds.length &&
+        pattern.kinds.every((kind, index) => kind === kinds[index]),
+    )
+    if (match === undefined) {
+      rejections.push(
+        `Failed load attempt ${attemptIndex} stage order ${kinds.join(', ')} is not a valid download, decode, or GPU-upload failure.`,
+      )
+    } else if (failure.stage !== match.failureStage) {
+      rejections.push(
+        `The failure record of load attempt ${attemptIndex} reports stage ${failure.stage ?? 'none'}; the attempt stopped at ${match.failureStage}.`,
+      )
+    }
+  } else {
+    if (
+      kinds.length !== SUCCESS_ATTEMPT_KINDS.length ||
+      kinds.some((kind, index) => kind !== SUCCESS_ATTEMPT_KINDS[index])
+    ) {
+      rejections.push(
+        `Load attempt ${attemptIndex} stage order ${kinds.join(', ')} does not match the required download, progress, decode, upload, ready, complete.`,
+      )
+    }
+  }
+
+  rejections.push(...validateSceneLoadAttemptBytes(attempt, attemptIndex))
+  return rejections
+}
+
+/**
+ * Validate the attempt structure of one Scene-load journey (REQ-137,
+ * PVS-WEB-004, REQ-134, PVS-WEB-001).
+ *
+ * A first-attempt success contains exactly one successful attempt and no
+ * failure record. A retried journey contains exactly two attempts: the
+ * first stops at exactly one failure record at an applicable
+ * download/decode/upload stage, and the one explicit Retry starts a new
+ * attempt at download and ends with the successful attempt.
+ */
+function validateSceneLoadAttempts(
+  events: readonly SceneLoadDiagnosticEvent[],
+  expectFailure: boolean,
+): string[] {
+  const rejections: string[] = []
+  const attempts = splitSceneLoadAttempts(events)
+  const failures = events.filter((event) => event.event === 'failure')
+
+  if (expectFailure) {
+    if (attempts.length !== 2) {
+      rejections.push(
+        `A retried journey must contain exactly two load attempts — one failed and one retried; found ${attempts.length}.`,
+      )
+    }
+    if (failures.length !== 1) {
+      rejections.push(`Expected exactly one failure event; found ${failures.length}.`)
+    }
+  } else {
+    if (attempts.length !== 1) {
+      rejections.push(
+        `A first-attempt success must contain exactly one load attempt; found ${attempts.length}.`,
+      )
+    }
+    if (failures.length !== 0) {
+      rejections.push(
+        `A first-attempt success must contain no failure event; found ${failures.length}.`,
+      )
+    }
+  }
+
+  for (const [attemptIndex, attempt] of attempts.entries()) {
+    rejections.push(...validateSceneLoadAttempt(attempt, attemptIndex))
+  }
+
+  // The one explicit Retry must end with the successful attempt: the
+  // machine-readable record is published only after the load passes.
+  if (expectFailure && attempts.length === 2 && attempts[1].some((event) => event.event === 'failure')) {
+    rejections.push('The retried journey must end with a successful load attempt.')
+  }
+
+  return rejections
+}
+
+/**
  * Validate the diagnostic event log of one Scene-load journey (REQ-137,
  * PVS-WEB-004, REQ-134).
  *
  * Every record must carry both the authored Scene and asset identifiers
- * and exactly its applicable payload fields; the kind sequence must match
- * the expected journey exactly (only consecutive `progress` records
- * collapse, because their count depends on the response stream), so a
- * missing stage, a duplicate non-progress record, a later stage after the
- * first error, or an automatic retry changes the sequence and is
- * rejected. The byte-carrying records must declare one consistent total
- * with monotonic received-byte progress. When the journey must contain
- * the first error, exactly one `failure` record at the download stage with
- * a readable message is required.
+ * and exactly its applicable payload fields. The log is split into load
+ * attempts at every `scene-load` boundary: a first-attempt success
+ * contains exactly one successful attempt, and a retried journey contains
+ * exactly one failed attempt that stops at an applicable
+ * download/decode/upload stage followed by one explicit Retry that starts
+ * a new attempt at download and ends in the successful attempt. Within
+ * each attempt the byte-carrying records declare one consistent total
+ * with monotonic received-byte progress; the byte state resets at every
+ * attempt boundary.
  */
 export function validateSceneLoadEventLog(
   events: readonly SceneLoadDiagnosticEvent[],
-  expectedKinds: readonly string[],
   expectFailure: boolean,
 ): string[] {
   const rejections: string[] = []
@@ -383,32 +524,7 @@ export function validateSceneLoadEventLog(
     rejections.push(...validateSceneLoadEventPayload(event))
   }
 
-  rejections.push(...validateSceneLoadByteInvariants(events))
-
-  const kinds = collapsedSceneLoadEventKinds(events)
-  if (kinds.length !== expectedKinds.length || kinds.some((kind, index) => kind !== expectedKinds[index])) {
-    rejections.push(
-      `Diagnostic event order ${kinds.join(', ')} does not match the required ${expectedKinds.join(', ')}.`,
-    )
-  }
-
-  const failures = events.filter((event) => event.event === 'failure')
-  if (expectFailure) {
-    if (failures.length !== 1) {
-      rejections.push(`Expected exactly one failure event; found ${failures.length}.`)
-    } else {
-      const failure = failures[0]
-      if (failure.stage !== 'download') {
-        rejections.push(
-          `The first error stopped at stage ${failure.stage ?? 'unknown'}; the download stage is required.`,
-        )
-      }
-    }
-  } else if (failures.length !== 0) {
-    rejections.push(
-      `A first-attempt success must contain no failure event; found ${failures.length}.`,
-    )
-  }
+  rejections.push(...validateSceneLoadAttempts(events, expectFailure))
 
   return rejections
 }
@@ -431,9 +547,7 @@ export function validateSceneLoadEvidenceRecord(
 ): string[] {
   const rejections = validateSceneLoadEvidenceBase(record, authoredAnimationNames)
 
-  rejections.push(
-    ...validateSceneLoadEventLog(record.events, SUCCESS_SCENE_LOAD_EVENT_KINDS, false),
-  )
+  rejections.push(...validateSceneLoadEventLog(record.events, false))
   if (record.retries !== 0) {
     rejections.push(
       `Retry count ${record.retries} does not match the required 0 for a first-attempt success.`,
@@ -451,12 +565,12 @@ export function validateSceneLoadEvidenceRecord(
  * journey (REQ-134, REQ-136, REQ-137, PVS-WEB-001, PVS-WEB-004).
  *
  * Returns the list of rejection reasons; an empty list means the product
- * made the first asset request, stopped at the first error at the download
- * stage with both identifiers and the readable message, ran no later stage
- * of the failed attempt, started no automatic retry, reached `Ready` after
- * exactly one explicit Retry that restarted at download, selected the
- * WebGPU backend, and entered `Ready` with the exact diagnostic event
- * order of the whole journey.
+ * made the first asset request, stopped at the first error at an
+ * applicable download/decode/upload stage with both identifiers and the
+ * readable message, ran no later stage of the failed attempt, started no
+ * automatic retry, reached `Ready` after exactly one explicit Retry that
+ * started a new attempt at download, selected the WebGPU backend, and
+ * entered `Ready` with the exact attempt structure of the whole journey.
  */
 export function validateRetriedSceneLoadEvidenceRecord(
   record: SceneLoadRecord,
@@ -464,9 +578,7 @@ export function validateRetriedSceneLoadEvidenceRecord(
 ): string[] {
   const rejections = validateSceneLoadEvidenceBase(record, authoredAnimationNames)
 
-  rejections.push(
-    ...validateSceneLoadEventLog(record.events, RETRIED_SCENE_LOAD_EVENT_KINDS, true),
-  )
+  rejections.push(...validateSceneLoadEventLog(record.events, true))
   if (record.retries !== 1) {
     rejections.push(
       `Retry count ${record.retries} does not match the required 1 for one explicit retry.`,
@@ -475,9 +587,9 @@ export function validateRetriedSceneLoadEvidenceRecord(
   if (record.failure === null) {
     rejections.push('A retried load must record its first error.')
   } else {
-    if (record.failure.stage !== 'download') {
+    if (record.failure.stage === null || !FAILURE_STAGE_NAMES.includes(record.failure.stage)) {
       rejections.push(
-        `The first error stopped at stage ${record.failure.stage ?? 'unknown'}; the download stage is required.`,
+        `The first error stopped at stage ${record.failure.stage ?? 'unknown'}; an applicable download, decode, or upload stage is required.`,
       )
     }
     if (record.failure.message === '') {
