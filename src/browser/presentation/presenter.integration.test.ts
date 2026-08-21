@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { SimulationProjection } from '../../core'
 import { STARTUP_SCENE } from '../../core/content'
-import { loadStartupScene, productionSceneLoadDependencies } from '../scene'
+import { createSceneLoadDiagnostics, loadStartupScene, productionSceneLoadDependencies } from '../scene'
 import type { SceneLoadDependencies, SceneLoadReporter, SceneLoadStage } from '../scene'
 import type { PresentationRenderer } from './interface'
 import { createScenePresenter } from './index'
@@ -101,7 +101,11 @@ describe('Three.js frame presenter integration with the real startup Scene (ARCH
       },
     }
     const renderer = createRenderer()
-    const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter)
+    // The diagnostics console is a recording no-op: this integration test
+    // proves the load-to-presenter seam; the structured console records
+    // are covered by the promised-row acceptance.
+    const diagnostics = createSceneLoadDiagnostics({ info() {}, error() {} })
+    const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter, diagnostics)
 
     expect(recordedStages).toEqual(['download', 'download', 'decode', 'upload', 'ready'])
     expect(result.sceneId).toBe('poc-overworld')
@@ -144,7 +148,8 @@ describe('Three.js frame presenter integration with the real startup Scene (ARCH
   it('reports no presented node for a projected member without an authored node', async () => {
     const renderer = createRenderer()
     const reporter: SceneLoadReporter = { report() {} }
-    const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter)
+    const diagnostics = createSceneLoadDiagnostics({ info() {}, error() {} })
+    const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter, diagnostics)
 
     const presenter = createScenePresenter(result.presentation, renderer)
     presenter.present(projectionWith([PLAYER_ID, 'poc-troop-1']), 0)

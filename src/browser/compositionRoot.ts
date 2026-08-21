@@ -31,8 +31,14 @@
  * neither and cannot run a later gate. The production handoff then loads
  * the startup Scene with the initialized renderer through the authored
  * startup manifest (ARCH-022, REQ-136): the product visibly reports
- * download, decode, GPU upload, and Scene readiness, binds the Three.js
- * frame presenter into the runtime's presenter slot, and enters `Ready`.
+ * download, decode, GPU upload, and Scene readiness, writes the structured
+ * Scene-load console diagnostics with the Scene and asset identifiers
+ * (REQ-137, PVS-WEB-004), binds the Three.js frame presenter into the
+ * runtime's presenter slot, and enters `Ready`. The first failed load
+ * stage enters `Load failed` with the readable error and one semantic
+ * Retry action and starts no automatic retry; one explicit Retry restarts
+ * the load from its first stage with the same initialized renderer
+ * (REQ-134, PVS-WEB-001).
  * From then on the one frame loop reads the current immutable projection
  * after each fixed-tick batch and presents it once with the interpolation
  * timing (ARCH-008, ARCH-012, REQ-118); the presenter owns only Three.js

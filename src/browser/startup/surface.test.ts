@@ -282,7 +282,9 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
 
     // The machine-readable Scene-load record was published only after the
     // real load passed, with the exact identifiers, stage order, backend,
-    // authored clip, and Ready state (REQ-136).
+    // authored clip, diagnostic event log, zero retries, no failure, and
+    // Ready state (REQ-136, REQ-137).
+    const totalBytes = AUTHORED_GLTF_BYTES.length
     expect(recorded).toHaveLength(1)
     expect(recorded[0]).toEqual({
       sceneId: 'poc-overworld',
@@ -291,6 +293,52 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       backend: 'webgpu',
       animationClips: ['poc-band-idle'],
       deliveryState: 'Ready',
+      events: [
+        { event: 'scene-load', sceneId: 'poc-overworld', assetId: 'poc-overworld-environment' },
+        {
+          event: 'download',
+          sceneId: 'poc-overworld',
+          assetId: 'poc-overworld-environment',
+          stage: 'download',
+          receivedBytes: 0,
+          totalBytes,
+        },
+        {
+          event: 'progress',
+          sceneId: 'poc-overworld',
+          assetId: 'poc-overworld-environment',
+          stage: 'download',
+          receivedBytes: totalBytes,
+          totalBytes,
+        },
+        {
+          event: 'decode',
+          sceneId: 'poc-overworld',
+          assetId: 'poc-overworld-environment',
+          stage: 'decode',
+          receivedBytes: totalBytes,
+          totalBytes,
+        },
+        {
+          event: 'upload',
+          sceneId: 'poc-overworld',
+          assetId: 'poc-overworld-environment',
+          stage: 'upload',
+          receivedBytes: totalBytes,
+          totalBytes,
+        },
+        {
+          event: 'ready',
+          sceneId: 'poc-overworld',
+          assetId: 'poc-overworld-environment',
+          stage: 'ready',
+          receivedBytes: totalBytes,
+          totalBytes,
+        },
+        { event: 'complete', sceneId: 'poc-overworld', assetId: 'poc-overworld-environment' },
+      ],
+      retries: 0,
+      failure: null,
     })
 
     // The application still has one name and one support table (ARCH-024,

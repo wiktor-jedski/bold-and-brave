@@ -1,6 +1,6 @@
 /**
  * Implementation of the startup Scene load (ARCH-022, ARCH-009, ARCH-010,
- * ARCH-016, ARCH-023, PVS-WEB-003, REQ-136).
+ * ARCH-016, ARCH-023, PVS-WEB-003, PVS-WEB-004, REQ-136, REQ-137).
  *
  * The loader performs the ordered Scene-load stages with the initialized
  * WebGPU renderer: it fetches the authored glTF asset as a stream and
@@ -12,6 +12,15 @@
  * elapsed-time limit and owns no timer (REQ-136, PVS-WEB-003); the one
  * Browser Runtime frame loop stays the only frame source (ARCH-008).
  *
+ * The loader also writes the structured Scene-load console diagnostics —
+ * the Scene load, each asset download and decode, the GPU upload, every
+ * download-progress update, the completion, and the failure — each record
+ * carrying the authored Scene and asset identifiers (REQ-137,
+ * PVS-WEB-004). The first failed stage stops the load: no later stage
+ * runs, and the failure record carries the failing stage and the readable
+ * error for the `Load failed` surface and the one Retry action (REQ-134,
+ * PVS-WEB-001).
+ *
  * Every collaborator is injectable so the focused tests prove the exact
  * stage order, the streamed download progress, the decode handoff, the
  * camera and mixer creation, and the single rendered frame without a GPU.
@@ -20,6 +29,8 @@ import { AnimationMixer, PerspectiveCamera, Scene } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { SceneContent } from '../../core/content'
 import type { PresentationRenderer } from '../presentation'
+import type { SceneLoadDiagnosticEvent, SceneLoadDiagnostics } from './diagnostics'
+import { readableSceneLoadError } from './diagnostics'
 import type {
   SceneCamera,
   SceneGltfLoader,
@@ -153,7 +164,7 @@ function decodeGltf(
 
 /**
  * Load the startup Scene with the initialized WebGPU renderer (ARCH-022,
- * ARCH-009, REQ-136, PVS-WEB-003).
+ * ARCH-009, REQ-136, PVS-WEB-003, REQ-137, PVS-WEB-004).
  *
  * Stage order is fixed: download (stream with progress), decode, GPU
  * upload, and Scene readiness. The loader attaches the decoded glTF to one
@@ -162,84 +173,145 @@ function decodeGltf(
  * renderer canvas to the active viewport, prepares GPU resources, renders
  * exactly one frame, and reports readiness. No stage has an elapsed-time
  * limit and no timer exists (REQ-136).
+ *
+ * The loader writes a structured console record for the Scene load, each
+ * asset download and decode, the GPU upload, every download-progress
+ * update, the completion, and the failure, each carrying the authored
+ * Scene and asset identifiers (REQ-137, PVS-WEB-004). The first failed
+ * stage stops the load: no later stage runs, the failure record carries
+ * the failing stage and the readable error, and the rejected promise
+ * surfaces the error to the Scene-loading handoff, which enters `Load
+ * failed` with the one Retry action and starts no automatic retry
+ * (REQ-134, PVS-WEB-001).
  */
 export async function loadStartupScene(
   renderer: PresentationRenderer,
   scene: SceneContent,
   dependencies: SceneLoadDependencies = productionSceneLoadDependencies,
   reporter: SceneLoadReporter,
+  diagnostics: SceneLoadDiagnostics,
 ): Promise<SceneLoadSuccess> {
   const asset = startupAsset(scene)
   const stages: SceneLoadStage[] = []
+  /** The stage that is running, used by the first-error failure record. */
+  let currentStage: SceneLoadStage | undefined
 
-  /** Record one stage and report it to the surface. */
+  /** Record one stage, report it to the surface, and track it as current. */
   function report(stage: SceneLoadStage, receivedBytes: number, totalBytes: number | null): void {
+    currentStage = stage
     stages.push(stage)
     reporter.report({ stage, receivedBytes, totalBytes })
   }
 
-  // 1. Download the asset as a stream and report progress (PVS-WEB-003).
-  const response = await dependencies.fetchInput(asset.source)
-  const declaredTotal = response.headers.get('content-length')
-  const totalBytes = declaredTotal === null ? null : Number(declaredTotal)
-  report('download', 0, totalBytes)
-  let receivedBytes = 0
-  const buffer = await readResponseBody(response, (chunkBytes) => {
-    receivedBytes += chunkBytes
-    reporter.report({ stage: 'download', receivedBytes, totalBytes })
-  })
-  report('decode', receivedBytes, totalBytes)
-
-  // 2. Decode the complete bytes with GLTFLoader (ARCH-009, REQ-136).
-  const gltf = await decodeGltf(new dependencies.GLTFLoader(), buffer)
-
-  // 3. Attach the decoded glTF to one Three.js Scene (ARCH-009).
-  const threeScene: SceneGraph = dependencies.createScene()
-  threeScene.add(gltf.scene)
-
-  // 4. Create one third-person PerspectiveCamera and the required
-  //    AnimationMixer with the first authored clip (ARCH-009).
-  const viewport = viewportSize()
-  renderer.setSize(viewport.width, viewport.height)
-  const camera: SceneCamera = new dependencies.PerspectiveCamera(
-    CAMERA_FOV,
-    viewport.width / viewport.height,
-    CAMERA_NEAR,
-    CAMERA_FAR,
-  )
-  camera.position.x = 0
-  camera.position.y = CAMERA_HEIGHT
-  camera.position.z = CAMERA_DISTANCE
-
-  const mixer = new dependencies.AnimationMixer(gltf.scene)
-  if (gltf.animations.length > 0) {
-    mixer.clipAction(gltf.animations[0]).play()
+  /** Record one structured diagnostic event with both authored identifiers. */
+  function recordEvent(
+    event: Omit<SceneLoadDiagnosticEvent, 'sceneId' | 'assetId'>,
+  ): void {
+    diagnostics.record({ sceneId: scene.id, assetId: asset.id, ...event })
   }
-  mixer.update(0)
 
-  // 5. Prepare GPU resources (shaders and textures) for the Scene
-  //    (PVS-WEB-003).
-  report('upload', receivedBytes, totalBytes)
-  await renderer.compileAsync(threeScene, camera)
+  // The Scene-load diagnostics begin with the load itself (REQ-137,
+  // PVS-WEB-004): every record carries the authored Scene and asset
+  // identifiers.
+  recordEvent({ event: 'scene-load' })
 
-  // 6. Render exactly one frame (ARCH-009, REQ-136); later frames belong
-  //    to the one Browser Runtime frame loop (ARCH-008).
-  renderer.render(threeScene, camera)
+  try {
+    // 1. Download the asset as a stream and report progress (PVS-WEB-003).
+    //    A non-ok asset response is a failed download stage.
+    currentStage = 'download'
+    const response = await dependencies.fetchInput(asset.source)
+    if (!response.ok) {
+      throw new Error(`The asset request failed with status ${response.status}.`)
+    }
+    const declaredTotal = response.headers.get('content-length')
+    const totalBytes = declaredTotal === null ? null : Number(declaredTotal)
+    report('download', 0, totalBytes)
+    recordEvent({ event: 'download', stage: 'download', receivedBytes: 0, totalBytes })
+    let receivedBytes = 0
+    const buffer = await readResponseBody(response, (chunkBytes) => {
+      receivedBytes += chunkBytes
+      const progress = { stage: 'download' as const, receivedBytes, totalBytes }
+      recordEvent({ event: 'progress', ...progress })
+      reporter.report(progress)
+    })
 
-  // 7. Scene readiness (PVS-WEB-003).
-  report('ready', receivedBytes, totalBytes)
+    // 2. Decode the complete bytes with GLTFLoader (ARCH-009, REQ-136).
+    currentStage = 'decode'
+    report('decode', receivedBytes, totalBytes)
+    recordEvent({ event: 'decode', stage: 'decode', receivedBytes, totalBytes })
+    const gltf = await decodeGltf(new dependencies.GLTFLoader(), buffer)
 
-  return {
-    sceneId: scene.id,
-    assetId: asset.id,
-    stages,
-    backend: renderer.backend.isWebGPUBackend === true ? 'webgpu' : 'webgl',
-    animationClips: gltf.animations.map((clip) => clip.name),
-    // The presentation handle of the loaded Scene (ARCH-022, ARCH-009,
-    // REQ-118): the Scene-loading handoff binds the Three.js frame
-    // presenter with the one Scene, camera, and mixer after the load
-    // passes, and the presenter renders the read-only Simulation output
-    // on the one Browser Runtime frame loop (ARCH-008).
-    presentation: { scene: threeScene, camera, mixer },
+    // 3. Attach the decoded glTF to one Three.js Scene (ARCH-009).
+    const threeScene: SceneGraph = dependencies.createScene()
+    threeScene.add(gltf.scene)
+
+    // 4. Create one third-person PerspectiveCamera and the required
+    //    AnimationMixer with the first authored clip (ARCH-009).
+    const viewport = viewportSize()
+    renderer.setSize(viewport.width, viewport.height)
+    const camera: SceneCamera = new dependencies.PerspectiveCamera(
+      CAMERA_FOV,
+      viewport.width / viewport.height,
+      CAMERA_NEAR,
+      CAMERA_FAR,
+    )
+    camera.position.x = 0
+    camera.position.y = CAMERA_HEIGHT
+    camera.position.z = CAMERA_DISTANCE
+
+    const mixer = new dependencies.AnimationMixer(gltf.scene)
+    if (gltf.animations.length > 0) {
+      mixer.clipAction(gltf.animations[0]).play()
+    }
+    mixer.update(0)
+
+    // 5. Prepare GPU resources (shaders and textures) for the Scene
+    //    (PVS-WEB-003).
+    currentStage = 'upload'
+    report('upload', receivedBytes, totalBytes)
+    recordEvent({ event: 'upload', stage: 'upload', receivedBytes, totalBytes })
+    await renderer.compileAsync(threeScene, camera)
+
+    // 6. Render exactly one frame (ARCH-009, REQ-136); later frames belong
+    //    to the one Browser Runtime frame loop (ARCH-008).
+    renderer.render(threeScene, camera)
+
+    // 7. Scene readiness and the load completion (PVS-WEB-003, REQ-137).
+    currentStage = 'ready'
+    report('ready', receivedBytes, totalBytes)
+    recordEvent({ event: 'ready', stage: 'ready', receivedBytes, totalBytes })
+    recordEvent({ event: 'complete' })
+
+    return {
+      sceneId: scene.id,
+      assetId: asset.id,
+      stages,
+      backend: renderer.backend.isWebGPUBackend === true ? 'webgpu' : 'webgl',
+      animationClips: gltf.animations.map((clip) => clip.name),
+      // The presentation handle of the loaded Scene (ARCH-022, ARCH-009,
+      // REQ-118): the Scene-loading handoff binds the Three.js frame
+      // presenter with the one Scene, camera, and mixer after the load
+      // passes, and the presenter renders the read-only Simulation output
+      // on the one Browser Runtime frame loop (ARCH-008).
+      presentation: { scene: threeScene, camera, mixer },
+    }
+  } catch (error) {
+    // The first failed stage stops the load: record the failure with both
+    // identifiers, the failing stage, and the readable error, then run no
+    // later stage and rethrow so the handoff enters `Load failed`
+    // (REQ-134, PVS-WEB-001, REQ-137).
+    const failure = readableSceneLoadError(error)
+    const failureEvent: SceneLoadDiagnosticEvent =
+      currentStage === undefined
+        ? { event: 'failure', sceneId: scene.id, assetId: asset.id, message: failure }
+        : {
+            event: 'failure',
+            sceneId: scene.id,
+            assetId: asset.id,
+            stage: currentStage,
+            message: failure,
+          }
+    diagnostics.record(failureEvent)
+    throw error
   }
 }
