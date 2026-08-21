@@ -28,6 +28,14 @@ The phase number gives the dependency sequence. It does not give dates, sprint d
 
 The **Acceptance link** gives the final catalog checkpoint for the behavior. Before the evidence harness exists, use a focused check with the same input, state, and output claim. The evidence phases connect these checks to generated evidence. They do not change gameplay results.
 
+### Incremental visual asset delivery
+
+Each phase that first makes a Scene, Combatant, weapon, or interactable visible must also deliver the representative committed production assets for that visible scope. A technical placeholder can prove a loading or rendering seam before gameplay uses the object. It must not remain when the object becomes part of playable behavior.
+
+Use the production coordinate, scale, naming, material, animation, and export conventions from the first representative asset slice. The browser application must load committed production files and must not depend on an asset-generation tool or service at runtime.
+
+Phase 38 completes and audits visual consistency. It must not be the first phase that supplies representative assets for an earlier playable behavior.
+
 ## Governance
 
 ### Phase 1 — Repository description
@@ -132,15 +140,15 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 9 — Overworld travel
 
-**Result:** A new campaign starts at the specified distance outside the settlement. Click-to-move, camera rotation, and camera zoom work on the free-roaming 3D Overworld. Campaign time and Provisions advance only while the Band moves. The travel model can add another location without a new movement rule.
+**Result:** A new campaign starts at the specified distance outside the settlement. Click-to-move, camera rotation, and camera zoom work on the free-roaming 3D Overworld. This phase replaces the technical box fixture with the first representative visual asset slice: a recognizable frontier area at the start boundary, visible player-character and Miro models, representative low-poly woodcut materials and lighting, and movement animation. Campaign time and Provisions advance only while the Band moves. The travel model can add another location without a new movement rule.
 
 **Requirements closed:** REQ-017, REQ-018, REQ-035, REQ-117.
 
-**Phase check:** Move, stop, and pause at the start boundary. Confirm position, time, Provisions behavior, and deterministic steering.
+**Phase check:** Move, stop, and pause at the start boundary. Confirm position, time, Provisions behavior, and deterministic steering. Inspect the built product and confirm that the representative frontier, both Band members, materials, lighting, and movement animation are visible and that the technical box fixture is absent.
 
 **Acceptance link:** `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS`.
 
-**Review focus:** Keep destination data separate from the travel rule.
+**Review focus:** Keep destination data separate from the travel rule. Confirm that the Scene, camera, movement, and exported assets use one production scale and that the runtime has no asset-generation dependency.
 
 ### Phase 10 — Overworld time controls
 
@@ -486,15 +494,15 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 38 — Visual and interface contract
 
-**Result:** The Playable Vertical Slice presents the specified frontier, one Overworld, and one compact settlement. It presents the specified population and gives the player no magic. It uses the representative low-poly woodcut visual language. All player-facing terms are canonical. All essential panels use semantic HTML and CSS. Pointer, keyboard, and DOM actions use one target-tick command stream. Normal keyboard-and-mouse play is usable through this stream.
+**Result:** The Playable Vertical Slice completes and harmonizes the visual assets delivered by earlier playable phases. It presents the specified frontier, one Overworld, one compact settlement, and the specified population, and it gives the player no magic. All visible content uses one representative low-poly woodcut visual language. All player-facing terms are canonical. All essential panels use semantic HTML and CSS. Pointer, keyboard, and DOM actions use one target-tick command stream. Normal keyboard-and-mouse play is usable through this stream.
 
 **Requirements closed:** REQ-006, REQ-007, REQ-015, REQ-016, REQ-089, REQ-097, REQ-119.
 
-**Phase check:** Inspect the Overworld, settlement, bridge, settlement center, all required Combatants, every panel, and each input source. Use normal keyboard-and-mouse input for the required Overworld, settlement, combat, command, and DOM actions. Run the canonical-term and runtime-asset checks.
+**Phase check:** Inspect the Overworld, settlement, bridge, settlement center, all required Combatants, every panel, and each input source. Confirm that assets introduced by earlier phases now form one consistent representative visual set. Use normal keyboard-and-mouse input for the required Overworld, settlement, combat, command, and DOM actions. Run the canonical-term and runtime-asset checks.
 
 **Acceptance link:** `CP-UI-HUD`, `CP-UI-FATE`, `CP-SPEC-END-TO-END`, `CP-ARCH-DETERMINISM`, `CP-SUPPORT-GATE`, `CP-SPEC-AUDIT`.
 
-**Review focus:** Confirm that generated assets are not runtime dependencies. Confirm that unsupported input modes do not create a second command path or support promise.
+**Review focus:** Confirm that no representative Scene, Combatant, weapon, or interactable is first introduced by this phase. Confirm that generated assets are not runtime dependencies and that unsupported input modes do not create a second command path or support promise.
 
 ### Phase 39 — Audio readiness and interface
 
