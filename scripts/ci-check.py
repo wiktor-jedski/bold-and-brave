@@ -12,7 +12,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_JSON = PROJECT_ROOT / "package.json"
 REQUIRED_EXECUTABLES = ("bun",)
-CHECK_SCRIPTS = ("typecheck:core", "typecheck:browser", "check:dependencies")
+CHECK_SCRIPTS = (
+    "typecheck:core",
+    "typecheck:browser",
+    "check:dependencies",
+    "check:scene-manifest",
+)
 BUILD_SCRIPT = "build"
 
 

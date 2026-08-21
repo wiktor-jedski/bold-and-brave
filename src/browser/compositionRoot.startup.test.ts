@@ -133,6 +133,15 @@ function createFakeRenderer(
     render() {
       throw new Error('startup must never render a frame')
     },
+    compileAsync() {
+      throw new Error('startup must never prepare GPU resources')
+    },
+    setSize() {
+      throw new Error('startup must never resize the canvas')
+    },
+    get domElement(): HTMLCanvasElement {
+      throw new Error('startup must never touch the canvas')
+    },
   }
 }
 
@@ -181,13 +190,20 @@ function createControlledFrameScheduler(): ControlledFrameScheduler {
 }
 
 /** One recorded delivery-state transition of the injected surface. */
-type SurfaceCall = 'startup' | 'unsupported' | 'loading-scene'
+type SurfaceCall =
+  | 'startup'
+  | 'unsupported'
+  | 'loading-scene'
+  | 'progress'
+  | 'load-failed'
+  | 'ready'
+  | 'mount-canvas'
 
 /** The recording delivery-state surface, proving the exact ordered state trace. */
 interface RecordingSurface extends DeliveryStateSurface {
   /** Every state transition in call order. */
   readonly calls: SurfaceCall[]
-  /** Every `Unsupported` message received, in call order. */
+  /** Every `Unsupported` or `Load failed` message received, in call order. */
   readonly messages: string[]
 }
 
@@ -207,6 +223,19 @@ function createRecordingSurface(): RecordingSurface {
     },
     showLoadingScene() {
       calls.push('loading-scene')
+    },
+    showProgress() {
+      calls.push('progress')
+    },
+    showLoadFailed(message: string) {
+      calls.push('load-failed')
+      messages.push(message)
+    },
+    showReady() {
+      calls.push('ready')
+    },
+    mountCanvas() {
+      calls.push('mount-canvas')
     },
   }
 }

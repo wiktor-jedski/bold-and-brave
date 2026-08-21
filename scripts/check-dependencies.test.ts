@@ -124,6 +124,157 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
+  it('fails on a presentation file importing the public Simulation module entry (write path)', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import { createSimulation } from '../../core/simulation'\nvoid createSimulation\n",
+      )
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-presentation-simulation-write')
+      expect(violations[0].importer).toBe('browser/presentation/presenter.ts')
+      expect(violations[0].imported).toBe('core/simulation/index.ts')
+      expect(violations[0].specifier).toBe('../../core/simulation')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a presentation file importing a private Simulation implementation file (write path)', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import { createSimulation } from '../../core/simulation/implementation'\nvoid createSimulation\n",
+      )
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].importer).toBe('browser/presentation/presenter.ts')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a presentation file importing the projection type from the neutral core root', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(
+        join(root, 'core', 'index.ts'),
+        "export type { SimulationProjection } from './simulation'\n",
+      )
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import type { SimulationProjection } from '../../core'\nconst p: SimulationProjection | null = null\nvoid p\n",
+      )
+
+      expect(await checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a non-presentation browser file importing the public Simulation module entry', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(
+        join(root, 'browser', 'runtime.ts'),
+        "import { createSimulation } from '../core/simulation'\nvoid createSimulation\n",
+      )
+
+      expect(await checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a core content file importing the Three.js package', async () => {
+    const root = makeFixtureProject()
+    try {
+      mkdirSync(join(root, 'core', 'content'))
+      writeFileSync(join(root, 'core', 'content', 'leaks.ts'), "import { Scene } from 'three'\nvoid Scene\n")
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-content-import')
+      expect(violations[0].importer).toBe('core/content/leaks.ts')
+      expect(violations[0].imported).toBe('three')
+      expect(violations[0].specifier).toBe('three')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a core content file importing a Three.js entry subpath', async () => {
+    const root = makeFixtureProject()
+    try {
+      mkdirSync(join(root, 'core', 'content'))
+      writeFileSync(
+        join(root, 'core', 'content', 'leaks.ts'),
+        "import { WebGPURenderer } from 'three/webgpu'\nvoid WebGPURenderer\n",
+      )
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-content-import')
+      expect(violations[0].importer).toBe('core/content/leaks.ts')
+      expect(violations[0].imported).toBe('three/webgpu')
+      expect(violations[0].specifier).toBe('three/webgpu')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a core content file importing browser code', async () => {
+    const root = makeFixtureProject()
+    try {
+      mkdirSync(join(root, 'core', 'content'))
+      writeFileSync(join(root, 'browser', 'main.ts'), 'export const boot = (): void => {}\n')
+      writeFileSync(join(root, 'core', 'content', 'leaks.ts'), "import { boot } from '../../browser/main'\n")
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('core-content-import')
+      expect(violations[0].importer).toBe('core/content/leaks.ts')
+      expect(violations[0].imported).toBe('browser/main.ts')
+      expect(violations[0].specifier).toBe('../../browser/main')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a core content file importing only platform-neutral core content', async () => {
+    const root = makeFixtureProject()
+    try {
+      mkdirSync(join(root, 'core', 'content'))
+      writeFileSync(join(root, 'core', 'content', 'catalog.ts'), 'export const SCENE = 1\n')
+      writeFileSync(join(root, 'core', 'content', 'reader.ts'), "import { SCENE } from './catalog'\nvoid SCENE\n")
+
+      expect(await checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('accepts an empty fixture project', async () => {
     const root = makeFixtureProject()
     try {

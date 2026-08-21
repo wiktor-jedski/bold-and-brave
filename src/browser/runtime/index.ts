@@ -7,4 +7,10 @@
  * (ARCH-002).
  */
 export { createBrowserRuntime } from './implementation'
-export type { BrowserRuntime, FrameCallback, FrameScheduler } from './interface'
+export type {
+  BrowserRuntime,
+  FrameCallback,
+  FramePresenter,
+  FrameScheduler,
+  PresenterSlot,
+} from './interface'

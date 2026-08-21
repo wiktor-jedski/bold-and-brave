@@ -6,5 +6,23 @@
  * of that content. The catalog contains no mutable campaign state and no
  * runtime-generated content.
  */
-export { INITIAL_AGENTS, PLAYER_CHARACTER, MIRO, INITIAL_BAND, INITIAL_COIN, INITIAL_PROVISIONS } from './catalog'
-export type { AgentRole, AgentFate, Disposition, Grievance, AgentContent, BandMemberContent } from './interface'
+export {
+  INITIAL_AGENTS,
+  PLAYER_CHARACTER,
+  MIRO,
+  INITIAL_BAND,
+  INITIAL_COIN,
+  INITIAL_PROVISIONS,
+  STARTUP_SCENE,
+  SCENES,
+} from './catalog'
+export type {
+  AgentRole,
+  AgentFate,
+  Disposition,
+  Grievance,
+  AgentContent,
+  BandMemberContent,
+  SceneAssetContent,
+  SceneContent,
+} from './interface'

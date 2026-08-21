@@ -2,12 +2,15 @@
  * Public contract of the Browser Runtime timing module (ARCH-006, ARCH-008).
  *
  * The runtime owns browser-only frame timing: it accumulates elapsed
- * rendered-frame time and advances the injected core-owned Simulation at
- * one fixed 60 Hz interval. It never owns gameplay truth (ARCH-006).
- * The interface contains no DOM dependency beyond the injected
+ * rendered-frame time, advances the injected core-owned Simulation at one
+ * fixed 60 Hz interval, and — after each fixed-tick batch — reads one
+ * immutable projection and calls the bound Three.js presenter once from
+ * the same frame loop (ARCH-008, ARCH-012). It never owns gameplay truth
+ * (ARCH-006). The interface contains no DOM dependency beyond the injected
  * `requestAnimationFrame`-style scheduler, so tests can drive it with
  * controlled frame timestamps.
  */
+import type { SimulationProjection } from '../../core/simulation'
 
 /** Callback signature of one rendered animation frame, as `requestAnimationFrame` provides it. */
 export type FrameCallback = (timestamp: number) => void
@@ -27,8 +30,51 @@ export interface FrameScheduler {
   cancelFrame(handle: number): void
 }
 
+/**
+ * The Three.js presenter of one rendered frame (ARCH-008, ARCH-012).
+ *
+ * The Browser Runtime calls the presenter exactly once per rendered frame,
+ * after the fixed-tick batch, passing only the current immutable
+ * projection and the interpolation timing — the fractional fixed-tick
+ * remainder between the settled projection tick and the next tick
+ * (REQ-118). The presenter (ARCH-009) interpolates presentation only and
+ * has no write path to the Simulation: it receives the projection value,
+ * never the Simulation seam, so missing or delayed presentation output can
+ * never change an authoritative result (PVS-ARC-008).
+ */
+export interface FramePresenter {
+  /**
+   * Present one frame from the current immutable projection and the
+   * interpolation timing in fixed-tick units.
+   */
+  present(projection: SimulationProjection, interpolation: number): void
+}
+
+/**
+ * The mutable presenter binding of the frame loop (ARCH-006, ARCH-008).
+ *
+ * The runtime starts before the startup Scene is loaded, so no presenter
+ * exists yet; the Scene-loading handoff (ARCH-022) binds the Three.js
+ * presenter into this slot after the real load passes. Until then the
+ * runtime dispatches ticks and renders nothing; after the binding, every
+ * rendered frame reads one projection and presents once.
+ */
+export interface PresenterSlot {
+  /** The bound presenter, or `null` while no Scene is loaded. */
+  presenter: FramePresenter | null
+}
+
 /** The Browser Runtime timing loop (ARCH-006). */
 export interface BrowserRuntime {
+  /**
+   * The presenter slot of the frame loop (ARCH-008).
+   *
+   * The Scene-loading handoff binds the Three.js presenter here after the
+   * startup Scene load passes; the runtime reads the slot on every
+   * rendered frame. The slot is browser-only lifecycle wiring and carries
+   * no gameplay truth.
+   */
+  readonly presenterSlot: PresenterSlot
   /** Start the frame loop. Scheduling the first frame is idempotent while running. */
   start(): void
   /** Stop the frame loop and cancel the pending frame request. */

@@ -1,4 +1,4 @@
-import type { AgentContent, BandMemberContent } from './interface'
+import type { AgentContent, BandMemberContent, SceneContent } from './interface'
 
 /**
  * The initial named-Agent relationship content of a new campaign
@@ -75,3 +75,37 @@ export const INITIAL_COIN = 100
 
 /** The initial Provisions of a new campaign: 10.0 (PVS-PRP-001, REQ-077). */
 export const INITIAL_PROVISIONS = 10.0
+
+/**
+ * The one startup Scene manifest (ARCH-016, PVS-WEB-003, REQ-136).
+ *
+ * The startup Scene is `poc-overworld` — the simplified strategic map
+ * through which the Band travels (CONTEXT.md) — and its one glTF asset
+ * `poc-overworld-environment`, a small committed authored asset containing
+ * nodes for the initial Band (the player character and Miro) and one
+ * animation clip. The Scene loader receives this exact manifest after
+ * every startup gate passes and loads its asset by Scene (REQ-136). The
+ * manifest is deeply frozen so the authored content stays immutable; the
+ * asset reference is the same path the content-contract check resolves to
+ * the committed authored glTF file.
+ */
+export const STARTUP_SCENE: SceneContent = Object.freeze({
+  id: 'poc-overworld',
+  name: 'Overworld',
+  assets: Object.freeze([
+    Object.freeze({
+      id: 'poc-overworld-environment',
+      kind: 'gltf',
+      source: 'scenes/poc-overworld/poc-overworld-environment.gltf',
+    }),
+  ]),
+})
+
+/**
+ * The authored Scene catalog (ARCH-016).
+ *
+ * The catalog currently authors the one startup Scene. The content-contract
+ * check validates the whole list so Scene and asset IDs stay unique as
+ * later phases add settlement and battlefield Scenes.
+ */
+export const SCENES: readonly SceneContent[] = Object.freeze([STARTUP_SCENE])

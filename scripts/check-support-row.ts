@@ -18,7 +18,30 @@
  * the machine-readable startup record the product reports after every
  * ordered gate success, validates it, and writes
  * `test-results/support-row/startup.json` only after validation passes
- * (REQ-011, REQ-014, REQ-134, REQ-135).
+ * (REQ-011, REQ-014, REQ-134, REQ-135). The same headed run also drives
+ * the real startup Scene load through the built product (ARCH-022,
+ * REQ-136, PVS-WEB-003): the product downloads the authored glTF asset
+ * `poc-overworld-environment` for Scene `poc-overworld`, visibly reports
+ * download, decode, GPU upload, and Scene readiness in order, writes the
+ * structured Scene-load console records with both identifiers (REQ-137,
+ * PVS-WEB-004), and enters `Ready`. One spec run then fails the first real
+ * asset request after all startup gates pass: the product makes one asset
+ * request, enters `Load failed` at the first error with both identifiers,
+ * runs no later stage, makes no request during the no-retry observation
+ * period, keeps the one semantic Retry visible, and — after one explicit
+ * Retry that restarts visible progress at download — reaches `Ready`
+ * (REQ-134, PVS-WEB-001). The spec observes one WebGPU canvas, the
+ * authored animation, and no WebGL path or second frame loop, validates
+ * the machine-readable Scene-load record of the retried journey — the
+ * exact event order, identifiers, first-error stop, one explicit retry,
+ * WebGPU backend, and final state — and only then writes
+ * `test-results/support-row/scene-load.json` (REQ-136, REQ-137). The same
+ * headed run also observes the real frame presentation through the loaded
+ * Scene — the two projected initial Band members rendered and the authored
+ * animation advancing from the current projection tick and interpolation
+ * value on the existing frame loop — and writes
+ * `test-results/support-row/frame-presentation.json` only after the
+ * presentation record passes validation (ARCH-008, REQ-118, PVS-ARC-008).
  *
  * GitHub-hosted pull-request CI keeps the existing general Playwright
  * browser check and never runs this command, so it produces no
@@ -76,6 +99,38 @@ export const ENVIRONMENT_RECORD_PATH = join('test-results', 'support-row', 'envi
  * present belongs to the latest accepted run.
  */
 export const STARTUP_RECORD_PATH = join('test-results', 'support-row', 'startup.json')
+
+/**
+ * The machine-readable Phase 7 Scene-load evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * reaches `Ready` through the real Scene load after the failed first
+ * request and one explicit Retry, and the Scene-load record of that
+ * journey passes validation — the exact event order, identifiers,
+ * first-error stop, one explicit retry, WebGPU backend, and final state —
+ * so a failed, mismatched, or automatically retried load never leaves
+ * passing Scene-load evidence (REQ-134, REQ-136, REQ-137). The gate
+ * removes any stale file before a new run so the only `scene-load.json`
+ * present belongs to the latest accepted run.
+ */
+export const SCENE_LOAD_RECORD_PATH = join('test-results', 'support-row', 'scene-load.json')
+
+/**
+ * The machine-readable frame-presentation evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * presented the two projected initial Band members and advanced its
+ * authored animation from the current projection tick and interpolation
+ * value on the existing frame loop, and the frame-presentation record
+ * passes validation (REQ-118, PVS-ARC-008). The gate removes any stale
+ * file before a new run so the only `frame-presentation.json` present
+ * belongs to the latest accepted run.
+ */
+export const FRAME_PRESENTATION_RECORD_PATH = join(
+  'test-results',
+  'support-row',
+  'frame-presentation.json',
+)
 
 /**
  * Parse the product name and version from a Chromium `--version` output
@@ -350,11 +405,13 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
 /** Run the local promised-row acceptance: gate, then Playwright. */
 function main(): void {
   // Remove any stale evidence from a previous run up front: whatever the
-  // outcome of this run, the only `environment.json` and `startup.json`
-  // that may exist afterwards belong to an accepted run of this invocation
-  // (REQ-013).
+  // outcome of this run, the only `environment.json`, `startup.json`,
+  // `scene-load.json`, and `frame-presentation.json` that may exist
+  // afterwards belong to an accepted run of this invocation (REQ-013).
   rmSync(ENVIRONMENT_RECORD_PATH, { force: true })
   rmSync(STARTUP_RECORD_PATH, { force: true })
+  rmSync(SCENE_LOAD_RECORD_PATH, { force: true })
+  rmSync(FRAME_PRESENTATION_RECORD_PATH, { force: true })
 
   const { facts, rejections } = checkSupportRowSystem(SUPPORT_PROMISE)
   if (rejections.length > 0) {
