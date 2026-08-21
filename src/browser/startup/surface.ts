@@ -9,12 +9,15 @@
  * reports the ordered Scene-load stages — download, decode, GPU upload,
  * and Scene readiness — enters `Load failed` with the readable error and
  * one semantic Retry action at the first failed asset stage without an
- * automatic retry, and enters `Ready` after the real load passes (REQ-136,
- * PVS-WEB-003, REQ-134, PVS-WEB-001). The state text, the progress stages,
- * the alert text, and the Retry action are the only product statements
- * about the delivery state; the startup orchestration drives them through
- * the `DeliveryStateSurface` seam, so tests can inject a recording surface
- * and the built product observes the same transitions.
+ * automatic retry, enters `Ready` after the real load passes, and enters
+ * the terminal `Device lost` state with one readable semantic failure and
+ * one Reload action when the rendering device is lost (REQ-136,
+ * PVS-WEB-003, REQ-134, PVS-WEB-001, PVS-WEB-005). The state text, the
+ * progress stages, the alert text, and the Retry and Reload actions are
+ * the only product statements about the delivery state; the startup
+ * orchestration drives them through the `DeliveryStateSurface` seam, so
+ * tests can inject a recording surface and the built product observes the
+ * same transitions.
  *
  * The module also owns the production Scene-loading handoff seam
  * (REQ-134, PVS-WEB-001, REQ-136): the composition root invokes the
@@ -99,6 +102,17 @@ export interface DeliveryStateSurface {
    * Enter `Ready` only after the real load passes (REQ-136, PVS-WEB-001).
    */
   showReady(): void
+  /**
+   * Enter the terminal `Device lost` state (REQ-134, PVS-WEB-001).
+   *
+   * The device-loss coordinator calls this after a resolved `GPUDevice.lost`
+   * in `Loading Scene` or `Ready`. The surface shows the readable semantic
+   * failure and one Reload action; the terminal state exposes no other
+   * action — any Retry action of an earlier failed load is removed. The
+   * `reload` callback performs the browser reload operation and is invoked
+   * at most once even after repeated loss signals.
+   */
+  showDeviceLost(message: string, reload: () => void): void
   /**
    * Add the renderer canvas to the existing product surface (ARCH-024).
    *
@@ -253,6 +267,10 @@ export function renderDeliveryState(host: HTMLElement): DeliveryStateSurface {
   let progress: HTMLElement | null = null
   let retryButton: HTMLButtonElement | null = null
   let retryAction: (() => void) | null = null
+  let reloadButton: HTMLButtonElement | null = null
+  let reloadAction: (() => void) | null = null
+  /** Guards the one reload call of the terminal state (REQ-134, PVS-WEB-001). */
+  let reloadInvoked = false
   const stageItems = new Map<string, HTMLLIElement>()
 
   /** Remove the failure alert and the one Retry action. */
@@ -345,6 +363,39 @@ export function renderDeliveryState(host: HTMLElement): DeliveryStateSurface {
     showReady(): void {
       state.textContent = SCENE_LOAD_READY_STATE
       removeFailure()
+    },
+    showDeviceLost(message: string, reload: () => void): void {
+      // The terminal `Device lost` state (REQ-134, PVS-WEB-001): it shows
+      // the readable semantic failure and one Reload action and exposes no
+      // other action — any Retry action of an earlier failed load and the
+      // visible progress list are removed.
+      state.textContent = 'Device lost'
+      removeFailure()
+      removeProgress()
+      if (alert === null) {
+        alert = document.createElement('div')
+        alert.setAttribute('role', 'alert')
+        host.append(alert)
+      }
+      alert.textContent = message
+      reloadAction = reload
+      // One semantic Reload action. The reload performs the browser reload
+      // operation; the terminal state exposes no Retry or gameplay action,
+      // and repeated loss signals or clicks cannot repeat the one reload
+      // call (REQ-134, PVS-WEB-001).
+      if (reloadButton === null) {
+        reloadButton = document.createElement('button')
+        reloadButton.type = 'button'
+        reloadButton.textContent = 'Reload'
+        reloadButton.addEventListener('click', () => {
+          if (reloadInvoked) {
+            return
+          }
+          reloadInvoked = true
+          reloadAction?.()
+        })
+        host.append(reloadButton)
+      }
     },
     mountCanvas(canvas: HTMLCanvasElement): void {
       host.append(canvas)

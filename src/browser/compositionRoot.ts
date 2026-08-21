@@ -44,6 +44,17 @@
  * timing (ARCH-008, ARCH-012, REQ-118); the presenter owns only Three.js
  * objects, load state, and interpolation history and has no write path to
  * the Simulation (PVS-ARC-008).
+ * The composition root also wires the exact `GPUDevice` returned by
+ * startup into one device-loss coordinator before the runtime or
+ * Scene-loading handoff starts (REQ-134, REQ-138, PVS-WEB-005): a resolved
+ * `device.lost` in `Loading Scene` or `Ready` closes the gameplay-input
+ * gate, terminal-stops the runtime before another tick, detaches
+ * presentation, ignores every later load-progress, load-failure, Retry,
+ * Ready, and frame callback, and enters the terminal `Device lost` state
+ * with one readable semantic failure and one Reload action. Reload
+ * performs the browser reload operation — never a retry and never a new
+ * device request in process — so after navigation the normal composition
+ * root repeats every startup gate on the fresh document.
  * This wiring keeps the Three.js WebGPU renderer in the production bundle,
  * so the built product carries the WebGPU-only rendering dependency and no
  * WebGL fallback path (REQ-011, PVS-SCP-006).
@@ -62,6 +73,8 @@ import { buildStartupRecord, productionStartupRecorder } from './startup/record'
 import type { StartupRecorder } from './startup/record'
 import { createSceneLoadingHandoff } from './startup/surface'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './startup/surface'
+import { createDeviceLossCoordinator, productionDeviceReload } from './startup/deviceLoss'
+import type { DeviceLossCoordinator } from './startup/deviceLoss'
 import { runWebGPUBackendGate } from './presentation'
 import type { WebGPURendererFactory } from './presentation'
 
@@ -137,6 +150,18 @@ export interface StartupDependencies {
    * nothing.
    */
   readonly recorder?: StartupRecorder
+  /**
+   * The device-loss coordinator of the terminal `Device lost` state
+   * (ARCH-023, REQ-134, REQ-138, PVS-WEB-005).
+   *
+   * Production wires the exact capability-gate device into a coordinator
+   * before the runtime or Scene-loading handoff starts, so a resolved
+   * `GPUDevice.lost` in `Loading Scene` or `Ready` terminal-stops the
+   * runtime and enters `Device lost`; integration tests inject a
+   * coordinator with a controlled `device.lost` promise and a recording
+   * reload operation.
+   */
+  readonly deviceLoss?: DeviceLossCoordinator
 }
 
 /**
@@ -219,11 +244,35 @@ export async function runApplicationStartup(
   const recorder = dependencies.recorder ?? productionStartupRecorder
   recorder.record(buildStartupRecord(capability, backend))
 
+  // Wire the exact `GPUDevice` returned by startup into one device-loss
+  // coordinator BEFORE the runtime or Scene-loading handoff starts
+  // (REQ-134, REQ-138, PVS-WEB-005): from here every delivery-state
+  // transition goes through the guarded surface, so a resolved
+  // `device.lost` in `Loading Scene` or `Ready` terminal-stops the runtime
+  // — closing the gameplay-input gate before another tick and detaching
+  // presentation — and enters `Device lost` with one readable semantic
+  // failure and one Reload action, while every later load-progress,
+  // load-failure, Retry, Ready, and frame callback is ignored. Reload
+  // performs the browser reload operation; it never retries or recreates
+  // the device in process, so after navigation the normal composition
+  // root repeats every startup gate.
+  const loss =
+    dependencies.deviceLoss ??
+    createDeviceLossCoordinator({
+      device: capability.device,
+      runtime: application.runtime,
+      surface,
+      reload: productionDeviceReload,
+    })
+  const deliverySurface = loss.surface
+
   application.runtime.start()
   // The production handoff binds the Three.js frame presenter into the
   // runtime's presenter slot after the startup Scene load passes, so the
   // one frame loop presents the current read-only Simulation output with
   // the interpolation timing (ARCH-008, REQ-118).
-  const handoff = dependencies.handoff ?? createSceneLoadingHandoff(surface, application.runtime.presenterSlot)
+  const handoff =
+    dependencies.handoff ??
+    createSceneLoadingHandoff(deliverySurface, application.runtime.presenterSlot)
   handoff(backend.renderer)
 }

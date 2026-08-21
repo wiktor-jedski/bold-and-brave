@@ -9,6 +9,7 @@ import { renderSupportPromise } from '../support/surface'
 import type { StartupCapabilityEnvironment } from './index'
 import { createSceneLoadingHandoff, renderDeliveryState } from './surface'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './surface'
+import { DEVICE_LOST_MESSAGE } from './deviceLoss'
 import type { SceneLoadDependencies } from '../scene'
 import type { SceneLoadRecorder } from '../scene'
 import { productionSceneLoadDependencies } from '../scene'
@@ -63,6 +64,14 @@ function committedAssetResponse(): Response {
   return new Response(stream, {
     headers: { 'content-length': String(AUTHORED_GLTF_BYTES.length) },
   })
+}
+
+/** A `GPUDevice.lost` promise that never resolves, for fixtures that must not lose. */
+const NEVER_LOST = new Promise<GPUDeviceLostInfo>(() => {})
+
+/** Build a fake device whose `GPUDevice.lost` promise is never lost. */
+function createStableDevice(): GPUDevice {
+  return { lost: NEVER_LOST } as unknown as GPUDevice
 }
 
 /** Build the capability environment that passes every capability check. */
@@ -192,7 +201,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     const state = host.querySelector('#delivery-state')
     expect(state?.textContent).toBe('Startup')
 
-    device.resolve({} as unknown as GPUDevice)
+    device.resolve(createStableDevice())
     await pending
 
     // The successful state is `Loading Scene` (REQ-134, PVS-WEB-001).
@@ -235,8 +244,52 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     expect(alerts[0].textContent).toBe('Startup requires a secure context.')
   })
 
+  it('enters the terminal Device lost state with one alert, one Reload action, no Retry or gameplay action, and one reload call even after repeated loss signals', () => {
+    const { host, surface } = composeProductSurface()
+    const retry = vi.fn()
+    const reload = vi.fn()
+
+    // A prior failed load showed the Retry action; the terminal `Device
+    // lost` state must expose no Retry action (REQ-134, PVS-WEB-001).
+    surface.showLoadFailed('the first stage failed', retry)
+    surface.showDeviceLost(DEVICE_LOST_MESSAGE, reload)
+    // A repeated loss signal keeps exactly one Reload action.
+    surface.showDeviceLost(DEVICE_LOST_MESSAGE, reload)
+
+    // The semantic surface reports the terminal `Device lost` status and
+    // one readable semantic failure alert (REQ-134, PVS-WEB-001).
+    const state = host.querySelector('#delivery-state')
+    expect(state?.textContent).toBe('Device lost')
+    expect(state?.getAttribute('role')).toBe('status')
+    const alerts = host.querySelectorAll('[role="alert"]')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0].textContent).toBe(DEVICE_LOST_MESSAGE)
+
+    // One Reload action and no other action: the Retry action of the
+    // earlier failed load was removed and no gameplay action exists
+    // (REQ-134, PVS-WEB-001).
+    const buttons = host.querySelectorAll('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].textContent).toBe('Reload')
+    expect(host.textContent?.includes('Retry')).toBe(false)
+
+    // The surface itself never invoked the reload or retry operations.
+    expect(reload).not.toHaveBeenCalled()
+    expect(retry).not.toHaveBeenCalled()
+
+    // One reload call even after repeated loss signals: the first click
+    // performs the browser reload operation; later clicks cannot repeat
+    // it (REQ-134, PVS-WEB-001).
+    buttons[0].click()
+    buttons[0].click()
+    buttons[0].click()
+    expect(reload).toHaveBeenCalledTimes(1)
+    // The terminal state never retries the failed Scene load.
+    expect(retry).not.toHaveBeenCalled()
+  })
+
   it('runs the real production handoff through the composed startup: reports the ordered stages, mounts one canvas, publishes the record, and enters Ready', async () => {
-    const environment = createPassingEnvironment(Promise.resolve({} as unknown as GPUDevice))
+    const environment = createPassingEnvironment(Promise.resolve(createStableDevice()))
     const factory = createPassingFactory()
     const { host, surface } = composeProductSurface()
     const application = createBrowserApplication(createSimulation)

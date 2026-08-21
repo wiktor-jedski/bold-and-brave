@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createSimulation } from '../core/simulation'
+import type { SimulationProjection } from '../core/simulation'
 import { createBrowserApplication, runApplicationStartup } from './compositionRoot'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './startup/surface'
+import { createDeviceLossCoordinator, DEVICE_LOST_MESSAGE } from './startup/deviceLoss'
 import type { StartupCapabilityEnvironment } from './startup'
 import type { PresentationRenderer, WebGPURendererFactory } from './presentation'
-import type { FrameCallback, FrameScheduler } from './runtime'
+import type { FrameCallback, FramePresenter, FrameScheduler } from './runtime'
 
 /**
  * One recorded capability operation of the ordered startup gate, in the
@@ -49,8 +51,32 @@ const ADAPTER_LIMITS = {
   maxBindGroups: 4,
 }
 
+/** A `GPUDevice.lost` promise that never resolves, for fixtures that must not lose. */
+const NEVER_LOST = new Promise<GPUDeviceLostInfo>(() => {})
+
 /** The one device fixture of the capability gate and the exact device handoff. */
-const GATE_DEVICE = {} as unknown as GPUDevice
+const GATE_DEVICE = { lost: NEVER_LOST } as unknown as GPUDevice
+
+/** Build a fake device whose `GPUDevice.lost` promise the test controls. */
+function createFakeDevice(lost: Promise<GPUDeviceLostInfo>): GPUDevice {
+  return { lost } as unknown as GPUDevice
+}
+
+/** A promise whose settlement the test controls. */
+interface Deferred<T> {
+  /** Settle the deferred promise as fulfilled. */
+  resolve(value: T): void
+  /** The pending promise. */
+  promise: Promise<T>
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { resolve, promise }
+}
 
 /** Build a fake `GPU` whose every call is recorded. */
 function createFakeGpu(
@@ -164,6 +190,8 @@ const captured: CapturedCalls = { deviceDescriptors: [], factoryDevices: [] }
 
 /** A controlled `requestAnimationFrame`-style scheduler for deterministic frame requests. */
 interface ControlledFrameScheduler extends FrameScheduler {
+  /** Fire the oldest pending frame callback with `timestamp`. */
+  fire(timestamp: number): void
   /** Number of pending, not yet fired frame requests. */
   pendingCount(): number
 }
@@ -183,6 +211,14 @@ function createControlledFrameScheduler(): ControlledFrameScheduler {
     cancelFrame(handle) {
       pending = pending.filter((entry) => entry.handle !== handle)
     },
+    fire(timestamp) {
+      const [entry, ...rest] = pending
+      if (entry === undefined) {
+        throw new Error('no pending frame request to fire')
+      }
+      pending = rest
+      entry.callback(timestamp)
+    },
     pendingCount() {
       return pending.length
     },
@@ -197,23 +233,28 @@ type SurfaceCall =
   | 'progress'
   | 'load-failed'
   | 'ready'
+  | 'device-lost'
   | 'mount-canvas'
 
 /** The recording delivery-state surface, proving the exact ordered state trace. */
 interface RecordingSurface extends DeliveryStateSurface {
   /** Every state transition in call order. */
   readonly calls: SurfaceCall[]
-  /** Every `Unsupported` or `Load failed` message received, in call order. */
+  /** Every `Unsupported`, `Load failed`, or `Device lost` message received, in call order. */
   readonly messages: string[]
+  /** Every Reload action received from `showDeviceLost`, in call order. */
+  readonly reloads: Array<() => void>
 }
 
 /** Build a recording delivery-state surface. */
 function createRecordingSurface(): RecordingSurface {
   const calls: SurfaceCall[] = []
   const messages: string[] = []
+  const reloads: Array<() => void> = []
   return {
     calls,
     messages,
+    reloads,
     showStartup() {
       calls.push('startup')
     },
@@ -233,6 +274,11 @@ function createRecordingSurface(): RecordingSurface {
     },
     showReady() {
       calls.push('ready')
+    },
+    showDeviceLost(message: string, reload: () => void) {
+      calls.push('device-lost')
+      messages.push(message)
+      reloads.push(reload)
     },
     mountCanvas() {
       calls.push('mount-canvas')
@@ -715,5 +761,350 @@ describe('composed Phase 6 startup (ARCH-006, ARCH-009, ARCH-010, ARCH-023, ARCH
     expect(surface.messages).toEqual([
       'The Three.js renderer selected a non-WebGPU backend; WebGL fallback is rejected.',
     ])
+  })
+
+  it('resolves GPUDevice.lost during Loading Scene: closes the input gate and terminal-stops before Device lost, keeps the loss tick and projection, ignores later callbacks, and blocks restart', async () => {
+    const capabilityOperations: CapabilityOperation[] = []
+    const backendOperations: BackendOperation[] = []
+    captured.deviceDescriptors.length = 0
+    captured.factoryDevices.length = 0
+
+    const lost = createDeferred<GPUDeviceLostInfo>()
+    const device = createFakeDevice(lost.promise)
+    const fakeRenderer = createFakeRenderer(
+      backendOperations,
+      { isWebGPUBackend: true },
+      Promise.resolve(),
+    )
+    const factory = createFakeFactory(backendOperations, fakeRenderer)
+    const fakeAdapter = createFakeAdapter(
+      capabilityOperations,
+      ADAPTER_INFO,
+      ADAPTER_LIMITS,
+      Promise.resolve(device),
+    )
+    const gpu = createFakeGpu(capabilityOperations, fakeAdapter)
+    const environment = createEnvironment(capabilityOperations, true, gpu)
+    const scheduler = createControlledFrameScheduler()
+    const surface = createRecordingSurface()
+    const application = createBrowserApplication(createSimulation, scheduler)
+    const reloadCalls: string[] = []
+    // The coordinator is wired with the exact device before the runtime or
+    // Scene-loading handoff starts (REQ-134, REQ-138, PVS-WEB-005); the
+    // handoff enters `Loading Scene` through its guarded surface.
+    const coordinator = createDeviceLossCoordinator({
+      device,
+      runtime: application.runtime,
+      surface,
+      reload() {
+        reloadCalls.push('reload')
+      },
+    })
+    const handoff: SceneLoadingHandoff = () => {
+      coordinator.surface.showLoadingScene()
+    }
+
+    await runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      deviceLoss: coordinator,
+    })
+
+    // The governed `Loading Scene` state is reached and the one runtime
+    // frame loop runs with the gameplay-input gate open.
+    expect(surface.calls).toEqual(['startup', 'loading-scene'])
+    expect(application.runtime.acceptsGameplayInput()).toBe(true)
+    expect(scheduler.pendingCount()).toBe(1)
+
+    // The active Simulation advances: one delayed rendered frame of 200 ms
+    // owes 12 fixed intervals, processed at most five per frame.
+    scheduler.fire(0)
+    scheduler.fire(200)
+    expect(application.simulation.readProjection().tick).toBe(5)
+
+    // The complete projection at the loss is the projection after the last
+    // tick before the loss signal resolves.
+    const projectionAtLoss = application.simulation.readProjection()
+
+    lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The gameplay-input gate closed and the terminal stop occurred before
+    // `Device lost`: the pending frame was canceled so no later tick can
+    // be dispatched (REQ-138, PVS-WEB-005).
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(coordinator.lost).toBe(true)
+    expect(surface.calls).toEqual(['startup', 'loading-scene', 'device-lost'])
+    expect(surface.messages).toEqual([DEVICE_LOST_MESSAGE])
+
+    // The loss tick and the complete projection never change.
+    expect(application.simulation.readProjection().tick).toBe(5)
+    expect(application.simulation.readProjection()).toEqual(projectionAtLoss)
+
+    // Runtime restart cannot reopen the gate and schedules no frame: the
+    // terminal stop is irreversible.
+    application.runtime.start()
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+
+    // Every later delivery callback through the guarded surface is
+    // ignored: no load-progress, load-failure, Retry, or Ready can run
+    // after the loss, and the one Reload action has not been invoked.
+    coordinator.surface.showProgress({ stage: 'download', receivedBytes: 1, totalBytes: 2 })
+    coordinator.surface.showLoadFailed('later failure', () => {})
+    coordinator.surface.showReady()
+    expect(surface.calls).toEqual(['startup', 'loading-scene', 'device-lost'])
+    expect(surface.messages).toEqual([DEVICE_LOST_MESSAGE])
+    expect(reloadCalls).toEqual([])
+  })
+
+  it('resolves GPUDevice.lost during Ready after the active Simulation advances: detaches presentation, keeps the loss projection, and blocks restart', async () => {
+    const capabilityOperations: CapabilityOperation[] = []
+    const backendOperations: BackendOperation[] = []
+    captured.deviceDescriptors.length = 0
+    captured.factoryDevices.length = 0
+
+    const lost = createDeferred<GPUDeviceLostInfo>()
+    const device = createFakeDevice(lost.promise)
+    const fakeRenderer = createFakeRenderer(
+      backendOperations,
+      { isWebGPUBackend: true },
+      Promise.resolve(),
+    )
+    const factory = createFakeFactory(backendOperations, fakeRenderer)
+    const fakeAdapter = createFakeAdapter(
+      capabilityOperations,
+      ADAPTER_INFO,
+      ADAPTER_LIMITS,
+      Promise.resolve(device),
+    )
+    const gpu = createFakeGpu(capabilityOperations, fakeAdapter)
+    const environment = createEnvironment(capabilityOperations, true, gpu)
+    const scheduler = createControlledFrameScheduler()
+    const surface = createRecordingSurface()
+    const application = createBrowserApplication(createSimulation, scheduler)
+    const reloadCalls: string[] = []
+    const coordinator = createDeviceLossCoordinator({
+      device,
+      runtime: application.runtime,
+      surface,
+      reload() {
+        reloadCalls.push('reload')
+      },
+    })
+    const presented: SimulationProjection[] = []
+    const presenter: FramePresenter = {
+      present(projection: SimulationProjection): void {
+        presented.push(projection)
+      },
+    }
+    const handoff: SceneLoadingHandoff = () => {
+      // The production handoff enters `Loading Scene`, mounts the canvas,
+      // binds the Three.js frame presenter into the runtime's presenter
+      // slot, and enters `Ready` after the real load passes (ARCH-022).
+      coordinator.surface.showLoadingScene()
+      coordinator.surface.mountCanvas({} as HTMLCanvasElement)
+      application.runtime.presenterSlot.presenter = presenter
+      coordinator.surface.showReady()
+    }
+
+    await runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      deviceLoss: coordinator,
+    })
+
+    expect(surface.calls).toEqual(['startup', 'loading-scene', 'mount-canvas', 'ready'])
+    expect(application.runtime.acceptsGameplayInput()).toBe(true)
+
+    // The active Simulation advances and presents on the one frame loop:
+    // the baseline frame presents tick 0, the delayed 200 ms frame
+    // dispatches five ticks and presents tick 5 (ARCH-008, REQ-118).
+    scheduler.fire(0)
+    scheduler.fire(200)
+    expect(application.simulation.readProjection().tick).toBe(5)
+    expect(presented).toHaveLength(2)
+
+    const projectionAtLoss = application.simulation.readProjection()
+    lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The terminal stop detached presentation: the presenter slot is
+    // cleared, the pending frame is canceled, and the input gate is
+    // permanently closed (REQ-138, PVS-WEB-005).
+    expect(application.runtime.presenterSlot.presenter).toBeNull()
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+    expect(coordinator.lost).toBe(true)
+    expect(surface.calls).toEqual([
+      'startup',
+      'loading-scene',
+      'mount-canvas',
+      'ready',
+      'device-lost',
+    ])
+    expect(surface.messages).toEqual([DEVICE_LOST_MESSAGE])
+
+    // The loss tick and the complete projection never change, and no
+    // presenter call can run after the loss.
+    expect(application.simulation.readProjection()).toEqual(projectionAtLoss)
+    expect(presented).toHaveLength(2)
+
+    // Runtime restart cannot reopen the gate and schedules no frame.
+    application.runtime.start()
+    expect(scheduler.pendingCount()).toBe(0)
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+
+    // Every later delivery callback through the guarded surface is
+    // ignored.
+    coordinator.surface.showReady()
+    expect(surface.calls).toEqual([
+      'startup',
+      'loading-scene',
+      'mount-canvas',
+      'ready',
+      'device-lost',
+    ])
+    expect(reloadCalls).toEqual([])
+  })
+
+  it('enters Device lost and one Reload repeats every startup gate on a fresh application in order', async () => {
+    const capabilityOperations: CapabilityOperation[] = []
+    const backendOperations: BackendOperation[] = []
+    captured.deviceDescriptors.length = 0
+    captured.factoryDevices.length = 0
+
+    const lost = createDeferred<GPUDeviceLostInfo>()
+    const device = createFakeDevice(lost.promise)
+    const fakeRenderer = createFakeRenderer(
+      backendOperations,
+      { isWebGPUBackend: true },
+      Promise.resolve(),
+    )
+    const factory = createFakeFactory(backendOperations, fakeRenderer)
+    const fakeAdapter = createFakeAdapter(
+      capabilityOperations,
+      ADAPTER_INFO,
+      ADAPTER_LIMITS,
+      Promise.resolve(device),
+    )
+    const gpu = createFakeGpu(capabilityOperations, fakeAdapter)
+    const environment = createEnvironment(capabilityOperations, true, gpu)
+    const scheduler = createControlledFrameScheduler()
+    const surface = createRecordingSurface()
+    const application = createBrowserApplication(createSimulation, scheduler)
+
+    // The Reload operation of the terminal state performs the browser
+    // reload: after navigation the normal composition root repeats every
+    // startup gate on a fresh application (REQ-134, PVS-WEB-001). The test
+    // records the gate order of the fresh composed startup.
+    const reloadCapabilityOperations: CapabilityOperation[] = []
+    const reloadBackendOperations: BackendOperation[] = []
+    const reloadSurface = createRecordingSurface()
+    const reloadScheduler = createControlledFrameScheduler()
+    const reloadHandoffs: PresentationRenderer[] = []
+    let reloadRuns = 0
+    const coordinator = createDeviceLossCoordinator({
+      device,
+      runtime: application.runtime,
+      surface,
+      reload() {
+        reloadRuns += 1
+        const reloadDevice = createFakeDevice(new Promise<GPUDeviceLostInfo>(() => {}))
+        const reloadRenderer = createFakeRenderer(
+          reloadBackendOperations,
+          { isWebGPUBackend: true },
+          Promise.resolve(),
+        )
+        const reloadFactory = createFakeFactory(reloadBackendOperations, reloadRenderer)
+        const reloadAdapter = createFakeAdapter(
+          reloadCapabilityOperations,
+          ADAPTER_INFO,
+          ADAPTER_LIMITS,
+          Promise.resolve(reloadDevice),
+        )
+        const reloadGpu = createFakeGpu(reloadCapabilityOperations, reloadAdapter)
+        const reloadEnvironment = createEnvironment(reloadCapabilityOperations, true, reloadGpu)
+        const reloadApplication = createBrowserApplication(createSimulation, reloadScheduler)
+        const reloadHandoff: SceneLoadingHandoff = (renderer) => {
+          reloadHandoffs.push(renderer)
+          // The production handoff enters the `Loading Scene` delivery
+          // state before any asset work (REQ-134, PVS-WEB-001).
+          reloadSurface.showLoadingScene()
+        }
+        // The fresh composition root runs without an injected coordinator:
+        // the production path wires the device-loss coordinator itself.
+        void runApplicationStartup(reloadApplication, reloadSurface, {
+          environment: reloadEnvironment,
+          factory: reloadFactory,
+          handoff: reloadHandoff,
+        })
+      },
+    })
+    const handoff: SceneLoadingHandoff = () => {
+      coordinator.surface.showLoadingScene()
+      coordinator.surface.showReady()
+    }
+
+    await runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      deviceLoss: coordinator,
+    })
+    expect(surface.calls).toEqual(['startup', 'loading-scene', 'ready'])
+
+    lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The terminal `Device lost` state shows one readable semantic failure
+    // and one Reload action and exposes no other action (REQ-134,
+    // PVS-WEB-001).
+    expect(coordinator.lost).toBe(true)
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+    expect(surface.calls).toEqual(['startup', 'loading-scene', 'ready', 'device-lost'])
+    expect(surface.messages).toEqual([DEVICE_LOST_MESSAGE])
+    expect(surface.reloads).toHaveLength(1)
+    expect(reloadRuns).toBe(0)
+
+    // One explicit Reload performs the browser reload operation exactly
+    // once; the semantic surface guards the one reload call even after
+    // repeated loss signals or clicks (REQ-134, PVS-WEB-001).
+    surface.reloads[0]()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(reloadRuns).toBe(1)
+
+    // The fresh application ran the complete ordered startup: the secure
+    // context, WebGPU presence, adapter, device, Three.js-backend, and
+    // Scene-loading gates in the governed order (REQ-134, PVS-WEB-001).
+    expect(reloadCapabilityOperations).toEqual([
+      'secure-context',
+      'navigator.gpu',
+      'requestAdapter',
+      'adapter.info',
+      'adapter.limits',
+      'requestDevice',
+    ])
+    expect(reloadBackendOperations).toEqual([
+      'factory.create',
+      'renderer.init',
+      'renderer.backend',
+      'renderer.backend',
+    ])
+    expect(reloadSurface.calls).toEqual(['startup', 'loading-scene'])
+    expect(reloadHandoffs).toEqual([expect.anything()])
+    // The fresh runtime started exactly one frame loop.
+    expect(reloadScheduler.pendingCount()).toBe(1)
   })
 })
