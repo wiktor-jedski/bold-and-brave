@@ -9,8 +9,10 @@
  * and the animation time. This module owns the evidence shape and the
  * validation that compares a record with the Band nodes actually authored
  * in the committed glTF file, so the check observes the authored nodes
- * and never a second copy. The vitest mismatch tests prove that every
- * wrong value is rejected before it can produce passing evidence.
+ * and never a second copy. The promised-row spec rejects every wrong
+ * value — a missing, wrong, or extra presented node, too few presented
+ * frames, or an animation that did not advance — before it writes the
+ * evidence file.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

@@ -16,7 +16,6 @@
     "test:presentation": "vitest run src/browser/presentation",
     "test:support-row": "vitest run scripts/check-support-row.test.ts",
     "test:startup-record": "vitest run scripts/startup-record.test.ts",
-    "test:frame-presentation": "vitest run scripts/frame-presentation-record.test.ts",
     "check:support-row": "bun scripts/check-support-row.ts",
     "check:scene-manifest": "bun scripts/check-scene-manifest.ts",
     "test:architecture": "vitest run src/browser scripts/check-dependencies.test.ts",
