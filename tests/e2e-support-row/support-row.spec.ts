@@ -241,26 +241,37 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
     await route.continue()
   })
 
-  // Instrument `requestAnimationFrame` before any page script runs: the
-  // application owns exactly one game frame loop — the Browser Runtime
-  // (ARCH-006, ARCH-008). Three.js's `WebGPURenderer` additionally keeps
-  // its own internal `requestAnimationFrame` bookkeeping chain after
-  // initialization (it renders nothing and advances no tick), so exactly
-  // two chains are ever concurrently pending: the runtime loop and the
-  // renderer's internal loop. A second application frame loop would add a
-  // third concurrent request, and a stopped runtime would leave only the
-  // renderer chain.
+  // Instrument `requestAnimationFrame` before any page script runs to
+  // observe the application frame loop. The application owns exactly one
+  // loop — the Browser Runtime (ARCH-006, ARCH-008). Three.js's
+  // WebGPURenderer also keeps an internal bookkeeping chain (its
+  // `Animation.update` callback, recognizable by the `autoReset` field it
+  // resets each frame); that chain renders nothing and advances no tick,
+  // so it is excluded from the application-loop measurement.
   await page.addInitScript(() => {
     const original = window.requestAnimationFrame
-    let pending = 0
-    let maxPending = 0
-    ;(window as unknown as { __boldAndBraveMaxPendingFrames: () => number }).__boldAndBraveMaxPendingFrames =
-      () => maxPending
+    let appPending = 0
+    let appMaxPending = 0
+    const appChainRequests = new Map<() => void, number>()
+    ;(window as unknown as {
+      __boldAndBraveAppLoop: () => { appMaxPending: number; appChainCounts: number[] }
+    }).__boldAndBraveAppLoop = () => ({
+      appMaxPending,
+      appChainCounts: Array.from(appChainRequests.values()),
+    })
     window.requestAnimationFrame = (callback) => {
-      pending += 1
-      maxPending = Math.max(maxPending, pending)
+      const source = Function.prototype.toString.call(callback)
+      const isThreeInternal =
+        source.includes('autoReset') || source.includes('_context.requestAnimationFrame')
+      if (!isThreeInternal) {
+        appPending += 1
+        appMaxPending = Math.max(appMaxPending, appPending)
+        appChainRequests.set(callback, (appChainRequests.get(callback) ?? 0) + 1)
+      }
       return original((timestamp) => {
-        pending -= 1
+        if (!isThreeInternal) {
+          appPending -= 1
+        }
         callback(timestamp)
       })
     }
@@ -287,18 +298,20 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
   // renderer, device, or canvas exists.
   await expect(page.locator('canvas')).toHaveCount(1)
 
-  // The one application frame loop stays the only game loop: over an
-  // observation window of real frames, the maximum of concurrently pending
-  // frame requests is exactly two — the Browser Runtime loop and the
-  // WebGPURenderer's internal bookkeeping chain (ARCH-006, ARCH-008). A
-  // second application frame loop would raise the maximum to three.
+  // The application owns exactly one frame loop: over an observation
+  // window of real frames, at most one application frame request is ever
+  // pending, and exactly one application callback keeps requesting frames
+  // (ARCH-006, ARCH-008). A second application frame loop would raise the
+  // pending maximum to two or add a second self-perpetuating callback.
   await page.waitForTimeout(1000)
-  const maxPendingFrames = await page.evaluate(
+  const appLoop = await page.evaluate(
     () =>
-      (window as unknown as { __boldAndBraveMaxPendingFrames: () => number })
-        .__boldAndBraveMaxPendingFrames(),
+      (window as unknown as {
+        __boldAndBraveAppLoop: () => { appMaxPending: number; appChainCounts: number[] }
+      }).__boldAndBraveAppLoop(),
   )
-  expect(maxPendingFrames).toBe(2)
+  expect(appLoop.appMaxPending).toBe(1)
+  expect(appLoop.appChainCounts.filter((count) => count >= 2)).toHaveLength(1)
 
   // The product reports the machine-readable Scene-load record only after
   // the real load passed (REQ-136).
