@@ -28,10 +28,13 @@
  * first failed check, and enters `Loading Scene` only after every check
  * passes (REQ-134, PVS-WEB-001). Startup starts the one Browser Runtime
  * and invokes the Scene-loading handoff only on success; a failure starts
- * neither and cannot run a later gate. This wiring keeps the Three.js
- * WebGPU renderer in the production bundle, so the built product carries
- * the WebGPU-only rendering dependency and no WebGL fallback path
- * (REQ-011, PVS-SCP-006).
+ * neither and cannot run a later gate. The production handoff then loads
+ * the startup Scene with the initialized renderer through the authored
+ * startup manifest (ARCH-022, REQ-136): the product visibly reports
+ * download, decode, GPU upload, and Scene readiness and enters `Ready`.
+ * This wiring keeps the Three.js WebGPU renderer in the production bundle,
+ * so the built product carries the WebGPU-only rendering dependency and no
+ * WebGL fallback path (REQ-011, PVS-SCP-006).
  *
  * Browser bootstrap dependencies point toward the ports the core owns; the
  * composition root imports no private Simulation implementation file.

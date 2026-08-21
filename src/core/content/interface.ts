@@ -80,3 +80,41 @@ export interface BandMemberContent {
   /** The fixed Coin cost to add this member to a new campaign. */
   readonly costCoin: number
 }
+
+/**
+ * The authored presentation content of one glTF Scene asset (ARCH-016,
+ * PVS-WEB-003, REQ-136).
+ *
+ * The asset is a committed authored glTF file that the built product
+ * downloads by `source` and decodes with `GLTFLoader` (ARCH-009). The
+ * `source` reference is the production fetch path of the same committed
+ * file the content-contract check resolves, so the authored asset and the
+ * loaded asset are never two copies (REQ-136).
+ */
+export interface SceneAssetContent {
+  /** The stable build-internal asset ID. */
+  readonly id: string
+  /** The authored asset kind; the slice authors glTF assets. */
+  readonly kind: 'gltf'
+  /** The production fetch reference of the committed authored glTF file. */
+  readonly source: string
+}
+
+/**
+ * The authored manifest of one Scene (ARCH-016, PVS-WEB-003, REQ-136).
+ *
+ * A Scene is a separately loaded 3D space representing a settlement,
+ * battlefield, camp, or other notable location entered from the Overworld
+ * (CONTEXT.md). The startup manifest authors the one initial Scene
+ * `poc-overworld` and its glTF environment asset
+ * `poc-overworld-environment`; the Scene loader reads the manifest through
+ * the public core catalog and loads its assets by Scene (REQ-136).
+ */
+export interface SceneContent {
+  /** The stable build-internal Scene ID. */
+  readonly id: string
+  /** The player-facing name of the Scene. */
+  readonly name: string
+  /** The authored assets of the Scene. */
+  readonly assets: readonly SceneAssetContent[]
+}

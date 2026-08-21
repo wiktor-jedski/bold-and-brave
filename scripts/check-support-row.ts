@@ -78,6 +78,17 @@ export const ENVIRONMENT_RECORD_PATH = join('test-results', 'support-row', 'envi
 export const STARTUP_RECORD_PATH = join('test-results', 'support-row', 'startup.json')
 
 /**
+ * The machine-readable Phase 7 Scene-load evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * reaches `Ready` through the real Scene load and the Scene-load record
+ * passes validation, so a failed or mismatched load never leaves passing
+ * Scene-load evidence. The gate removes any stale file before a new run so
+ * the only `scene-load.json` present belongs to the latest accepted run.
+ */
+export const SCENE_LOAD_RECORD_PATH = join('test-results', 'support-row', 'scene-load.json')
+
+/**
  * Parse the product name and version from a Chromium `--version` output
  * line, e.g. `Chromium 151.0.7922.137 Arch Linux`.
  */
@@ -350,11 +361,12 @@ export function checkSupportRowSystem(promise: SupportPromise): SupportRowSystem
 /** Run the local promised-row acceptance: gate, then Playwright. */
 function main(): void {
   // Remove any stale evidence from a previous run up front: whatever the
-  // outcome of this run, the only `environment.json` and `startup.json`
-  // that may exist afterwards belong to an accepted run of this invocation
-  // (REQ-013).
+  // outcome of this run, the only `environment.json`, `startup.json`, and
+  // `scene-load.json` that may exist afterwards belong to an accepted run
+  // of this invocation (REQ-013).
   rmSync(ENVIRONMENT_RECORD_PATH, { force: true })
   rmSync(STARTUP_RECORD_PATH, { force: true })
+  rmSync(SCENE_LOAD_RECORD_PATH, { force: true })
 
   const { facts, rejections } = checkSupportRowSystem(SUPPORT_PROMISE)
   if (rejections.length > 0) {
