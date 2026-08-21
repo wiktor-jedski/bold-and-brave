@@ -58,3 +58,15 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 - Phase 6 stops at the `Loading Scene` handoff. It proves that each failed gate prevents that handoff, but it does not test download, decode, GPU upload, Scene readiness, or the `Ready` state. Phase 7 owns those checks.
 - Phase 6 uses focused Vitest and Playwright checks and the local promised-row command. It does not generate the linked `CP-SUPPORT-GATE` PNG set or final evidence manifest. Phases 42–44 own the acceptance catalog, checkpoint data, and visual provenance.
+
+## Phase 7 — Scene loading and renderer boundary
+
+### Clarifications
+
+- The project owner selected the Overworld as the first loaded Scene because a new campaign starts on the Overworld. Use the stable Scene ID `poc-overworld` and one small authored glTF asset with ID `poc-overworld-environment`. Phase 38 owns the representative visual detail.
+- The project owner defined Scene readiness as the point when the decoded asset is attached to the Three.js Scene, GPU preparation is complete, and one WebGPU frame presents the current read-only Simulation projection. Phase 7 adds no authoritative Scene or location state. Phase 9 owns authoritative Overworld location and movement.
+
+### Testing coverage deviations
+
+- The project owner selected real WebGPU e2e verification. Phase 7 adds no focused unit test because unit tests are forbidden on phase and master branches. General CI checks types, dependency direction, architecture, the build, existing browser seams, and the real public-content-catalog-to-Scene-asset contract. The promised-workstation Playwright command exercises the real successful and failed WebGPU Scene loads.
+- The project owner assigned the final `CP-SUPPORT-LOAD` WebM files and evidence manifest to Phases 42–44, which own the scenario catalog, checkpoint data, and visual provenance.
