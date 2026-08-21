@@ -252,6 +252,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     }
     const handoff = createSceneLoadingHandoff(
       surface,
+      application.runtime.presenterSlot,
       dependenciesWithCommittedAsset(),
       recorder,
     )

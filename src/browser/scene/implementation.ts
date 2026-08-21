@@ -235,5 +235,11 @@ export async function loadStartupScene(
     stages,
     backend: renderer.backend.isWebGPUBackend === true ? 'webgpu' : 'webgl',
     animationClips: gltf.animations.map((clip) => clip.name),
+    // The presentation handle of the loaded Scene (ARCH-022, ARCH-009,
+    // REQ-118): the Scene-loading handoff binds the Three.js frame
+    // presenter with the one Scene, camera, and mixer after the load
+    // passes, and the presenter renders the read-only Simulation output
+    // on the one Browser Runtime frame loop (ARCH-008).
+    presentation: { scene: threeScene, camera, mixer },
   }
 }

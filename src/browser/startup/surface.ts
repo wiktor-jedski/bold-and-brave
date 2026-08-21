@@ -29,7 +29,9 @@ import { loadStartupScene, productionSceneLoadDependencies, SCENE_LOAD_STAGE_LAB
 import type { SceneLoadDependencies, SceneLoadProgress, SceneLoadReporter } from '../scene'
 import { buildSceneLoadRecord, productionSceneLoadRecorder, SCENE_LOAD_READY_STATE } from '../scene/record'
 import type { SceneLoadRecorder } from '../scene/record'
+import { createScenePresenter, productionFramePresentationPublisher } from '../presentation'
 import type { PresentationRenderer } from '../presentation'
+import type { PresenterSlot } from '../runtime'
 
 /**
  * The delivery-state presentation driven by startup (REQ-134, PVS-WEB-001,
@@ -94,7 +96,7 @@ export interface SceneLoadingHandoff {
 
 /**
  * Build the production Scene-loading handoff (REQ-134, PVS-WEB-001,
- * REQ-136).
+ * REQ-136, REQ-118).
  *
  * The production handoff enters the `Loading Scene` delivery state and runs
  * the real startup Scene load (ARCH-022): it reads the authored startup
@@ -102,14 +104,18 @@ export interface SceneLoadingHandoff {
  * Scene loader with the initialized WebGPU renderer, visibly reports the
  * ordered download, decode, GPU-upload, and Scene-readiness stages, adds
  * the renderer canvas to the existing product surface, publishes the
- * machine-readable Scene-load record, and enters `Ready` after the real
- * load passes. The load sets no elapsed-time limit and owns no timer
- * (REQ-136, PVS-WEB-003). `dependencies` and `recorder` are injectable so
- * tests drive the real handoff with recording collaborators; production
- * uses the real Scene-load dependencies and the browser recorder.
+ * machine-readable Scene-load record, binds the Three.js frame presenter
+ * into the runtime's presenter slot — so the runtime presents the current
+ * read-only Simulation output on the one frame loop (ARCH-008, REQ-118) —
+ * and enters `Ready` after the real load passes. The load sets no
+ * elapsed-time limit and owns no timer (REQ-136, PVS-WEB-003).
+ * `dependencies` and `recorder` are injectable so tests drive the real
+ * handoff with recording collaborators; production uses the real Scene-load
+ * dependencies and the browser recorder.
  */
 export function createSceneLoadingHandoff(
   surface: DeliveryStateSurface,
+  presenterSlot: PresenterSlot,
   dependencies: SceneLoadDependencies = productionSceneLoadDependencies,
   recorder: SceneLoadRecorder = productionSceneLoadRecorder,
 ): SceneLoadingHandoff {
@@ -132,6 +138,18 @@ export function createSceneLoadingHandoff(
         // Publish the machine-readable record only after the real load
         // passes (REQ-136).
         recorder.record(buildSceneLoadRecord(renderer, result))
+        // Bind the Three.js frame presenter into the runtime's presenter
+        // slot: from the next rendered frame the one Browser Runtime loop
+        // reads the current immutable projection after each fixed-tick
+        // batch and presents it once with the interpolation timing
+        // (ARCH-008, ARCH-012, REQ-118). The presenter owns only Three.js
+        // objects, load state, and interpolation history, and has no write
+        // path to the Simulation (PVS-ARC-008).
+        const presenter = createScenePresenter(result.presentation, renderer)
+        presenterSlot.presenter = presenter
+        // Expose the presentation-only facts of the frame loop for the
+        // promised-row acceptance (ARCH-024, REQ-118).
+        productionFramePresentationPublisher.publish(presenter)
         // Enter `Ready` only after the real load passes (REQ-136,
         // PVS-WEB-001).
         surface.showReady()

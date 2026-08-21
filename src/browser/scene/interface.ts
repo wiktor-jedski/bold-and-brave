@@ -70,9 +70,10 @@ export interface SceneLoadReporter {
  *
  * The loader returns the grounded facts of the successful load — the
  * authored identifiers, the exact stage order, the initialized backend,
- * and the authored animation clip names — so the machine-readable
- * Scene-load record and the delivery surface derive from what the load
- * actually did.
+ * the authored animation clip names, and the presentation handle of the
+ * loaded Scene — so the machine-readable Scene-load record, the delivery
+ * surface, and the frame presenter derive from what the load actually
+ * did.
  */
 export interface SceneLoadSuccess {
   /** The loaded Scene ID from the authored manifest. */
@@ -85,6 +86,15 @@ export interface SceneLoadSuccess {
   readonly backend: 'webgpu' | 'webgl'
   /** The names of the authored animation clips of the loaded asset. */
   readonly animationClips: readonly string[]
+  /**
+   * The presentation handle of the loaded Scene (ARCH-009, REQ-118).
+   *
+   * The Scene-loading handoff binds the Three.js frame presenter with this
+   * handle after the load passes; the presenter owns the Scene, camera,
+   * and mixer and renders the read-only Simulation output on the one
+   * Browser Runtime frame loop (ARCH-008).
+   */
+  readonly presentation: ScenePresentation
 }
 
 /**
@@ -116,6 +126,10 @@ export interface SceneGltfResult {
 
 /** The structural object surface the loader attaches and animates. */
 export interface SceneObject3D {
+  /** The authored glTF node name, which equals the projected Band member ID. */
+  readonly name: string
+  /** Presentation-only visibility of the node (ARCH-009). */
+  visible: boolean
   /** Add a child object to this object. */
   add(object: unknown): void
 }
@@ -130,14 +144,17 @@ export interface SceneAnimationClip {
  * The structural animation mixer surface (ARCH-009).
  *
  * The loader creates exactly one `AnimationMixer` for the loaded glTF and
- * starts the first authored clip; later phases advance it from the current
- * projection tick on the one frame loop (ARCH-008).
+ * starts the first authored clip; the frame presenter advances it from the
+ * current projection tick and interpolation value on the one frame loop
+ * (ARCH-008, REQ-118).
  */
 export interface SceneAnimationMixer {
   /** Start the authored clip named `name`. */
   clipAction(clip: SceneAnimationClip): { play(): void }
   /** Advance the mixer to `time`. */
   update(time: number): void
+  /** Set the absolute mixer time in seconds (ARCH-009). */
+  setTime(time: number): void
 }
 
 /** The structural third-person camera surface the loader creates. */
@@ -152,6 +169,36 @@ export interface SceneCamera {
 export interface SceneGraph {
   /** Add a child object to the Scene. */
   add(object: unknown): void
+  /**
+   * Find a descendant node by its authored name, or `undefined` (ARCH-009).
+   *
+   * The real Three.js `Object3D.getObjectByName` returns `undefined` when
+   * no node matches; the frame presenter uses the projected Band member
+   * IDs as names to bind the presentation-only Band nodes of the loaded
+   * asset (REQ-118).
+   */
+  getObjectByName(name: string): SceneObject3D | undefined
+}
+
+/**
+ * The presentation handle of the loaded startup Scene (ARCH-022,
+ * ARCH-009, REQ-118).
+ *
+ * The loader attaches the decoded glTF to one Three.js Scene, creates one
+ * third-person `PerspectiveCamera` and the required `AnimationMixer` with
+ * the first authored clip, and hands this handle back with the load
+ * result; the Scene-loading handoff binds the Three.js frame presenter
+ * with it after the real load passes, so the presenter advances the mixer
+ * and renders one frame per rendered frame of the Browser Runtime loop
+ * (ARCH-008).
+ */
+export interface ScenePresentation {
+  /** The one Three.js Scene the decoded asset was attached to. */
+  readonly scene: SceneGraph
+  /** The one third-person camera of the Scene. */
+  readonly camera: SceneCamera
+  /** The one AnimationMixer playing the first authored clip. */
+  readonly mixer: SceneAnimationMixer
 }
 
 /**

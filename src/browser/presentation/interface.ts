@@ -10,6 +10,7 @@
  * disposes the rejected renderer, and exposes no WebGL fallback path
  * (PVS-WEB-001, PVS-SCP-006).
  */
+import type { SimulationProjection } from '../../core'
 
 /**
  * The minimal renderer surface the backend gate reads.
@@ -117,3 +118,55 @@ export interface PresentationSuccess {
 
 /** The result of the Three.js WebGPU backend gate. */
 export type PresentationResult = PresentationUnsupported | PresentationSuccess
+
+/**
+ * The presentation-only facts of the rendered frame loop (ARCH-008,
+ * ARCH-009, REQ-118).
+ *
+ * The presenter reports exactly what it presented: the names of the Band
+ * nodes it rendered, the count of presented frames since the Scene was
+ * bound, and the animation time of the last presented frame. The record
+ * contains presentation state only — Three.js node names, frame metrics,
+ * and interpolation history — and never a projection, resource value,
+ * combat result, relationship result, fate result, or outcome
+ * (PVS-ARC-008). The promised-row acceptance reads this record from the
+ * built product to prove that the two projected initial Band members are
+ * rendered and that the authored animation advances from the current
+ * projection tick and interpolation value on the existing frame loop.
+ */
+export interface FramePresentationRecord {
+  /**
+   * The Band-member node IDs shown by the last presented projection.
+   *
+   * Exactly the projected members whose nodes exist in the loaded Scene
+   * are reported, in projection order. A bound node hidden because its
+   * member is no longer projected is not reported, so the record always
+   * matches the last presented projection.
+   */
+  readonly presentedNodes: readonly string[]
+  /** The count of presented frames since the Scene was bound. */
+  readonly presentedFrames: number
+  /** The animation time of the last presented frame, in Simulation seconds. */
+  readonly animationTime: number
+}
+
+/**
+ * The Three.js Presentation Adapter frame presenter (ARCH-009, REQ-118,
+ * PVS-ARC-008).
+ *
+ * The Browser Runtime calls `present` exactly once per rendered frame,
+ * after each fixed-tick batch, passing only the current immutable
+ * projection and the interpolation timing (ARCH-008, ARCH-012). The
+ * presenter uses projected Band IDs to update presentation-only node
+ * visibility, advances the authored animation from the projection tick and
+ * interpolation value, and renders one frame through WebGPU. It owns only
+ * Three.js objects, load state, and interpolation history, stores no
+ * authoritative state, and has no write path to the Simulation: missing or
+ * delayed presentation output cannot change an outcome.
+ */
+export interface ScenePresenter {
+  /** Present one frame from the current immutable projection and interpolation timing. */
+  present(projection: SimulationProjection, interpolation: number): void
+  /** Read the presentation-only facts of the last presented frame. */
+  readFramePresentation(): FramePresentationRecord
+}

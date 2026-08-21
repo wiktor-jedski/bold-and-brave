@@ -44,8 +44,10 @@ import { expect, test } from '@playwright/test'
 import { SUPPORT_PROMISE } from '../../src/browser/support'
 import type { StartupRecord } from '../../src/browser/startup'
 import type { SceneLoadRecord } from '../../src/browser/scene'
+import type { FramePresentationRecord } from '../../src/browser/presentation'
 import {
   ENVIRONMENT_RECORD_PATH,
+  FRAME_PRESENTATION_RECORD_PATH,
   SCENE_LOAD_RECORD_PATH,
   STARTUP_RECORD_PATH,
   SYSTEM_FACTS_PATH,
@@ -63,6 +65,10 @@ import {
   readAuthoredAnimationNames,
   validateSceneLoadEvidenceRecord,
 } from '../../scripts/scene-load-record'
+import {
+  readAuthoredBandNodeNames,
+  validateFramePresentationEvidenceRecord,
+} from '../../scripts/frame-presentation-record'
 
 /** Project root: the promised-row command always runs from the repo root. */
 const PROJECT_ROOT = process.cwd()
@@ -78,6 +84,9 @@ const STARTUP_RECORD_FILE = join(PROJECT_ROOT, STARTUP_RECORD_PATH)
 
 /** The machine-readable Phase 7 Scene-load evidence file written only after validation passes. */
 const SCENE_LOAD_RECORD_FILE = join(PROJECT_ROOT, SCENE_LOAD_RECORD_PATH)
+
+/** The machine-readable frame-presentation evidence file written only after validation passes. */
+const FRAME_PRESENTATION_RECORD_FILE = join(PROJECT_ROOT, FRAME_PRESENTATION_RECORD_PATH)
 
 /**
  * The local promised-row command launches the system Chromium at the
@@ -284,6 +293,20 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
   const state = page.locator('#delivery-state')
   await expect(state).toHaveText('Ready', { timeout: 120_000 })
 
+  // Read the presentation facts of the frame loop right after `Ready`:
+  // the Scene-loading handoff bound the Three.js frame presenter into the
+  // runtime's presenter slot before entering `Ready`, so this first read
+  // establishes the baseline of the rendered frame loop (ARCH-008,
+  // REQ-118).
+  const readFramePresentation = (): Promise<FramePresentationRecord | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveFramePresentation?: () => FramePresentationRecord
+      }).__boldAndBraveFramePresentation
+      return read === undefined ? null : read()
+    })
+  const firstPresentation = await readFramePresentation()
+
   // The product visibly reported the ordered download, decode, GPU-upload,
   // and Scene-readiness stages (PVS-WEB-003): the accumulated progress
   // list shows all four labels in order.
@@ -312,6 +335,42 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
   )
   expect(appLoop.appMaxPending).toBe(1)
   expect(appLoop.appChainCounts.filter((count) => count >= 2)).toHaveLength(1)
+
+  // The frame loop presented the two projected initial Band members and
+  // advanced the authored animation from the current projection tick and
+  // interpolation value on the existing frame loop (ARCH-008, REQ-118,
+  // PVS-ARC-008): the second read reports both authored Band nodes, at
+  // least the required presented frames, and an animation time beyond
+  // zero, and both the frame count and the animation time advanced since
+  // the first read.
+  const secondPresentation = await readFramePresentation()
+  expect(firstPresentation).not.toBeNull()
+  expect(secondPresentation).not.toBeNull()
+
+  // A missing, wrong, or extra presented node, too few presented frames,
+  // or an animation that did not advance fails here, before the evidence
+  // file is written (REQ-118, PVS-ARC-008). The authored Band-node names
+  // come from the committed authored glTF file, so the check observes the
+  // authored nodes and not a second copy.
+  const presentationRejections = validateFramePresentationEvidenceRecord(
+    secondPresentation as FramePresentationRecord,
+    readAuthoredBandNodeNames(PROJECT_ROOT),
+  )
+  expect(presentationRejections).toEqual([])
+  expect((secondPresentation as FramePresentationRecord).presentedFrames).toBeGreaterThan(
+    (firstPresentation as FramePresentationRecord).presentedFrames,
+  )
+  expect((secondPresentation as FramePresentationRecord).animationTime).toBeGreaterThan(
+    (firstPresentation as FramePresentationRecord).animationTime,
+  )
+
+  // Machine-readable frame-presentation evidence, written only after
+  // validation passes.
+  mkdirSync(dirname(FRAME_PRESENTATION_RECORD_FILE), { recursive: true })
+  writeFileSync(
+    FRAME_PRESENTATION_RECORD_FILE,
+    `${JSON.stringify(secondPresentation, null, 2)}\n`,
+  )
 
   // The product reports the machine-readable Scene-load record only after
   // the real load passed (REQ-136).

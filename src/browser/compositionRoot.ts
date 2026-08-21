@@ -31,7 +31,13 @@
  * neither and cannot run a later gate. The production handoff then loads
  * the startup Scene with the initialized renderer through the authored
  * startup manifest (ARCH-022, REQ-136): the product visibly reports
- * download, decode, GPU upload, and Scene readiness and enters `Ready`.
+ * download, decode, GPU upload, and Scene readiness, binds the Three.js
+ * frame presenter into the runtime's presenter slot, and enters `Ready`.
+ * From then on the one frame loop reads the current immutable projection
+ * after each fixed-tick batch and presents it once with the interpolation
+ * timing (ARCH-008, ARCH-012, REQ-118); the presenter owns only Three.js
+ * objects, load state, and interpolation history and has no write path to
+ * the Simulation (PVS-ARC-008).
  * This wiring keeps the Three.js WebGPU renderer in the production bundle,
  * so the built product carries the WebGPU-only rendering dependency and no
  * WebGL fallback path (REQ-011, PVS-SCP-006).
@@ -208,6 +214,10 @@ export async function runApplicationStartup(
   recorder.record(buildStartupRecord(capability, backend))
 
   application.runtime.start()
-  const handoff = dependencies.handoff ?? createSceneLoadingHandoff(surface)
+  // The production handoff binds the Three.js frame presenter into the
+  // runtime's presenter slot after the startup Scene load passes, so the
+  // one frame loop presents the current read-only Simulation output with
+  // the interpolation timing (ARCH-008, REQ-118).
+  const handoff = dependencies.handoff ?? createSceneLoadingHandoff(surface, application.runtime.presenterSlot)
   handoff(backend.renderer)
 }
