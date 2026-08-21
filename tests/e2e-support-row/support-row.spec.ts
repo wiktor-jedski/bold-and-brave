@@ -73,11 +73,12 @@ import {
   validateStartupEvidenceRecord,
 } from '../../scripts/startup-record'
 import {
-  collapsedSceneLoadEventKinds,
   readAuthoredAnimationNames,
+  RETRIED_SCENE_LOAD_EVENT_KINDS,
   SUCCESS_SCENE_LOAD_EVENT_KINDS,
   validateRetriedSceneLoadEvidenceRecord,
   validateSceneLoadEvidenceRecord,
+  validateSceneLoadEventLog,
 } from '../../scripts/scene-load-record'
 import {
   readAuthoredBandNodeNames,
@@ -468,19 +469,83 @@ test('the promised row loads the startup Scene to Ready with visible ordered pro
   expect(rejections).toEqual([])
 
   // The browser console carried the same structured records with both
-  // identifiers (REQ-137, PVS-WEB-004): the exact ordered event kinds of
-  // the first-attempt success, so `Ready` was reached only after the
+  // identifiers and the exact applicable payload fields (REQ-137,
+  // PVS-WEB-004): the same complete event-log validation gates the
+  // machine-readable record, so `Ready` was reached only after the
   // required console records.
   await Promise.all(consoleCapture.pending)
-  const consoleKinds = collapsedSceneLoadEventKinds(consoleCapture.records)
-  expect(consoleKinds).toEqual(SUCCESS_SCENE_LOAD_EVENT_KINDS)
+  const consoleRejections = validateSceneLoadEventLog(
+    consoleCapture.records,
+    SUCCESS_SCENE_LOAD_EVENT_KINDS,
+    false,
+  )
+  expect(consoleRejections).toEqual([])
   expect(consoleCapture.records).toHaveLength(
     (reported as SceneLoadRecord).events.length,
   )
-  for (const record of consoleCapture.records) {
-    expect(record.sceneId).toBe('poc-overworld')
-    expect(record.assetId).toBe('poc-overworld-environment')
-  }
+
+  // Hostile-record evidence: the same validator that gates the Scene-load
+  // evidence must reject every malformed diagnostic record — a duplicate
+  // non-progress record, a missing applicable stage, a missing byte field,
+  // an invalid byte relationship, and a WebGL backend — so invalid data
+  // makes the command nonzero and leaves no passing Scene-load record.
+  const valid = reported as SceneLoadRecord
+  expect(
+    validateSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: [
+          valid.events[0],
+          valid.events[1],
+          ...valid.events.slice(1),
+        ],
+      },
+      readAuthoredAnimationNames(PROJECT_ROOT),
+    ),
+  ).not.toEqual([])
+  expect(
+    validateSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'decode' ? { ...event, stage: 'upload' } : event,
+        ),
+      },
+      readAuthoredAnimationNames(PROJECT_ROOT),
+    ),
+  ).not.toEqual([])
+  expect(
+    validateSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'progress'
+            ? { ...event, receivedBytes: undefined }
+            : event,
+        ),
+      },
+      readAuthoredAnimationNames(PROJECT_ROOT),
+    ),
+  ).not.toEqual([])
+  expect(
+    validateSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'ready'
+            ? { ...event, receivedBytes: event.totalBytes === null ? undefined : 0 }
+            : event,
+        ),
+      },
+      readAuthoredAnimationNames(PROJECT_ROOT),
+    ),
+  ).not.toEqual([])
+  expect(
+    validateSceneLoadEvidenceRecord(
+      { ...valid, backend: 'webgl' },
+      readAuthoredAnimationNames(PROJECT_ROOT),
+    ),
+  ).not.toEqual([])
 })
 
 /**
@@ -608,27 +673,94 @@ test('the promised row stops at the first asset failure with Load failed and one
   expect(rejections).toEqual([])
 
   // The browser console carried the same structured journey with both
-  // identifiers in every record, including the first error and the retried
-  // success (REQ-137, PVS-WEB-004).
+  // identifiers and the exact applicable payload fields in every record,
+  // including the first error and the retried success (REQ-137,
+  // PVS-WEB-004): the same complete event-log validation that gates the
+  // machine-readable record also gates the console records.
   await Promise.all(consoleCapture.pending)
-  expect(collapsedSceneLoadEventKinds(consoleCapture.records)).toEqual([
-    'scene-load',
-    'failure',
-    'scene-load',
-    'download',
-    'progress',
-    'decode',
-    'upload',
-    'ready',
-    'complete',
-  ])
+  const consoleRejections = validateSceneLoadEventLog(
+    consoleCapture.records,
+    RETRIED_SCENE_LOAD_EVENT_KINDS,
+    true,
+  )
+  expect(consoleRejections).toEqual([])
   expect(consoleCapture.records).toHaveLength(
     (reported as SceneLoadRecord).events.length,
   )
-  for (const record of consoleCapture.records) {
-    expect(record.sceneId).toBe('poc-overworld')
-    expect(record.assetId).toBe('poc-overworld-environment')
-  }
+
+  // Hostile-record evidence: the same validator that gates the Scene-load
+  // evidence must reject every malformed diagnostic record — a duplicate
+  // non-progress record, a missing applicable stage, a missing byte field,
+  // an empty failure message, an automatic-retry journey, and a WebGL
+  // backend — so invalid data makes the command nonzero and leaves no
+  // passing Scene-load record (REQ-134, REQ-136, REQ-137).
+  const valid = reported as SceneLoadRecord
+  const authoredAnimationNames = readAuthoredAnimationNames(PROJECT_ROOT)
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: [
+          valid.events[0],
+          valid.events[1],
+          ...valid.events.slice(1),
+        ],
+      },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'download' ? { ...event, receivedBytes: 1 } : event,
+        ),
+      },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'upload' ? { ...event, totalBytes: undefined } : event,
+        ),
+      },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: valid.events.map((event) =>
+          event.event === 'failure' ? { ...event, message: '' } : event,
+        ),
+      },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      {
+        ...valid,
+        events: [
+          ...valid.events.slice(0, 2),
+          valid.events[1],
+          ...valid.events.slice(2),
+        ],
+      },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
+  expect(
+    validateRetriedSceneLoadEvidenceRecord(
+      { ...valid, backend: 'webgl' },
+      authoredAnimationNames,
+    ),
+  ).not.toEqual([])
 
   // Machine-readable Phase 7 Scene-load evidence of the retried journey,
   // written only after validation passes.

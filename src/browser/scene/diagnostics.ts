@@ -17,7 +17,9 @@
  * log. The log accumulates across explicit Retries, so the record carries
  * the exact event order of the whole journey — the first error, the
  * first-error stop, the one explicit retry, and the final success
- * (REQ-134, PVS-WEB-001).
+ * (REQ-134, PVS-WEB-001). The log satisfies a deeply frozen contract:
+ * every event is frozen on ingestion and the `events` accessor returns a
+ * frozen snapshot, so no consumer can mutate the log.
  *
  * The console seam is injectable so the integration tests prove the exact
  * console records without a browser; production binds the real browser
@@ -108,12 +110,20 @@ export const productionSceneLoadConsole: SceneLoadConsole = {
  * The collector appends every record to the ordered event log of the load
  * journey and publishes each record to the browser console. The Scene-load
  * handoff reads the log to build the machine-readable Scene-load record,
- * so the console records and the record are the same grounded facts.
+ * so the console records and the record are the same grounded facts. The
+ * event log satisfies a deeply frozen contract: each read returns a frozen
+ * snapshot, so no consumer can mutate the log.
  */
 export interface SceneLoadDiagnostics {
   /** Record one event and write its structured console record. */
   record(event: SceneLoadDiagnosticEvent): void
-  /** The ordered event log of the load journey. */
+  /**
+   * A frozen snapshot of the ordered event log of the load journey.
+   *
+   * Every read returns a fresh frozen copy, so callers can never mutate
+   * the collector's log; the machine-readable Scene-load record is built
+   * from this snapshot.
+   */
   readonly events: readonly SceneLoadDiagnosticEvent[]
 }
 
@@ -121,16 +131,21 @@ export interface SceneLoadDiagnostics {
  * Create the Scene-load diagnostics collector (REQ-137, PVS-WEB-004).
  *
  * Production binds the real browser console; tests inject a recording
- * console to prove the exact console records. The event log is deeply
- * frozen plain data so the machine-readable record serializes directly to
- * JSON.
+ * console to prove the exact console records. Each event is deeply frozen
+ * on ingestion, and the `events` accessor returns a frozen snapshot, so
+ * the event log satisfies its deeply frozen contract and serializes
+ * directly to JSON.
  */
 export function createSceneLoadDiagnostics(
   consoleSeam: SceneLoadConsole = productionSceneLoadConsole,
 ): SceneLoadDiagnostics {
   const events: SceneLoadDiagnosticEvent[] = []
   return {
-    events,
+    get events(): readonly SceneLoadDiagnosticEvent[] {
+      // A fresh frozen snapshot per read: the log itself stays mutable
+      // inside the collector while no consumer can mutate it (F2).
+      return Object.freeze([...events])
+    },
     record(event: SceneLoadDiagnosticEvent): void {
       const frozen = Object.freeze({ ...event })
       events.push(frozen)

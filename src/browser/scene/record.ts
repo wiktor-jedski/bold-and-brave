@@ -93,7 +93,9 @@ export function buildSceneLoadRecord(
     stages: Object.freeze([...result.stages]),
     backend: renderer.backend.isWebGPUBackend === true ? 'webgpu' : 'webgl',
     animationClips: Object.freeze([...result.animationClips]),
-    events: Object.freeze([...diagnostics.events]),
+    // The diagnostics `events` accessor already returns a frozen snapshot
+    // of the ordered event log, so the record carries it directly.
+    events: diagnostics.events,
     retries,
     failure:
       failureEvent === undefined

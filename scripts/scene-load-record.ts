@@ -93,30 +93,189 @@ export function readAuthoredAnimationNames(projectRoot: string): string[] {
 }
 
 /**
- * Collapse consecutive duplicate diagnostic event kinds.
+ * Collapse only consecutive `progress` diagnostic event kinds.
  *
  * The number of `progress` records depends on how the asset response
  * streams, so the exact event-order check compares the collapsed kind
- * sequence, which is deterministic for a given journey.
+ * sequence, which is deterministic for a given journey. Every other kind
+ * is kept as-is: a duplicate `scene-load`, `download`, `decode`, `upload`,
+ * `ready`, `complete`, or `failure` record, a missing record, or a record
+ * out of order changes the sequence and is rejected.
  */
 export function collapsedSceneLoadEventKinds(
   events: readonly SceneLoadDiagnosticEvent[],
 ): string[] {
   return events
     .map((event) => event.event)
-    .filter((kind, index, kinds) => index === 0 || kind !== kinds[index - 1])
+    .filter((kind, index, kinds) => {
+      if (kind !== 'progress') {
+        return true
+      }
+      return index === 0 || kinds[index - 1] !== 'progress'
+    })
+}
+
+/** The Scene-load stage names an event may carry. */
+const SCENE_LOAD_STAGE_NAMES: readonly string[] = ['download', 'decode', 'upload', 'ready']
+
+/** Whether `value` is a finite number (JSON-safe and bounded). */
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+/** Whether `value` is a valid total: a finite positive number or `null`. */
+function isValidTotalBytes(value: unknown): value is number | null {
+  return value === null || (isFiniteNumber(value) && value > 0)
+}
+
+/**
+ * Validate the applicable payload fields of one diagnostic record
+ * (REQ-137, PVS-WEB-004).
+ *
+ * Every kind requires exactly its applicable fields: the load-boundary
+ * records carry only the identifiers; the download stage carries its
+ * start byte counts; every progress record carries a received byte count
+ * within the declared total; the decode, GPU-upload, and readiness records
+ * carry the finished-download byte counts (equal to the declared total);
+ * and the failure record carries a non-empty readable message. A record
+ * with a missing applicable field, an unexpected field, a wrong stage, or
+ * an invalid byte relationship is rejected, so a malformed diagnostic
+ * record can never produce passing Scene-load evidence.
+ */
+export function validateSceneLoadEventPayload(
+  event: SceneLoadDiagnosticEvent,
+): string[] {
+  const rejections: string[] = []
+  const kind = event.event
+  const { stage, receivedBytes, totalBytes, message } = event
+
+  switch (kind) {
+    case 'scene-load':
+    case 'complete': {
+      if (stage !== undefined) {
+        rejections.push(`The ${kind} record must not carry a stage; found ${stage}.`)
+      }
+      if (receivedBytes !== undefined) {
+        rejections.push(`The ${kind} record must not carry received bytes; found ${receivedBytes}.`)
+      }
+      if (totalBytes !== undefined) {
+        rejections.push(`The ${kind} record must not carry a total; found ${totalBytes}.`)
+      }
+      if (message !== undefined) {
+        rejections.push(`The ${kind} record must not carry a message; found ${message}.`)
+      }
+      break
+    }
+    case 'download': {
+      if (stage !== 'download') {
+        rejections.push(`The download record carries stage ${stage ?? 'none'}; download is required.`)
+      }
+      if (receivedBytes !== 0) {
+        rejections.push(
+          `The download record carries ${receivedBytes ?? 'no'} received bytes; the stage-start value 0 is required.`,
+        )
+      }
+      if (!isValidTotalBytes(totalBytes)) {
+        rejections.push(
+          `The download record carries an invalid total ${String(totalBytes)}; a positive number or null is required.`,
+        )
+      }
+      if (message !== undefined) {
+        rejections.push(`The download record must not carry a message; found ${message}.`)
+      }
+      break
+    }
+    case 'progress': {
+      if (stage !== 'download') {
+        rejections.push(`The progress record carries stage ${stage ?? 'none'}; download is required.`)
+      }
+      if (!isFiniteNumber(receivedBytes) || receivedBytes <= 0) {
+        rejections.push(
+          `The progress record carries invalid received bytes ${String(receivedBytes)}; a positive finite number is required.`,
+        )
+      }
+      if (!isValidTotalBytes(totalBytes)) {
+        rejections.push(
+          `The progress record carries an invalid total ${String(totalBytes)}; a positive number or null is required.`,
+        )
+      }
+      if (
+        isFiniteNumber(receivedBytes) &&
+        isFiniteNumber(totalBytes) &&
+        receivedBytes > totalBytes
+      ) {
+        rejections.push(
+          `The progress record reports ${receivedBytes} of ${totalBytes} bytes; the received count must not exceed the total.`,
+        )
+      }
+      if (message !== undefined) {
+        rejections.push(`The progress record must not carry a message; found ${message}.`)
+      }
+      break
+    }
+    case 'decode':
+    case 'upload':
+    case 'ready': {
+      if (stage !== kind) {
+        rejections.push(`The ${kind} record carries stage ${stage ?? 'none'}; ${kind} is required.`)
+      }
+      if (!isFiniteNumber(receivedBytes) || receivedBytes < 0) {
+        rejections.push(
+          `The ${kind} record carries invalid received bytes ${String(receivedBytes)}; a non-negative finite number is required.`,
+        )
+      }
+      if (!isValidTotalBytes(totalBytes)) {
+        rejections.push(
+          `The ${kind} record carries an invalid total ${String(totalBytes)}; a positive number or null is required.`,
+        )
+      }
+      if (
+        isFiniteNumber(receivedBytes) &&
+        isFiniteNumber(totalBytes) &&
+        receivedBytes !== totalBytes
+      ) {
+        rejections.push(
+          `The ${kind} record reports ${receivedBytes} of ${totalBytes} bytes; decode follows the complete download, so the finished-download count must equal the declared total.`,
+        )
+      }
+      if (message !== undefined) {
+        rejections.push(`The ${kind} record must not carry a message; found ${message}.`)
+      }
+      break
+    }
+    case 'failure': {
+      if (typeof message !== 'string' || message === '') {
+        rejections.push('The failure record carries no readable error message.')
+      }
+      if (stage !== undefined && !SCENE_LOAD_STAGE_NAMES.includes(stage)) {
+        rejections.push(`The failure record carries unknown stage ${stage}.`)
+      }
+      if (receivedBytes !== undefined) {
+        rejections.push(`The failure record must not carry received bytes; found ${receivedBytes}.`)
+      }
+      if (totalBytes !== undefined) {
+        rejections.push(`The failure record must not carry a total; found ${totalBytes}.`)
+      }
+      break
+    }
+  }
+
+  return rejections
 }
 
 /**
  * Validate the diagnostic event log of one Scene-load journey (REQ-137,
  * PVS-WEB-004, REQ-134).
  *
- * Every record must carry both the authored Scene and asset identifiers;
- * the collapsed kind sequence must match the expected journey exactly, so
- * a missing stage, a later stage after the first error, or an automatic
- * retry changes the sequence and is rejected. When the journey must
- * contain the first error, exactly one `failure` record at the download
- * stage with a readable message is required.
+ * Every record must carry both the authored Scene and asset identifiers
+ * and exactly its applicable payload fields; the kind sequence must match
+ * the expected journey exactly (only consecutive `progress` records
+ * collapse, because their count depends on the response stream), so a
+ * missing stage, a duplicate non-progress record, a later stage after the
+ * first error, or an automatic retry changes the sequence and is
+ * rejected. When the journey must contain the first error, exactly one
+ * `failure` record at the download stage with a readable message is
+ * required.
  */
 export function validateSceneLoadEventLog(
   events: readonly SceneLoadDiagnosticEvent[],
@@ -137,6 +296,7 @@ export function validateSceneLoadEventLog(
         `Diagnostic event ${index} carries asset ID ${event.assetId}; the authored ${assetId} is required in every record.`,
       )
     }
+    rejections.push(...validateSceneLoadEventPayload(event))
   }
 
   const kinds = collapsedSceneLoadEventKinds(events)
@@ -156,9 +316,6 @@ export function validateSceneLoadEventLog(
         rejections.push(
           `The first error stopped at stage ${failure.stage ?? 'unknown'}; the download stage is required.`,
         )
-      }
-      if (typeof failure.message !== 'string' || failure.message === '') {
-        rejections.push('The first error record carries no readable error message.')
       }
     }
   } else if (failures.length !== 0) {
