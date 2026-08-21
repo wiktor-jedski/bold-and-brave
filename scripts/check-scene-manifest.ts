@@ -120,10 +120,11 @@ export function resolvePublicAsset(projectRoot: string, source: string): string 
  * Whether `file` is a committed authored glTF 2.0 file, not an arbitrary
  * existing file (ARCH-016, REQ-136).
  *
- * The authored startup asset is a glTF 2.0 JSON document; a file that does
- * not exist, is not a file, does not parse, or does not declare a glTF 2.0
- * asset version is rejected, so a placeholder file can never satisfy the
- * content contract.
+ * The authored startup asset is a glTF 2.0 JSON document declaring exactly
+ * the asset version `2.0`; a file that does not exist, is not a file, does
+ * not parse, or declares any other asset version (`1.0`, `2.1`, `20.0`,
+ * `2.0.0`, `2evil`) is rejected, so a placeholder file can never satisfy
+ * the content contract.
  */
 export function isAuthoredGltfFile(file: string): boolean {
   if (!existsSync(file) || !statSync(file).isFile()) {
@@ -133,8 +134,8 @@ export function isAuthoredGltfFile(file: string): boolean {
     const gltf = JSON.parse(readFileSync(file, 'utf8')) as {
       asset?: { version?: unknown }
     }
-    const version = gltf.asset?.version
-    return typeof version === 'string' && version.startsWith('2')
+    // glTF 2.0 assets declare exactly the asset version `2.0`.
+    return gltf.asset?.version === '2.0'
   } catch {
     return false
   }
