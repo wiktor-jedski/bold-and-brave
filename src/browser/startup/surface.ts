@@ -166,7 +166,12 @@ export interface SceneLoadingHandoff {
  * `dependencies`, `recorder`, and `consoleSeam` are injectable so tests
  * drive the real handoff with recording collaborators; production uses the
  * real Scene-load dependencies, the browser recorder, and the real browser
- * console.
+ * console. `isAborted` is the device-loss abort guard: the composition
+ * root binds the device-loss coordinator's terminal state, so an already
+ * resolving Scene-load completion or failure after a device-loss terminal
+ * stop records nothing, creates or attaches no presentation, publishes
+ * nothing, and schedules no later delivery work (REQ-134, REQ-138,
+ * PVS-WEB-005).
  */
 export function createSceneLoadingHandoff(
   surface: DeliveryStateSurface,
@@ -174,6 +179,18 @@ export function createSceneLoadingHandoff(
   dependencies: SceneLoadDependencies = productionSceneLoadDependencies,
   recorder: SceneLoadRecorder = productionSceneLoadRecorder,
   consoleSeam: SceneLoadConsole = productionSceneLoadConsole,
+  /**
+   * Whether the delivery was aborted by a resolved `GPUDevice.lost`
+   * (REQ-134, REQ-138, PVS-WEB-005).
+   *
+   * The composition root binds the device-loss coordinator's terminal
+   * state. An aborted delivery ignores an already resolving Scene-load
+   * completion or failure: it records no Scene-load record, creates or
+   * attaches no presentation, publishes no frame-presentation facts, and
+   * schedules no later delivery work — no `Ready`, `Load failed`, Retry,
+   * or re-run — after the terminal stop (REQ-134, PVS-WEB-001).
+   */
+  isAborted: () => boolean = () => false,
 ): SceneLoadingHandoff {
   return (renderer: PresentationRenderer): void => {
     // One diagnostics log per handoff invocation: the log accumulates
@@ -197,6 +214,15 @@ export function createSceneLoadingHandoff(
 
       void loadStartupScene(renderer, STARTUP_SCENE, dependencies, reporter, diagnostics)
         .then((result) => {
+          // An already resolving Scene-load completion after a device-loss
+          // terminal stop is ignored: it records nothing, creates or
+          // attaches no presentation, publishes nothing, and schedules no
+          // later delivery work (REQ-134, REQ-138, PVS-WEB-005). The
+          // guarded surface also swallows the surface calls, so the
+          // delivery stays at the terminal `Device lost` state.
+          if (isAborted()) {
+            return
+          }
           // Add the renderer canvas to the existing product surface
           // (ARCH-024): the one WebGPU canvas of the product.
           surface.mountCanvas(renderer.domElement)
@@ -222,6 +248,13 @@ export function createSceneLoadingHandoff(
           surface.showReady()
         })
         .catch((error: unknown) => {
+          // An already resolving Scene-load failure after a device-loss
+          // terminal stop schedules no later delivery work: no `Load
+          // failed` surface and no Retry action appear after the terminal
+          // `Device lost` state (REQ-134, PVS-WEB-001, PVS-WEB-005).
+          if (isAborted()) {
+            return
+          }
           // The first failed stage entered `Load failed` and ran no later
           // stage (REQ-134, PVS-WEB-001): show the readable error and one
           // semantic Retry action. The Retry uses the same initialized

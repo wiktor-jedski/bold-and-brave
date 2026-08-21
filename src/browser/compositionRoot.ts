@@ -270,9 +270,20 @@ export async function runApplicationStartup(
   // The production handoff binds the Three.js frame presenter into the
   // runtime's presenter slot after the startup Scene load passes, so the
   // one frame loop presents the current read-only Simulation output with
-  // the interpolation timing (ARCH-008, REQ-118).
+  // the interpolation timing (ARCH-008, REQ-118). The handoff receives the
+  // device-loss abort guard: an already resolving Scene-load completion or
+  // failure after the terminal stop records nothing, creates or attaches
+  // no presentation, publishes nothing, and schedules no later delivery
+  // work (REQ-134, REQ-138, PVS-WEB-005).
   const handoff =
     dependencies.handoff ??
-    createSceneLoadingHandoff(deliverySurface, application.runtime.presenterSlot)
+    createSceneLoadingHandoff(
+      deliverySurface,
+      application.runtime.presenterSlot,
+      undefined,
+      undefined,
+      undefined,
+      () => loss.lost,
+    )
   handoff(backend.renderer)
 }

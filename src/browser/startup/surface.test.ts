@@ -9,8 +9,8 @@ import { renderSupportPromise } from '../support/surface'
 import type { StartupCapabilityEnvironment } from './index'
 import { createSceneLoadingHandoff, renderDeliveryState } from './surface'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './surface'
-import { DEVICE_LOST_MESSAGE } from './deviceLoss'
-import type { SceneLoadDependencies } from '../scene'
+import { createDeviceLossCoordinator, DEVICE_LOST_MESSAGE } from './deviceLoss'
+import type { SceneLoadConsole, SceneLoadDependencies, SceneLoadDiagnosticEvent } from '../scene'
 import type { SceneLoadRecorder } from '../scene'
 import { productionSceneLoadDependencies } from '../scene'
 
@@ -72,6 +72,11 @@ const NEVER_LOST = new Promise<GPUDeviceLostInfo>(() => {})
 /** Build a fake device whose `GPUDevice.lost` promise is never lost. */
 function createStableDevice(): GPUDevice {
   return { lost: NEVER_LOST } as unknown as GPUDevice
+}
+
+/** Build a fake device whose `GPUDevice.lost` promise the test controls. */
+function createFakeDevice(lost: Promise<GPUDeviceLostInfo>): GPUDevice {
+  return { lost } as unknown as GPUDevice
 }
 
 /** Build the capability environment that passes every capability check. */
@@ -398,5 +403,185 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     // REQ-012, REQ-013).
     expect(host.textContent?.match(/Bold and Brave/g)).toHaveLength(1)
     expect(host.querySelectorAll('table')).toHaveLength(1)
+  })
+
+  it('runs no record, presentation, publish, or later delivery work when device loss aborts an in-flight Scene-load completion', async () => {
+    const lost = createDeferred<GPUDeviceLostInfo>()
+    const device = createFakeDevice(lost.promise)
+    const environment = createPassingEnvironment(Promise.resolve(device))
+    const factory = createPassingFactory()
+    const { host, surface } = composeProductSurface()
+    const application = createBrowserApplication(createSimulation)
+
+    // The asset download stays in flight while the device loss resolves.
+    let resolveDownload!: (response: Response) => void
+    const pendingFetch = new Promise<Response>((resolve) => {
+      resolveDownload = resolve
+    })
+    const dependencies: SceneLoadDependencies = {
+      ...productionSceneLoadDependencies,
+      fetchInput: () => pendingFetch,
+    }
+    const recorded: unknown[] = []
+    const recorder: SceneLoadRecorder = {
+      record(record: unknown) {
+        recorded.push(record)
+      },
+    }
+    const consoleRecords: SceneLoadDiagnosticEvent[] = []
+    const consoleSeam: SceneLoadConsole = {
+      info(record) {
+        consoleRecords.push(record)
+      },
+      error(record) {
+        consoleRecords.push(record)
+      },
+    }
+    const coordinator = createDeviceLossCoordinator({
+      device,
+      runtime: application.runtime,
+      surface,
+      reload() {},
+    })
+    const handoff = createSceneLoadingHandoff(
+      coordinator.surface,
+      application.runtime.presenterSlot,
+      dependencies,
+      recorder,
+      consoleSeam,
+      () => coordinator.lost,
+    )
+
+    const pending = runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      deviceLoss: coordinator,
+    })
+    await pending
+
+    // `Loading Scene` is entered and the asset download is still in
+    // flight (REQ-134, PVS-WEB-001).
+    const state = host.querySelector('#delivery-state')
+    expect(state?.textContent).toBe('Loading Scene')
+
+    // The device is lost while the load is in flight: the terminal stop
+    // aborts the delivery and enters `Device lost` (REQ-134, REQ-138,
+    // PVS-WEB-005).
+    lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(state?.textContent).toBe('Device lost')
+    expect(application.runtime.acceptsGameplayInput()).toBe(false)
+
+    // The already resolving load completion now settles. Wait until the
+    // load chain ran to its end — the structured console records prove
+    // the full download, decode, GPU-upload, readiness, and completion
+    // chain (REQ-137, PVS-WEB-004).
+    resolveDownload(committedAssetResponse())
+    await vi.waitFor(() => {
+      expect(consoleRecords.some((record) => record.event === 'complete')).toBe(true)
+    })
+
+    // The aborted completion ran no record, created or attached no
+    // presentation, published nothing, and scheduled no later delivery
+    // work: no Scene-load record, an empty presenter slot, no canvas, no
+    // progress list, and the delivery stays at the terminal `Device lost`
+    // state with exactly one Reload action (REQ-134, PVS-WEB-001,
+    // PVS-WEB-005).
+    expect(recorded).toEqual([])
+    expect(application.runtime.presenterSlot.presenter).toBeNull()
+    expect(host.querySelectorAll('canvas')).toHaveLength(0)
+    expect(host.querySelectorAll('#scene-progress')).toHaveLength(0)
+    expect(state?.textContent).toBe('Device lost')
+    const buttons = host.querySelectorAll('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].textContent).toBe('Reload')
+  })
+
+  it('does not enter Load failed or wire a Retry when device loss aborts an in-flight Scene-load failure', async () => {
+    const lost = createDeferred<GPUDeviceLostInfo>()
+    const device = createFakeDevice(lost.promise)
+    const environment = createPassingEnvironment(Promise.resolve(device))
+    const factory = createPassingFactory()
+    const { host, surface } = composeProductSurface()
+    const application = createBrowserApplication(createSimulation)
+
+    // The asset download stays in flight while the device loss resolves;
+    // it then fails.
+    let rejectDownload!: (reason: Error) => void
+    const pendingFetch = new Promise<Response>((_resolve, reject) => {
+      rejectDownload = reject
+    })
+    const dependencies: SceneLoadDependencies = {
+      ...productionSceneLoadDependencies,
+      fetchInput: () => pendingFetch,
+    }
+    const recorded: unknown[] = []
+    const recorder: SceneLoadRecorder = {
+      record(record: unknown) {
+        recorded.push(record)
+      },
+    }
+    const consoleRecords: SceneLoadDiagnosticEvent[] = []
+    const consoleSeam: SceneLoadConsole = {
+      info(record) {
+        consoleRecords.push(record)
+      },
+      error(record) {
+        consoleRecords.push(record)
+      },
+    }
+    const coordinator = createDeviceLossCoordinator({
+      device,
+      runtime: application.runtime,
+      surface,
+      reload() {},
+    })
+    const handoff = createSceneLoadingHandoff(
+      coordinator.surface,
+      application.runtime.presenterSlot,
+      dependencies,
+      recorder,
+      consoleSeam,
+      () => coordinator.lost,
+    )
+
+    const pending = runApplicationStartup(application, surface, {
+      environment,
+      factory,
+      handoff,
+      deviceLoss: coordinator,
+    })
+    await pending
+
+    const state = host.querySelector('#delivery-state')
+    expect(state?.textContent).toBe('Loading Scene')
+
+    // The device is lost while the load is in flight: the terminal stop
+    // aborts the delivery and enters `Device lost`.
+    lost.resolve({ message: 'device destroyed', reason: 'destroyed' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(state?.textContent).toBe('Device lost')
+
+    // The already resolving load failure now settles. Wait until the
+    // failure record reached the console (REQ-137, PVS-WEB-004).
+    rejectDownload(new Error('asset download failed'))
+    await vi.waitFor(() => {
+      expect(consoleRecords.some((record) => record.event === 'failure')).toBe(true)
+    })
+
+    // The aborted failure scheduled no later delivery work: no `Load
+    // failed` state, no Retry action, no Scene-load record, and no
+    // presenter attach — the delivery stays at the terminal `Device lost`
+    // state with exactly one Reload action (REQ-134, PVS-WEB-001,
+    // PVS-WEB-005).
+    expect(state?.textContent).toBe('Device lost')
+    const buttons = host.querySelectorAll('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].textContent).toBe('Reload')
+    expect(recorded).toEqual([])
+    expect(application.runtime.presenterSlot.presenter).toBeNull()
   })
 })
