@@ -12,6 +12,9 @@ _Avoid_: Full game, MVP, prototype
 The player-led group comprising the player character, any companions, and ordinary troops travelling and fighting together.
 _Avoid_: Warband, party, squad, army
 
+**Band pawn**:
+The single small-scale version of the player character that represents the whole Band on the Overworld. It does not show other individual Band members and is not a Combatant.
+
 **Combatant**:
 An individual participating in a battle, including the player character, Companions, Troops, enemy Agents, bandits, and settlement residents. Combatant describes battle participation and does not replace an individual's social identity or Agent fate.
 
@@ -64,7 +67,7 @@ A persistent capability chosen for the player character as a consequence of prog
 _Avoid_: Perk, talent, skill unlock
 
 **Overworld**:
-The simplified strategic map through which the Band travels between notable locations.
+The simplified top-down strategic 3D map through which the Band pawn travels between notable locations.
 _Avoid_: Main map, world map
 
 **Scene**:

@@ -66,6 +66,7 @@ All requirement and state tables in this file are normative.
 | --- | --- |
 | Playable Vertical Slice | The smallest self-contained version of Bold and Brave that delivers its defining player experience at representative quality and can anchor later development phases. |
 | Band | The player-led group that contains the player character, any Companions, and ordinary Troops who travel and fight together. |
+| Band pawn | The single small-scale version of the player character that represents the whole Band on the Overworld. It does not show other individual Band members and is not a Combatant. |
 | Combatant | A person who takes part in a battle. The term does not replace that person's social identity or Agent fate. |
 | Command group | The Companion or grouped Troops that receive one shared order. |
 | Hold position | A designated place in a Scene where a Command group defends near a visible marker until it gets another order. |
@@ -81,7 +82,7 @@ All requirement and state tables in this file are normative.
 | Captive | A Downed former enemy whom the Band retains through a Capture decision. |
 | Troop | An individually persistent but socially lightweight Band member who is defined mainly by equipment, health, and proficiency. |
 | Feat | A persistent player-character capability selected as a result of progression. |
-| Overworld | The simple strategic 3D space through which the Band travels between notable locations. |
+| Overworld | The simple top-down strategic 3D map through which the Band pawn travels between notable locations. |
 | Scene | A separately loaded 3D space for a settlement, battle, camp, or other notable location. |
 | Settlement condition | The post-contract `Safe` or `Damaged` state of the settlement. |
 | Raid location | The bridge for an on-time defense, or the settlement center for an entry after the Raid deadline. |
@@ -142,7 +143,7 @@ flowchart TD
 | ID | Class | Contract | Evidence |
 | --- | --- | --- | --- |
 | PVS-FLW-001 | MUST | Start a new campaign on the Overworld 1.5 world units, or 0.5 Overworld day at normal movement speed, outside the settlement entry boundary. | `CP-FLOW-CONTRACT` |
-| PVS-FLW-002 | MUST | Use direct click-to-move on traversable Overworld ground. Allow camera rotation and zoom. Advance campaign time only while the Band moves. Stop time and Provisions consumption while the Band is stationary or paused. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS` |
+| PVS-FLW-002 | MUST | Use one Band pawn that is a small-scale version of the player character to represent the whole Band on a top-down strategic 3D Overworld. Do not render separate individual Band members there. Use direct click-to-move on traversable Overworld ground. Allow camera rotation and zoom while retaining the top-down strategic view. Advance campaign time only while the Band pawn moves. Stop time and Provisions consumption while the Band pawn is stationary or paused. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS`, `CP-UI-HUD` |
 | PVS-FLW-003 | MUST | Make `Space` pause or unpause Overworld movement and time. Make keys `1`, `2`, `3`, and `4` select 1×, 2×, 3×, and 4× time speed. A speed key also unpauses a paused Overworld. | `CP-FLOW-CONTRACT` |
 | PVS-FLW-004 | MUST | At 1× speed, advance one Overworld hour in 5 real-time seconds. Apply the selected multiplier to movement, campaign time, and Provisions consumption without changing the distance-based result. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS` |
 | PVS-FLW-005 | MUST | Load the one settlement Scene automatically when the Band crosses its entry boundary. Keep the bridge and settlement center as areas in this same Scene. | `CP-FLOW-CONTRACT`, `CP-FLOW-LATE` |

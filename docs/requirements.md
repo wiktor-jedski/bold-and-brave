@@ -2085,3 +2085,15 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Verification | At `CP-REL-FAILURE` and `CP-SPEC-END-TO-END`, reach both Resolved and Failed results and pass when the Journal permits no contract or preparation change, `Talk` with Village Elder shows the authored reaction for the result and Varek outcome, and no retry control or transition is available. |
 
 **Notes:** Source: `PVS-FLW-016`. Replaces REQ-032.
+
+## REQ-170 — Overworld view and Band representation
+
+**Statement:** The Overworld shall use a top-down strategic 3D view and shall represent the whole Band as one Band pawn that is a small-scale version of the player character, without rendering separate individual Band members.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Constraint |
+| Status | Active |
+| Verification | At `CP-FLOW-CONTRACT` and `CP-UI-HUD`, inspect the built product and pass when camera rotation and zoom retain the top-down strategic 3D view, exactly one Band pawn visually matches the player character at a smaller scale and represents and moves the whole Band, and no separate player-character, Companion, or Troop model appears on the Overworld. |
+
+**Notes:** Source: `PVS-FLW-002`.

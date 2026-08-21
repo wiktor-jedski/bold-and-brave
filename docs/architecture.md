@@ -146,12 +146,12 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146 |
+| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146, REQ-170 |
 | Dependencies | ARCH-002, ARCH-006, ARCH-016 |
 
-**Responsibility:** Render Scenes and visual feedback from read-only gameplay output.
+**Responsibility:** Render the Overworld, Scenes, and visual feedback from read-only gameplay output.
 
-**Contract:** The adapter uses Three.js WebGPU for rendering. It owns the third-person camera, glTF loading, `AnimationMixer`, interpolation, lighting, visual effects, world markers, and canvas presentation. It consumes immutable projections and typed events. It stores no authoritative gameplay state and cannot decide combat, relationship, fate, or outcome results. A non-WebGPU Three.js backend cannot enter gameplay.
+**Contract:** The adapter uses Three.js WebGPU for rendering. It owns the top-down strategic Overworld camera, third-person Scene cameras, glTF loading, `AnimationMixer`, interpolation, lighting, visual effects, world markers, and canvas presentation. On the Overworld, it renders the whole Band as one Band pawn that is a small-scale version of the player character and does not render separate individual Band members. It consumes immutable projections and typed events. It stores no authoritative gameplay state and cannot decide combat, relationship, fate, or outcome results. A non-WebGPU Three.js backend cannot enter gameplay.
 
 ## ARCH-010 — DOM Interface Adapter
 
@@ -241,7 +241,7 @@ flowchart LR
 | --- | --- |
 | Type | Data |
 | Status | Active |
-| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121, REQ-167–REQ-169 |
+| Requirements | REQ-004, REQ-006–REQ-009, REQ-016–REQ-017, REQ-021–REQ-023, REQ-027, REQ-033, REQ-035, REQ-038, REQ-043, REQ-049, REQ-054–REQ-055, REQ-059, REQ-073, REQ-077–REQ-079, REQ-081, REQ-089, REQ-098, REQ-120–REQ-121, REQ-167–REQ-170 |
 | Dependencies | None |
 
 **Responsibility:** Define immutable authored gameplay and presentation content.
@@ -585,3 +585,4 @@ flowchart LR
 | REQ-167 | Initial named-Agent identities and state | ARCH-003, ARCH-016 |
 | REQ-168 | Relationship outcomes for Village Elder and Varek | ARCH-001, ARCH-003, ARCH-016 |
 | REQ-169 | Post-result restrictions and Village Elder reaction | ARCH-001, ARCH-003, ARCH-010, ARCH-016 |
+| REQ-170 | Overworld view and Band representation | ARCH-009, ARCH-016 |

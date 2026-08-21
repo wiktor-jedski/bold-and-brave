@@ -140,15 +140,15 @@ Phase 38 completes and audits visual consistency. It must not be the first phase
 
 ### Phase 9 — Overworld travel
 
-**Result:** A new campaign starts at the specified distance outside the settlement. Click-to-move, camera rotation, and camera zoom work on the free-roaming 3D Overworld. This phase replaces the technical box fixture with the first representative visual asset slice: a recognizable frontier area at the start boundary, visible player-character and Miro models, representative low-poly woodcut materials and lighting, and movement animation. Campaign time and Provisions advance only while the Band moves. The travel model can add another location without a new movement rule.
+**Result:** A new campaign starts at the specified distance outside the settlement. Click-to-move, camera rotation, and camera zoom work on the top-down strategic 3D Overworld. This phase replaces the technical box fixture with the first representative visual asset slice: a recognizable frontier map area at the start boundary, one Band pawn that is a small-scale version of the player character and represents the whole Band, representative low-poly woodcut terrain and pawn materials, lighting, and clear movement feedback. Campaign time and Provisions advance only while the Band pawn moves. The travel model can add another location without a new movement rule.
 
-**Requirements closed:** REQ-017, REQ-018, REQ-035, REQ-117.
+**Requirements closed:** REQ-017, REQ-018, REQ-035, REQ-117, REQ-170.
 
-**Phase check:** Move, stop, and pause at the start boundary. Confirm position, time, Provisions behavior, and deterministic steering. Inspect the built product and confirm that the representative frontier, both Band members, materials, lighting, and movement animation are visible and that the technical box fixture is absent.
+**Phase check:** Move, stop, and pause at the start boundary. Confirm position, time, Provisions behavior, and deterministic steering. Inspect the built product and confirm that the top-down strategic view, representative frontier map, one Band pawn that visually matches the player character at a smaller scale, materials, lighting, and movement feedback are visible and that the technical box fixture and separate Band-member models are absent.
 
-**Acceptance link:** `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS`.
+**Acceptance link:** `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS`, `CP-UI-HUD`.
 
-**Review focus:** Keep destination data separate from the travel rule. Confirm that the Scene, camera, movement, and exported assets use one production scale and that the runtime has no asset-generation dependency.
+**Review focus:** Keep destination data separate from the travel rule. Confirm that the Overworld camera, Band-pawn movement, and exported assets use one production scale and that the runtime has no asset-generation dependency. Confirm that individual Band members are not rendered on the Overworld.
 
 ### Phase 10 — Overworld time controls
 
