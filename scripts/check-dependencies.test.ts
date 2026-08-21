@@ -124,6 +124,85 @@ describe('dependency boundary rules (ARCH-001, ARCH-002, ARCH-024)', () => {
     }
   })
 
+  it('fails on a presentation file importing the public Simulation module entry (write path)', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import { createSimulation } from '../../core/simulation'\nvoid createSimulation\n",
+      )
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-presentation-simulation-write')
+      expect(violations[0].importer).toBe('browser/presentation/presenter.ts')
+      expect(violations[0].imported).toBe('core/simulation/index.ts')
+      expect(violations[0].specifier).toBe('../../core/simulation')
+      expect(violations[0].line).toBe(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails on a presentation file importing a private Simulation implementation file (write path)', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import { createSimulation } from '../../core/simulation/implementation'\nvoid createSimulation\n",
+      )
+
+      const violations = await checkProject(root)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0].rule).toBe('browser-private-simulation')
+      expect(violations[0].importer).toBe('browser/presentation/presenter.ts')
+      expect(violations[0].imported).toBe('core/simulation/implementation.ts')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a presentation file importing the projection type from the neutral core root', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(
+        join(root, 'core', 'index.ts'),
+        "export type { SimulationProjection } from './simulation'\n",
+      )
+      mkdirSync(join(root, 'browser', 'presentation'))
+      writeFileSync(
+        join(root, 'browser', 'presentation', 'presenter.ts'),
+        "import type { SimulationProjection } from '../../core'\nconst p: SimulationProjection | null = null\nvoid p\n",
+      )
+
+      expect(await checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts a non-presentation browser file importing the public Simulation module entry', async () => {
+    const root = makeFixtureProject()
+    try {
+      writeSimulationModule(root)
+      writeFileSync(
+        join(root, 'browser', 'runtime.ts'),
+        "import { createSimulation } from '../core/simulation'\nvoid createSimulation\n",
+      )
+
+      expect(await checkProject(root)).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('fails on a core content file importing the Three.js package', async () => {
     const root = makeFixtureProject()
     try {

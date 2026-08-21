@@ -13,6 +13,14 @@
  *      Typed Content Catalog — must not import browser code or the
  *      Three.js package, so the platform-neutral manifest can never
  *      depend on a browser or rendering library (ARCH-016, REQ-121).
+ *   4. `browser-presentation-simulation-write`: a file under
+ *      `src/browser/presentation` — the Three.js Presentation Adapter —
+ *      must not import any entry of `src/core/simulation`, not even the
+ *      public module entry. The adapter consumes only the immutable
+ *      projection value the Browser Runtime passes after each fixed-tick
+ *      batch (ARCH-008) and imports the projection type from the neutral
+ *      core root, so it can never reach the Simulation factory or the
+ *      single `advanceTick` write operation (REQ-118, PVS-ARC-008).
  *
  * Import extraction is a TypeScript AST traversal. The `typescript` package
  * already in the toolchain (v7) ships its native compiler as a server
@@ -54,7 +62,11 @@ import {
 import type { Node, NoSubstitutionTemplateLiteral, SourceFile, StringLiteral } from 'typescript/unstable/ast'
 import type { FileSystem } from 'typescript/unstable/fs'
 
-export type RuleId = 'core-to-browser' | 'browser-private-simulation' | 'core-content-import'
+export type RuleId =
+  | 'core-to-browser'
+  | 'browser-private-simulation'
+  | 'core-content-import'
+  | 'browser-presentation-simulation-write'
 
 export interface DependencyViolation {
   readonly rule: RuleId
@@ -337,6 +349,31 @@ export function checkRules(
     }
   }
 
+  // The Three.js Presentation Adapter must have no import edge to the
+  // Simulation module at all — not even the public entry — so it can never
+  // reach the factory or the single `advanceTick` write operation. The
+  // frame presenter receives only the immutable projection value through
+  // the Browser Runtime after each fixed-tick batch (ARCH-008, REQ-118,
+  // PVS-ARC-008) and imports the projection type from the neutral core
+  // root, so a presentation import of any Simulation file is a write-path
+  // violation.
+  if (
+    importerZone === BROWSER_ZONE &&
+    importerRel.startsWith(`${BROWSER_ZONE}${sep}presentation${sep}`) &&
+    importedFile !== null
+  ) {
+    const presentationImportedRel = relative(srcRoot, importedFile)
+    if (presentationImportedRel.startsWith(`${CORE_ZONE}${sep}${SIMULATION_DIR}${sep}`)) {
+      return {
+        rule: 'browser-presentation-simulation-write',
+        importer: toPosix(relative(srcRoot, importerFile)),
+        imported: toPosix(presentationImportedRel),
+        specifier,
+        line,
+      }
+    }
+  }
+
   return null
 }
 
@@ -406,7 +443,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    'Dependency rules OK: no core-to-browser, private-Simulation, or core-content-import found.',
+    'Dependency rules OK: no core-to-browser, private-Simulation, core-content-import, or presentation-Simulation import found.',
   )
 }
 

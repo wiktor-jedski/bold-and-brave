@@ -11,6 +11,7 @@ import { createSceneLoadingHandoff, renderDeliveryState } from './surface'
 import type { DeliveryStateSurface, SceneLoadingHandoff } from './surface'
 import type { SceneLoadDependencies } from '../scene'
 import type { SceneLoadRecorder } from '../scene'
+import type { FramePresentationRecord } from '../presentation'
 import { productionSceneLoadDependencies } from '../scene'
 
 /**
@@ -252,6 +253,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     }
     const handoff = createSceneLoadingHandoff(
       surface,
+      application.runtime.presenterSlot,
       dependenciesWithCommittedAsset(),
       recorder,
     )
@@ -291,6 +293,30 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       animationClips: ['poc-band-idle'],
       deliveryState: 'Ready',
     })
+
+    // The real load bound the Three.js frame presenter into the runtime's
+    // presenter slot: from the next rendered frame the one Browser Runtime
+    // loop reads the current immutable projection after each fixed-tick
+    // batch and presents it once with the interpolation timing (ARCH-008,
+    // ARCH-012, REQ-118).
+    const presenter = application.runtime.presenterSlot.presenter
+    expect(presenter).not.toBeNull()
+
+    // Presenting the initial projection through the bound presenter binds
+    // the two projected Band members of the loaded asset and exposes the
+    // presentation-only facts of the frame loop through the product
+    // getter: only the presented node names, frame count, and animation
+    // time — no projection, resource, combat, relationship, fate, or
+    // outcome value (REQ-118, PVS-ARC-008).
+    presenter?.present(application.simulation.readProjection(), 0)
+    const readFramePresentation = (window as unknown as {
+      __boldAndBraveFramePresentation?: () => FramePresentationRecord
+    }).__boldAndBraveFramePresentation
+    expect(readFramePresentation).toBeDefined()
+    const record = readFramePresentation?.()
+    expect(record?.presentedNodes).toEqual(['poc-player-character', 'poc-companion'])
+    expect(record?.presentedFrames ?? 0).toBeGreaterThanOrEqual(1)
+    expect(record?.animationTime ?? -1).toBeGreaterThanOrEqual(0)
 
     // The application still has one name and one support table (ARCH-024,
     // REQ-012, REQ-013).

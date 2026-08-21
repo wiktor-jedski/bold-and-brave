@@ -31,4 +31,5 @@ export type {
   SceneLoadStage,
   SceneLoadSuccess,
   SceneObject3D,
+  ScenePresentation,
 } from './interface'

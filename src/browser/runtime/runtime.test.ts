@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createSimulation } from '../../core/simulation'
+import type { SimulationProjection } from '../../core/simulation'
 import { createBrowserRuntime } from './index'
-import type { FrameCallback, FrameScheduler } from './index'
+import type { FrameCallback, FramePresenter, FrameScheduler, PresenterSlot } from './index'
 
 /** A controlled `requestAnimationFrame`-style scheduler for deterministic frame timestamps. */
 interface ControlledFrameScheduler extends FrameScheduler {
@@ -152,6 +153,156 @@ describe('Browser Runtime timing loop (ARCH-006, ARCH-008)', () => {
     scheduler.fire(1000)
     scheduler.fire(1000 + 17)
     expect(simulation.readProjection().tick).toBe(6)
+    runtime.stop()
+  })
+})
+
+/**
+ * The frame-presentation contract of the Browser Runtime (ARCH-008,
+ * ARCH-012, REQ-118): after each fixed-tick batch the runtime reads one
+ * immutable projection and calls the bound presenter once from the same
+ * frame loop, passing only the projection and the interpolation timing —
+ * the fractional fixed-tick remainder between the settled tick and the
+ * next tick. All due ticks dispatch before the single projection read and
+ * presentation call, and one next-frame request follows.
+ */
+describe('Browser Runtime frame presentation (ARCH-008, ARCH-012, REQ-118)', () => {
+  /** A recording presenter capturing every received projection and interpolation value. */
+  interface RecordingPresenter extends FramePresenter {
+    readonly received: Array<{ projection: SimulationProjection; interpolation: number }>
+  }
+
+  /** Build a recording presenter. */
+  function createRecordingPresenter(): RecordingPresenter {
+    const received: Array<{ projection: SimulationProjection; interpolation: number }> = []
+    return {
+      received,
+      present(projection: SimulationProjection, interpolation: number): void {
+        received.push({ projection, interpolation })
+      },
+    }
+  }
+
+  /** Build an unbound presenter slot. */
+  function createSlot(presenter: FramePresenter | null = null): PresenterSlot {
+    return { presenter }
+  }
+
+  it('reads one immutable projection and presents once per rendered frame after the tick batch', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const presenter = createRecordingPresenter()
+    const runtime = createBrowserRuntime(simulation, scheduler, createSlot(presenter))
+
+    runtime.start()
+    // The baseline frame presents the initial projection at tick 0.
+    scheduler.fire(0)
+    // One regular frame of one fixed interval dispatches one tick and
+    // presents the settled projection.
+    const frameDelta = 1000 / 60
+    scheduler.fire(frameDelta)
+    // A second regular frame dispatches the next tick.
+    scheduler.fire(2 * frameDelta)
+
+    expect(presenter.received).toHaveLength(3)
+    expect(presenter.received[0]?.projection.tick).toBe(0)
+    expect(presenter.received[1]?.projection.tick).toBe(1)
+    expect(presenter.received[2]?.projection.tick).toBe(2)
+    for (const entry of presenter.received) {
+      // The projection is the public immutable object: frozen and deeply
+      // readonly, so presentation cannot write authoritative state.
+      expect(Object.isFrozen(entry.projection)).toBe(true)
+    }
+    runtime.stop()
+  })
+
+  it('passes only the projection and the fractional interpolation timing between settled ticks', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const presenter = createRecordingPresenter()
+    const runtime = createBrowserRuntime(simulation, scheduler, createSlot(presenter))
+
+    runtime.start()
+    scheduler.fire(0)
+    // 25 ms is 1.5 fixed intervals: one whole tick is dispatched and the
+    // 0.5 fractional remainder is the interpolation value.
+    scheduler.fire(25)
+    // The next frame adds 0.6 intervals: combined with the retained 0.5
+    // remainder, 1.1 fixed intervals are due — one tick dispatches and the
+    // 0.1 remainder is the interpolation value.
+    scheduler.fire(35)
+
+    expect(presenter.received[1]?.projection.tick).toBe(1)
+    expect(presenter.received[1]?.interpolation).toBeCloseTo(0.5, 12)
+    expect(presenter.received[2]?.projection.tick).toBe(2)
+    expect(presenter.received[2]?.interpolation).toBeCloseTo(0.1, 12)
+    runtime.stop()
+  })
+
+  it('presents the settled projection with zero interpolation while retained catch-up debt exists', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const presenter = createRecordingPresenter()
+    const runtime = createBrowserRuntime(simulation, scheduler, createSlot(presenter))
+
+    runtime.start()
+    scheduler.fire(0)
+    // One delayed frame of 200 ms owes 12 ticks; five dispatch and the
+    // seven retained whole intervals mean the presentation is exactly at
+    // the settled tick with zero interpolation.
+    scheduler.fire(200)
+
+    expect(simulation.readProjection().tick).toBe(5)
+    expect(presenter.received).toHaveLength(2)
+    expect(presenter.received[1]).toEqual({
+      projection: simulation.readProjection(),
+      interpolation: 0,
+    })
+    runtime.stop()
+  })
+
+  it('dispatches all due ticks before the one projection read and one presentation call, then requests the next frame', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const presenter = createRecordingPresenter()
+    const runtime = createBrowserRuntime(simulation, scheduler, createSlot(presenter))
+
+    runtime.start()
+    scheduler.fire(0)
+    scheduler.fire(200)
+
+    // All due ticks dispatched first: the presented projection is already
+    // the settled tick-5 state. Exactly one presentation call followed,
+    // and one next-frame request is pending (ARCH-008).
+    expect(presenter.received).toHaveLength(2)
+    expect(presenter.received[1]?.projection.tick).toBe(5)
+    expect(scheduler.pendingCount()).toBe(1)
+
+    runtime.stop()
+    expect(scheduler.pendingCount()).toBe(0)
+  })
+
+  it('presents nothing while no presenter is bound and starts presenting from the next frame after binding', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const presenter = createRecordingPresenter()
+    const slot = createSlot(null)
+    const runtime = createBrowserRuntime(simulation, scheduler, slot)
+
+    runtime.start()
+    scheduler.fire(0)
+    scheduler.fire(1000 / 60)
+    // No presenter is bound yet (the startup Scene is still loading), so
+    // the runtime dispatched the due ticks without presenting.
+    expect(presenter.received).toHaveLength(0)
+    expect(simulation.readProjection().tick).toBe(1)
+
+    // The Scene-loading handoff binds the presenter into the runtime's
+    // slot; the next rendered frame presents once.
+    slot.presenter = presenter
+    scheduler.fire(2 * (1000 / 60))
+    expect(presenter.received).toHaveLength(1)
+    expect(presenter.received[0]?.projection.tick).toBe(2)
     runtime.stop()
   })
 })
