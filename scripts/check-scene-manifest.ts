@@ -658,9 +658,70 @@ export function validateOverworldGltfAsset(
     }
   }
 
-  // Terrain geometry bounds check (mandatory mesh and POSITION accessors covering traversable moorland)
   const accessors = Array.isArray(doc.accessors) ? doc.accessors : []
   const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
+
+  // Band pawn mesh and geometry check
+  if (pawnIndices.length === 1) {
+    const pNode = nodes[pawnIndices[0]]
+    const pMeshIdx = typeof pNode === 'object' && pNode !== null ? pNode.mesh : undefined
+    if (typeof pMeshIdx !== 'number' || pMeshIdx < 0 || pMeshIdx >= meshes.length) {
+      rejections.push('The Band-pawn node must reference a valid mesh.')
+    } else {
+      const pMesh = meshes[pMeshIdx]
+      const pPrims = Array.isArray(pMesh?.primitives) ? pMesh.primitives : []
+      const hasPos = pPrims.some((prim) => {
+        const posAccIdx = prim?.attributes?.POSITION
+        if (typeof posAccIdx === 'number' && posAccIdx >= 0 && posAccIdx < accessors.length) {
+          const acc = accessors[posAccIdx]
+          return (
+            Array.isArray(acc?.min) &&
+            Array.isArray(acc?.max) &&
+            acc.min.length >= 3 &&
+            acc.max.length >= 3 &&
+            acc.min.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
+            acc.max.every((v) => typeof v === 'number' && Number.isFinite(v))
+          )
+        }
+        return false
+      })
+      if (!hasPos) {
+        rejections.push('The Band-pawn mesh has no valid POSITION attribute accessors with finite min/max bounds.')
+      }
+    }
+  }
+
+  // Settlement landmark mesh and geometry check
+  if (landmarkIndex !== -1) {
+    const lNode = nodes[landmarkIndex]
+    const lMeshIdx = typeof lNode === 'object' && lNode !== null ? lNode.mesh : undefined
+    if (typeof lMeshIdx !== 'number' || lMeshIdx < 0 || lMeshIdx >= meshes.length) {
+      rejections.push('The settlement landmark node must reference a valid mesh.')
+    } else {
+      const lMesh = meshes[lMeshIdx]
+      const lPrims = Array.isArray(lMesh?.primitives) ? lMesh.primitives : []
+      const hasPos = lPrims.some((prim) => {
+        const posAccIdx = prim?.attributes?.POSITION
+        if (typeof posAccIdx === 'number' && posAccIdx >= 0 && posAccIdx < accessors.length) {
+          const acc = accessors[posAccIdx]
+          return (
+            Array.isArray(acc?.min) &&
+            Array.isArray(acc?.max) &&
+            acc.min.length >= 3 &&
+            acc.max.length >= 3 &&
+            acc.min.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
+            acc.max.every((v) => typeof v === 'number' && Number.isFinite(v))
+          )
+        }
+        return false
+      })
+      if (!hasPos) {
+        rejections.push('The settlement landmark mesh has no valid POSITION attribute accessors with finite min/max bounds.')
+      }
+    }
+  }
+
+  // Terrain geometry bounds check (mandatory mesh and POSITION accessors covering traversable moorland)
   if (terrainIndex !== -1 && overworld.traversableGround) {
     const tNode = nodes[terrainIndex]
     const meshIdx = typeof tNode === 'object' && tNode !== null ? tNode.mesh : undefined

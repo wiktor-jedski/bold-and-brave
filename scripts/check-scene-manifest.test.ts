@@ -275,8 +275,14 @@ describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170,
         name: 'poc-overworld-terrain-mesh',
         primitives: [{ attributes: { POSITION: 0 } }],
       },
-      { name: 'poc-settlement-landmark-mesh' },
-      { name: 'poc-band-pawn-mesh' },
+      {
+        name: 'poc-settlement-landmark-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
+      {
+        name: 'poc-band-pawn-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
     ],
     accessors: [
       { min: [-4.5, -0.05, -2.5], max: [4.5, 0.25, 4.5], type: 'VEC3', componentType: 5126 },
@@ -505,5 +511,44 @@ describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170,
     }
     const rejections = validateOverworldGltfAsset(doc)
     expect(rejections.some((r) => r.includes('exceed production scale bounds'))).toBe(true)
+  })
+
+  it('rejects Band-pawn node without a valid mesh or POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { name: 'poc-band-pawn', translation: [0, 0, 1.5] }, // missing mesh
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('Band-pawn node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects settlement landmark node without a valid mesh or POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        { name: 'poc-settlement-landmark', translation: [0, 0, 0] }, // missing mesh
+        validDoc.nodes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('settlement landmark node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects Band-pawn or landmark mesh with empty primitives', () => {
+    const doc = {
+      ...validDoc,
+      meshes: [
+        validDoc.meshes[0],
+        { name: 'poc-settlement-landmark-mesh', primitives: [] },
+        validDoc.meshes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('settlement landmark mesh has no valid POSITION attribute accessors'))).toBe(true)
   })
 })
