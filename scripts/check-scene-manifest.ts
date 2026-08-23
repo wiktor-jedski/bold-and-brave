@@ -540,8 +540,9 @@ export function validateOverworldGltfAsset(
   }
 
   const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
-  const nodeNames = nodes.map((n) => (typeof n.name === 'string' ? n.name : ''))
-
+  const nodeNames = nodes.map((n) =>
+    typeof n === 'object' && n !== null && typeof n.name === 'string' ? n.name : '',
+  )
   const expectedPawnId = overworld.presentationNodes?.bandPawnNodeId ?? 'poc-band-pawn'
   const expectedTerrainId = overworld.presentationNodes?.terrainNodeId ?? 'poc-overworld-terrain'
   const expectedLandmarkId = overworld.presentationNodes?.settlementLandmarkNodeId ?? 'poc-settlement-landmark'
@@ -586,16 +587,18 @@ export function validateOverworldGltfAsset(
   // Meshes: no technical box mesh
   const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
   for (const mesh of meshes) {
-    const meshName = typeof mesh.name === 'string' ? mesh.name : ''
-    if (/box/i.test(meshName)) {
+    const meshName =
+      typeof mesh === 'object' && mesh !== null && typeof mesh.name === 'string' ? mesh.name : ''
+    if (meshName.length > 0 && /box/i.test(meshName)) {
       rejections.push(`The Overworld glTF asset contains technical box mesh '${meshName}'.`)
     }
   }
 
   // Animations: idle and travel clips
   const animations = Array.isArray(doc.animations) ? doc.animations : []
-  const clipNames = animations.map((a) => (typeof a.name === 'string' ? a.name : ''))
-
+  const clipNames = animations.map((a) =>
+    typeof a === 'object' && a !== null && typeof a.name === 'string' ? a.name : '',
+  )
   if (!clipNames.includes(expectedIdleClip)) {
     rejections.push(`The Overworld glTF asset is missing the idle animation clip '${expectedIdleClip}'.`)
   }

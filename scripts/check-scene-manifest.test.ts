@@ -364,4 +364,17 @@ describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170,
     const rejections = validateOverworldGltfAsset(doc)
     expect(rejections.some((r) => r.includes('missing the travel animation clip'))).toBe(true)
   })
+
+  it('handles malformed array elements without throwing', () => {
+    const doc = {
+      asset: { version: '2.0' },
+      nodes: [null, undefined, 42, 'invalid', { name: null }],
+      meshes: [null, undefined, 42, { name: null }, { name: 'some-box' }],
+      animations: [null, undefined, 42, { name: null }],
+    }
+    expect(() => validateOverworldGltfAsset(doc)).not.toThrow()
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the Band-pawn node'))).toBe(true)
+    expect(rejections.some((r) => r.includes('technical box mesh'))).toBe(true)
+  })
 })
