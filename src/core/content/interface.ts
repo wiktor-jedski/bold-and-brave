@@ -118,3 +118,162 @@ export interface SceneContent {
   /** The authored assets of the Scene. */
   readonly assets: readonly SceneAssetContent[]
 }
+
+/**
+ * A 3D world position in platform-neutral production world units (ARCH-016).
+ *
+ * One world unit maps directly to one glTF and Three.js scene unit (1:1 scale).
+ */
+export interface WorldPosition {
+  /** The X coordinate in production world units. */
+  readonly x: number
+  /** The Y coordinate in production world units (height; 0 for ground level). */
+  readonly y: number
+  /** The Z coordinate in production world units. */
+  readonly z: number
+}
+
+/**
+ * Authored bounding box of traversable ground on the Overworld (ARCH-015, ARCH-016).
+ *
+ * Navigation anchors and click-to-move candidate targets must belong to
+ * traversable ground.
+ */
+export interface TraversableGround {
+  /** Minimum X boundary in production world units. */
+  readonly minX: number
+  /** Maximum X boundary in production world units. */
+  readonly maxX: number
+  /** Minimum Z boundary in production world units. */
+  readonly minZ: number
+  /** Maximum Z boundary in production world units. */
+  readonly maxZ: number
+}
+
+/**
+ * An authored navigation anchor on the Overworld (ARCH-014, ARCH-015, ARCH-016, REQ-117).
+ *
+ * Authored anchors provide deterministic waypoints for local steering behind
+ * the platform-neutral Navigation Port.
+ */
+export interface NavigationAnchorContent {
+  /** The stable build-internal anchor ID. */
+  readonly id: string
+  /** The anchor position in production world units. */
+  readonly position: WorldPosition
+}
+
+/**
+ * The entry boundary of an Overworld destination (ARCH-003, ARCH-016, REQ-017, REQ-021).
+ *
+ * Crossing this boundary triggers transition into the destination Scene.
+ */
+export interface OverworldEntryBoundary {
+  /** The center position of the entry boundary in production world units. */
+  readonly position: WorldPosition
+  /** The entry radius in production world units. */
+  readonly radius: number
+}
+
+/**
+ * The authored definition of one Overworld destination (ARCH-016, REQ-035).
+ *
+ * Destinations are stored as a collection in the catalog so adding a second
+ * location needs new authored data rather than a travel-rule change (PVS-FLW-022).
+ */
+export interface OverworldDestinationContent {
+  /** The stable build-internal destination ID. */
+  readonly id: string
+  /** The player-facing name of the destination. */
+  readonly name: string
+  /** The target Scene ID loaded when entering this destination. */
+  readonly targetSceneId: string
+  /** The destination position in production world units. */
+  readonly position: WorldPosition
+  /** The entry boundary of the destination. */
+  readonly entryBoundary: OverworldEntryBoundary
+}
+
+/**
+ * Authored normal travel tuning values for the Overworld (ARCH-016, REQ-017, REQ-018, REQ-082).
+ */
+export interface OverworldTravelContent {
+  /** Normal travel speed in world units per Overworld day (3.0). */
+  readonly speedWorldUnitsPerDay: number
+  /** Real-time seconds per Overworld hour at 1× speed (5.0). */
+  readonly realSecondsPerOverworldHour: number
+  /** Overworld hours in one Overworld day (24). */
+  readonly hoursPerOverworldDay: number
+  /** Provisions consumed per Band member per moving Overworld day (0.2). */
+  readonly provisionsPerMemberPerDay: number
+}
+
+/**
+ * Authored top-down strategic camera bounds and defaults (ARCH-016, PVS-FLW-002).
+ *
+ * Keeps the camera view top-down, oblique, and without a visible horizon while
+ * allowing bounded rotation and zoom.
+ */
+export interface OverworldCameraBoundsContent {
+  /** Minimum camera distance (maximum zoom-in) in production world units. */
+  readonly minDistance: number
+  /** Maximum camera distance (maximum zoom-out) in production world units. */
+  readonly maxDistance: number
+  /** Default camera distance in production world units. */
+  readonly defaultDistance: number
+  /** Minimum polar / pitch angle in radians (top-down limit). */
+  readonly minPitch: number
+  /** Maximum polar / pitch angle in radians (oblique limit). */
+  readonly maxPitch: number
+  /** Default polar / pitch angle in radians. */
+  readonly defaultPitch: number
+  /** Camera field of view in degrees. */
+  readonly fov: number
+}
+
+/**
+ * Stable presentation node and animation clip IDs in the Overworld glTF asset (ARCH-016, REQ-170).
+ */
+export interface OverworldPresentationNodesContent {
+  /** The single Band-pawn node name representing the whole Band (PVS-FLW-002). */
+  readonly bandPawnNodeId: string
+  /** The idle animation clip name. */
+  readonly idleAnimationClip: string
+  /** The travel animation clip name. */
+  readonly travelAnimationClip: string
+  /** The terrain node name. */
+  readonly terrainNodeId: string
+  /** The settlement entry landmark node name. */
+  readonly settlementLandmarkNodeId: string
+}
+
+/**
+ * The authored Overworld content record (ARCH-003, ARCH-014, ARCH-015, ARCH-016).
+ *
+ * Defines the shared 1:1 production scale, stable location and destination
+ * IDs, the settlement entry boundary, the exact new-campaign position,
+ * traversable ground, authored navigation anchors, normal travel values,
+ * camera bounds, and presentation node IDs.
+ */
+export interface OverworldContent {
+  /** The stable build-internal Overworld Scene / location ID (`poc-overworld`). */
+  readonly id: string
+  /** The player-facing name of the Overworld. */
+  readonly name: string
+  /** The shared 1:1 production scale (1.0). */
+  readonly productionScale: number
+  /** The exact new-campaign starting position. */
+  readonly startPosition: WorldPosition
+  /** Normal travel tuning values. */
+  readonly travel: OverworldTravelContent
+  /** Authored traversable ground bounds. */
+  readonly traversableGround: TraversableGround
+  /** Authored navigation anchors. */
+  readonly navigationAnchors: readonly NavigationAnchorContent[]
+  /** Authored destination collection. */
+  readonly destinations: readonly OverworldDestinationContent[]
+  /** Authored camera bounds and defaults. */
+  readonly cameraBounds: OverworldCameraBoundsContent
+  /** Presentation node and animation IDs. */
+  readonly presentationNodes: OverworldPresentationNodesContent
+}
