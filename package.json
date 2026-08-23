@@ -15,6 +15,7 @@
     "test:support": "vitest run src/browser/support",
     "test:startup": "vitest run src/browser/startup",
     "test:presentation": "vitest run src/browser/presentation",
+    "test:input": "vitest run src/browser/input",
     "test:support-row": "vitest run scripts/check-support-row.test.ts",
     "test:device-loss-record": "vitest run scripts/device-loss-record.test.ts",
     "test:startup-record": "vitest run scripts/startup-record.test.ts",
