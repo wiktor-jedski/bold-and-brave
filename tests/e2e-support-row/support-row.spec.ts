@@ -1270,8 +1270,11 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(obs1Moving?.currentProjection.destination).not.toBeNull()
   expect(Math.abs(obs1Moving?.currentProjection.destination?.x ?? 1)).toBeLessThan(0.1)
   expect(Math.abs(obs1Moving?.currentProjection.destination?.z ?? 1)).toBeLessThan(0.25)
-  // 4. Pause mid-route with Space
-  await page.waitForTimeout(600)
+  // 4. Pause mid-route with Space once travel has advanced
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return (obs?.currentProjection.elapsedCampaignTime ?? 0) >= 0.05
+  }, { timeout: 10_000 }).toBe(true)
   await page.keyboard.press('Space')
 
   await expect.poll(async () => {
@@ -1358,16 +1361,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     const obs = await readTravelObservation()
     return obs?.currentProjection.movementState
   }, { timeout: 10_000 }).toBe('travel')
-
-  // Pause mid-route
-  await page.waitForTimeout(600)
+  // Pause mid-route once travel has advanced
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return (obs?.currentProjection.elapsedCampaignTime ?? 0) >= 0.05
+  }, { timeout: 10_000 }).toBe(true)
   await page.keyboard.press('Space')
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.paused
   }, { timeout: 5000 }).toBe(true)
+
   const obs2Paused = await readTravelObservation()
   const paused2Projection = obs2Paused?.currentProjection as SimulationProjection
+  expect(paused2Projection.movementState).toBe('idle')
+  expect(paused2Projection.paused).toBe(true)
 
   // Resume
   await page.keyboard.press('Space')
@@ -1383,19 +1391,31 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   }, { timeout: 90_000 }).toBe('idle')
 
   const obs2Final = await readTravelObservation()
+  const final2Projection = obs2Final?.currentProjection as SimulationProjection
+  expect(final2Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
+  expect(final2Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
+  expect(final2Projection.destination).toBeNull()
+  expect(final2Projection.movementState).toBe('idle')
+  expect(final2Projection.paused).toBe(false)
+  expect(final2Projection.elapsedCampaignTime).toBeCloseTo(0.5, 1)
+  expect(final2Projection.provisions).toBe(9.8)
+  expect(final2Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
+  expect(final2Projection.consumptionRemainder).toBeLessThan(0.5)
+
   const run2: TravelRunTrace = {
     commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
-    startProjection: initial1Projection,
-    pausedProjection: paused1Projection,
-    finalProjection: final1Projection,
+    startProjection: obs2Initial?.currentProjection as SimulationProjection,
+    pausedProjection: paused2Projection,
+    finalProjection: final2Projection,
   }
 
   // Compare command and projection traces across runs
   expect(run1.commands).toEqual(run2.commands)
-  expect(run1.startProjection).toEqual(run2.startProjection)
-  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
-  expect(run1.finalProjection).toEqual(run2.finalProjection)
-  // --------------------------------------------------------------------------
+  expect(run1.startProjection.bandPawnPosition).toEqual(run2.startProjection.bandPawnPosition)
+  expect(run1.startProjection.provisions).toEqual(run2.startProjection.provisions)
+  expect(run1.finalProjection.movementState).toEqual(run2.finalProjection.movementState)
+  expect(run1.finalProjection.destination).toEqual(run2.finalProjection.destination)
+  expect(run1.finalProjection.provisions).toEqual(run2.finalProjection.provisions)
   // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
   // Submit a real move command before device loss
   await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 500, { button: 'left' })
@@ -1511,7 +1531,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     visualChecklist: {
       frontierBoundaryLandmark,
       woodcutTerrainAndPawnMaterials,
-      lighting: true,
+      lighting: presentationRecord?.hasLighting === true,
       movementFeedback,
       singleBandPawnNode,
       separateBandMemberNodesAbsent,

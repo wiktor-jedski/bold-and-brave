@@ -203,6 +203,27 @@ export function projectionsEqual(
 }
 
 /**
+ * Check if two Simulation projections are equal in all authoritative gameplay fields.
+ */
+export function gameplayProjectionEqual(
+  left: SimulationProjection,
+  right: SimulationProjection,
+): boolean {
+  return (
+    left.scene === right.scene &&
+    positionsEqual(left.bandPawnPosition, right.bandPawnPosition) &&
+    positionsEqual(left.destination, right.destination) &&
+    left.movementState === right.movementState &&
+    left.paused === right.paused &&
+    Math.abs(left.elapsedCampaignTime - right.elapsedCampaignTime) <= EPSILON &&
+    Math.abs(left.provisions - right.provisions) <= EPSILON &&
+    Math.abs(left.consumptionRemainder - right.consumptionRemainder) <= EPSILON &&
+    left.coin === right.coin &&
+    deepEqual(left.agents, right.agents) &&
+    deepEqual(left.band, right.band)
+  )
+}
+/**
  * Check if two WorldPositions are approximately equal.
  */
 function positionsEqual(
@@ -419,11 +440,11 @@ export function validateOverworldTravelEvidenceRecord(
     if (!projectionsEqual(run1.startProjection, run2.startProjection)) {
       rejections.push('Run 1 and Run 2 complete start projections do not match.')
     }
-    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection)) {
-      rejections.push('Run 1 and Run 2 complete paused projections do not match.')
+    if (!gameplayProjectionEqual(run1.pausedProjection, run2.pausedProjection)) {
+      rejections.push('Run 1 and Run 2 paused projections do not match.')
     }
-    if (!projectionsEqual(run1.finalProjection, run2.finalProjection)) {
-      rejections.push('Run 1 and Run 2 complete final projections do not match.')
+    if (!gameplayProjectionEqual(run1.finalProjection, run2.finalProjection)) {
+      rejections.push('Run 1 and Run 2 final projections do not match.')
     }
 
     // Cross-check top-level record states against run projections

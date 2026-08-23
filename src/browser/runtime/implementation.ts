@@ -59,9 +59,8 @@ export function createBrowserRuntime(
   let accumulatedTicks = 0
   /** Timestamp of the last rendered frame, or `null` before the first frame. */
   let previousTimestamp: number | null = null
-  /** Handle of the pending frame request, or `null` when none is pending. */
   let frameHandle: number | null = null
-
+  const stopCallbacks: Array<() => void> = []
   /** One rendered frame: accumulate elapsed time, dispatch due ticks, and present. */
   function frame(timestamp: number): void {
     // A callback the environment already handed out can still run after a
@@ -131,6 +130,11 @@ export function createBrowserRuntime(
         scheduler.cancelFrame(frameHandle)
         frameHandle = null
       }
+      for (const cb of stopCallbacks) {
+        try {
+          cb()
+        } catch {}
+      }
     },
     terminalStop(): void {
       if (terminal) {
@@ -149,12 +153,20 @@ export function createBrowserRuntime(
       previousTimestamp = null
       // Clear the presenter slot so no later presentation can occur.
       presenterSlot.presenter = null
+      for (const cb of stopCallbacks) {
+        try {
+          cb()
+        } catch {}
+      }
     },
     acceptsGameplayInput(): boolean {
       // The gate is open only while the normal runtime runs. The terminal
       // stop keeps `running` false forever and blocks every later `start`,
       // so the gate stays closed permanently (REQ-138, ARCH-007).
       return running && !terminal
+    },
+    onStop(callback: () => void): void {
+      stopCallbacks.push(callback)
     },
   }
 }

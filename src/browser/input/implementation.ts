@@ -276,7 +276,7 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
     }
   }
 
-  return {
+  const adapter: InputAdapter = {
     attach(): void {
       if (attached) {
         return
@@ -346,4 +346,13 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
       this.detach()
     },
   }
+
+  // Detach automatically on ordinary stop or terminal stop (ARCH-006, ARCH-007)
+  if (typeof runtime.onStop === 'function') {
+    runtime.onStop(() => {
+      adapter.detach()
+    })
+  }
+
+  return adapter
 }

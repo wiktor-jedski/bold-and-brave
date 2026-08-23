@@ -111,4 +111,9 @@ export interface BrowserRuntime {
    * payload exists in this phase.
    */
   acceptsGameplayInput(): boolean
+  /**
+   * Register a lifecycle callback executed whenever the runtime stops
+   * (ordinary stop or terminal stop).
+   */
+  onStop?(callback: () => void): void
 }
