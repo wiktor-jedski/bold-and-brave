@@ -27,6 +27,7 @@
  */
 import { AnimationMixer, PerspectiveCamera, Scene } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { OVERWORLD } from '../../core/content'
 import type { SceneContent } from '../../core/content'
 import type { PresentationRenderer } from '../presentation'
 import type { SceneLoadDiagnosticEvent, SceneLoadDiagnostics } from './diagnostics'
@@ -43,7 +44,7 @@ import type {
 } from './interface'
 
 /** The third-person camera default vertical field of view in degrees. */
-const CAMERA_FOV = 50
+const CAMERA_FOV = OVERWORLD.cameraBounds.fov
 /** The third-person camera default near plane. */
 const CAMERA_NEAR = 0.1
 /** The third-person camera default far plane. */
@@ -293,7 +294,7 @@ export async function loadStartupScene(
       // presenter with the one Scene, camera, and mixer after the load
       // passes, and the presenter renders the read-only Simulation output
       // on the one Browser Runtime frame loop (ARCH-008).
-      presentation: { scene: threeScene, camera, mixer },
+      presentation: { scene: threeScene, camera, mixer, animations: gltf.animations },
     }
   } catch (error) {
     // The first failed stage stops the load: record the failure with both

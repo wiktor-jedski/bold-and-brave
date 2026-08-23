@@ -11,6 +11,7 @@
  * (PVS-WEB-001, PVS-SCP-006).
  */
 import type { SimulationProjection } from '../../core'
+import type { WorldPosition } from '../../core/content'
 
 /**
  * The minimal renderer surface the backend gate reads.
@@ -151,6 +152,26 @@ export interface FramePresentationRecord {
 }
 
 /**
+ * Read-only snapshot of the top-down strategic camera state (ARCH-009,
+ * ARCH-016, PVS-FLW-002).
+ *
+ * Presentation-only state representing the camera's orientation and position
+ * relative to the Band pawn target.
+ */
+export interface PresentedCameraState {
+  /** Azimuth / yaw angle in radians. */
+  readonly yaw: number
+  /** Polar / pitch angle in radians (bounded to authored camera bounds). */
+  readonly pitch: number
+  /** Camera distance to target in production world units (bounded to authored zoom bounds). */
+  readonly distance: number
+  /** View position in production world units. */
+  readonly position: WorldPosition
+  /** Target position followed by the camera in production world units. */
+  readonly target: WorldPosition
+}
+
+/**
  * The Three.js Presentation Adapter frame presenter (ARCH-009, REQ-118,
  * PVS-ARC-008).
  *
@@ -163,10 +184,28 @@ export interface FramePresentationRecord {
  * Three.js objects, load state, and interpolation history, stores no
  * authoritative state, and has no write path to the Simulation: missing or
  * delayed presentation output cannot change an outcome.
+ *
+ * On the Overworld, it owns the top-down strategic camera that follows the
+ * Band pawn, exposes bounded rotate and zoom operations, and resolves
+ * CSS-pixel selections to candidate world points only on authored traversable
+ * terrain (ARCH-009, REQ-018, REQ-170, PVS-FLW-002).
  */
 export interface ScenePresenter {
   /** Present one frame from the current immutable projection and interpolation timing. */
   present(projection: SimulationProjection, interpolation: number): void
   /** Read the presentation-only facts of the last presented frame. */
   readFramePresentation(): FramePresentationRecord
+  /** Rotate the strategic camera by delta yaw and optional delta pitch within authored bounds. */
+  rotateCamera(deltaYaw: number, deltaPitch?: number): void
+  /** Zoom the strategic camera by delta distance within authored bounds. */
+  zoomCamera(deltaDistance: number): void
+  /** Resolve CSS-pixel coordinates to a candidate production-scale world position on traversable terrain. */
+  resolveGroundPosition(
+    cssX: number,
+    cssY: number,
+    viewportWidth?: number,
+    viewportHeight?: number,
+  ): WorldPosition | null
+  /** Read the current presentation camera state (presentation-only). */
+  readCameraState?(): PresentedCameraState
 }
