@@ -10,6 +10,7 @@
     "typecheck:core": "tsc -b tsconfig.core.json",
     "typecheck:browser": "tsc -b tsconfig.browser.json",
     "test:simulation": "vitest run src/core/simulation",
+    "test:navigation": "vitest run src/core/navigation",
     "test:runtime": "vitest run src/browser/runtime",
     "test:support": "vitest run src/browser/support",
     "test:startup": "vitest run src/browser/startup",

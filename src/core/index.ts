@@ -20,3 +20,17 @@ export const APPLICATION_NAME = 'Bold and Brave'
  * projection contract through the neutral core facade instead.
  */
 export type { SimulationProjection } from './simulation'
+
+/**
+ * The platform-neutral Navigation Port types (ARCH-014, REQ-121).
+ */
+export type {
+  InvalidNavigationReason,
+  InvalidNavigationResult,
+  NavigationPort,
+  NavigationRequest,
+  NavigationResult,
+  NavigationState,
+  NavigationTraversabilityData,
+  SteeringIntent,
+} from './navigation'
