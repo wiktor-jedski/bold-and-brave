@@ -426,6 +426,10 @@ describe('Simulation module', () => {
     const first = createSimulation()
     const second = createSimulation()
 
+    // Compare initial projection and feedback before transcript starts (tick 0).
+    expect(first.readProjection()).toEqual(second.readProjection())
+    expect(first.drainFeedbackEvents()).toEqual(second.drainFeedbackEvents())
+
     const destinationCommand: SetDestinationCommand = {
       kind: 'set-destination',
       targetTick: 1,
@@ -448,17 +452,15 @@ describe('Simulation module', () => {
     second.submitCommand(pauseCommand)
     second.submitCommand(resumeCommand)
 
-    // Run both simulations tick by tick for 4000 ticks and assert equality at sampled ticks.
+    // Compare every projection and feedback result across all 4000 ticks of the transcript.
     for (let tick = 1; tick <= 4000; tick += 1) {
       first.advanceTick()
       second.advanceTick()
 
-      if (tick % 200 === 0 || tick === 1 || tick === 500 || tick === 700 || tick === 3800) {
-        const p1 = first.readProjection()
-        const p2 = second.readProjection()
-        expect(p1).toEqual(p2)
-        expect(first.drainFeedbackEvents()).toEqual(second.drainFeedbackEvents())
-      }
+      const p1 = first.readProjection()
+      const p2 = second.readProjection()
+      expect(p1).toEqual(p2)
+      expect(first.drainFeedbackEvents()).toEqual(second.drainFeedbackEvents())
     }
 
     const final1 = first.readProjection()
