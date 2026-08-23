@@ -288,6 +288,17 @@ describe('Three.js Overworld presenter integration with the real startup Scene (
 
     presenter.rotateCamera(0, -20.0) // exceed minPitch
     expect(presenter.readCameraState?.()?.pitch).toBeCloseTo(OVERWORLD_CAMERA_BOUNDS.minPitch, 4)
+    // Adversarial: non-finite rotation inputs are harmless and keep state bounded and finite
+    const stateBeforeNonFiniteRot = presenter.readCameraState?.()
+    presenter.rotateCamera(Number.NaN, 0)
+    presenter.rotateCamera(Number.POSITIVE_INFINITY, 0)
+    presenter.rotateCamera(0, Number.NaN)
+    presenter.rotateCamera(0, Number.NEGATIVE_INFINITY)
+    const stateAfterNonFiniteRot = presenter.readCameraState?.()
+    expect(stateAfterNonFiniteRot?.yaw).toBe(stateBeforeNonFiniteRot?.yaw)
+    expect(stateAfterNonFiniteRot?.pitch).toBe(stateBeforeNonFiniteRot?.pitch)
+    expect(Number.isFinite(stateAfterNonFiniteRot?.yaw)).toBe(true)
+    expect(Number.isFinite(stateAfterNonFiniteRot?.pitch)).toBe(true)
 
     // Bounded zoom clamping
     presenter.zoomCamera(-50.0) // zoom in beyond minDistance
@@ -301,6 +312,16 @@ describe('Three.js Overworld presenter integration with the real startup Scene (
       OVERWORLD_CAMERA_BOUNDS.maxDistance,
       4,
     )
+
+    // Adversarial: non-finite zoom inputs are harmless and keep distance bounded and finite
+    const stateBeforeNonFiniteZoom = presenter.readCameraState?.()
+    presenter.zoomCamera(Number.NaN)
+    presenter.zoomCamera(Number.POSITIVE_INFINITY)
+    presenter.zoomCamera(Number.NEGATIVE_INFINITY)
+    const stateAfterNonFiniteZoom = presenter.readCameraState?.()
+    expect(stateAfterNonFiniteZoom?.distance).toBe(stateBeforeNonFiniteZoom?.distance)
+    expect(Number.isFinite(stateAfterNonFiniteZoom?.distance)).toBe(true)
+
     // Projection passed in remains completely unchanged by camera operations (ARCH-009, REQ-018)
     expect(initialProjection.coin).toBe(100)
     expect(initialProjection.provisions).toBe(10.0)
@@ -335,23 +356,28 @@ describe('Three.js Overworld presenter integration with the real startup Scene (
       expect(centerHit.z).toBeLessThanOrEqual(OVERWORLD_TRAVERSABLE_GROUND.maxZ)
     }
 
-    // A selection outside traversable ground or pointing away returns null
-    const farOffLeft = presenter.resolveGroundPosition(10, 540, 1920, 1080)
-    const farOffTop = presenter.resolveGroundPosition(960, 10, 1920, 1080)
-
-    // Either returns null or if a candidate is returned it must be inside traversable ground
-    if (farOffLeft !== null) {
-      expect(farOffLeft.x).toBeGreaterThanOrEqual(OVERWORLD_TRAVERSABLE_GROUND.minX)
-      expect(farOffLeft.x).toBeLessThanOrEqual(OVERWORLD_TRAVERSABLE_GROUND.maxX)
-    }
-    if (farOffTop !== null) {
-      expect(farOffTop.z).toBeGreaterThanOrEqual(OVERWORLD_TRAVERSABLE_GROUND.minZ)
-      expect(farOffTop.z).toBeLessThanOrEqual(OVERWORLD_TRAVERSABLE_GROUND.maxZ)
-    }
-
-    // Selections with invalid viewport dimensions return null
+    // Selections outside the canvas / off-map return null
+    const offMapLeft = presenter.resolveGroundPosition(-2000, 540, 1920, 1080)
+    const offMapRight = presenter.resolveGroundPosition(5000, 540, 1920, 1080)
+    expect(offMapLeft).toBeNull()
+    expect(offMapRight).toBeNull()
+    // Adversarial: non-finite coordinates or viewport dimensions return null
+    expect(presenter.resolveGroundPosition(Number.NaN, 540, 1920, 1080)).toBeNull()
+    expect(presenter.resolveGroundPosition(960, Number.NaN, 1920, 1080)).toBeNull()
+    expect(presenter.resolveGroundPosition(Number.POSITIVE_INFINITY, 540, 1920, 1080)).toBeNull()
+    expect(presenter.resolveGroundPosition(960, 540, Number.NaN, 1080)).toBeNull()
+    expect(presenter.resolveGroundPosition(960, 540, 1920, Number.POSITIVE_INFINITY)).toBeNull()
     expect(presenter.resolveGroundPosition(960, 540, 0, 0)).toBeNull()
     expect(presenter.resolveGroundPosition(960, 540, -100, 1080)).toBeNull()
+
+    // Proves candidate is returned ONLY after an authored terrain hit (no mathematical-plane fallback)
+    // If terrain node is removed from scene, resolveGroundPosition must return null
+    const terrainNode = result.presentation.scene.getObjectByName('poc-overworld-terrain')
+    if (terrainNode !== undefined) {
+      ;(terrainNode as { name: string }).name = 'poc-overworld-terrain-hidden'
+      expect(presenter.resolveGroundPosition(960, 540, 1920, 1080)).toBeNull()
+      ;(terrainNode as { name: string }).name = 'poc-overworld-terrain'
+    }
   })
 
   it('confirms the presenter owns no gameplay result and has no write path to the Simulation', async () => {

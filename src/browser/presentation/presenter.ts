@@ -38,7 +38,6 @@ import {
   DirectionalLight,
   HemisphereLight,
   Object3D,
-  Plane,
   Raycaster,
   Vector2,
   Vector3,
@@ -398,16 +397,22 @@ export function createScenePresenter(
     },
 
     rotateCamera(deltaYaw: number, deltaPitch = 0): void {
-      yaw = (yaw + deltaYaw) % (Math.PI * 2)
-      pitch = Math.max(cameraBounds.minPitch, Math.min(cameraBounds.maxPitch, pitch + deltaPitch))
+      if (Number.isFinite(deltaYaw)) {
+        yaw = (yaw + deltaYaw) % (Math.PI * 2)
+      }
+      if (Number.isFinite(deltaPitch)) {
+        pitch = Math.max(cameraBounds.minPitch, Math.min(cameraBounds.maxPitch, pitch + deltaPitch))
+      }
       updateCameraPosition()
     },
 
     zoomCamera(deltaDistance: number): void {
-      distance = Math.max(
-        cameraBounds.minDistance,
-        Math.min(cameraBounds.maxDistance, distance + deltaDistance),
-      )
+      if (Number.isFinite(deltaDistance)) {
+        distance = Math.max(
+          cameraBounds.minDistance,
+          Math.min(cameraBounds.maxDistance, distance + deltaDistance),
+        )
+      }
       updateCameraPosition()
     },
 
@@ -417,6 +422,10 @@ export function createScenePresenter(
       viewportWidth?: number,
       viewportHeight?: number,
     ): WorldPosition | null {
+      if (!Number.isFinite(cssX) || !Number.isFinite(cssY)) {
+        return null
+      }
+
       const domElement = renderer?.domElement
       const width =
         viewportWidth ??
@@ -429,7 +438,7 @@ export function createScenePresenter(
           (typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : 1080) ||
           1080)
 
-      if (width <= 0 || height <= 0) {
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
         return null
       }
 
@@ -441,12 +450,12 @@ export function createScenePresenter(
       try {
         raycaster.setFromCamera(new Vector2(ndcX, ndcY), cameraObj)
       } catch {
-        // If camera mock lacks Three.js camera internals
+        return null
       }
 
       let hitPoint: Vector3 | null = null
 
-      // 1. Try terrain mesh intersection if available
+      // Raycast ONLY against the authored terrain mesh (ARCH-009, REQ-018)
       const terrainNode = presentation.scene.getObjectByName(
         OVERWORLD.presentationNodes.terrainNodeId,
       )
@@ -460,19 +469,11 @@ export function createScenePresenter(
             hitPoint = intersects[0].point
           }
         } catch {
-          // Ignored
+          return null
         }
       }
 
-      // 2. Ray-plane intersection with ground plane Y=0
-      if (hitPoint === null && raycaster.ray) {
-        const groundPlane = new Plane(new Vector3(0, 1, 0), 0)
-        const target = new Vector3()
-        if (raycaster.ray.intersectPlane(groundPlane, target) !== null) {
-          hitPoint = target
-        }
-      }
-
+      // Only a real hit on the authored terrain is accepted (no plane fallback)
       if (hitPoint === null) {
         return null
       }
