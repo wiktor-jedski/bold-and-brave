@@ -17,6 +17,7 @@ export type {
 } from './interface'
 
 export {
+  ARRIVAL_DISTANCE_THRESHOLD,
   isInvalidNavigationResult,
   isSteeringIntent,
 } from './interface'

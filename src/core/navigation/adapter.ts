@@ -13,6 +13,9 @@ import type {
   TraversableGround,
   WorldPosition,
 } from '../content'
+import {
+  ARRIVAL_DISTANCE_THRESHOLD,
+} from './interface'
 import type {
   InvalidNavigationResult,
   NavigationPort,
@@ -130,7 +133,33 @@ export class AuthoredNavigationAdapter implements NavigationPort {
       return invalid
     }
 
-    // 6. Calculate displacement and Euclidean distance
+    // 6. Validate travel speed is non-negative and finite
+    if (
+      speedWorldUnitsPerTick !== undefined &&
+      (!Number.isFinite(speedWorldUnitsPerTick) || speedWorldUnitsPerTick < 0)
+    ) {
+      const invalid: InvalidNavigationResult = Object.freeze({
+        kind: 'invalid',
+        reason: 'invalid-state',
+        message: 'Travel speed override cannot be negative or non-finite.',
+      })
+      return invalid
+    }
+
+    if (
+      traversability.travel !== undefined &&
+      (!Number.isFinite(traversability.travel.speedWorldUnitsPerDay) ||
+        traversability.travel.speedWorldUnitsPerDay < 0)
+    ) {
+      const invalid: InvalidNavigationResult = Object.freeze({
+        kind: 'invalid',
+        reason: 'invalid-state',
+        message: 'Authored travel speed cannot be negative or non-finite.',
+      })
+      return invalid
+    }
+
+    // 7. Calculate displacement and Euclidean distance to target
     const dx = target.x - state.position.x
     const dy = target.y - state.position.y
     const dz = target.z - state.position.z
@@ -142,8 +171,8 @@ export class AuthoredNavigationAdapter implements NavigationPort {
       z: target.z,
     })
 
-    // 7. Arrival / stop check
-    if (distance === 0 || distance < 1e-12) {
+    // 8. Exact arrival / stop check
+    if (distance <= ARRIVAL_DISTANCE_THRESHOLD) {
       const intent: SteeringIntent = Object.freeze({
         kind: 'steering-intent',
         arrived: true,
@@ -155,16 +184,55 @@ export class AuthoredNavigationAdapter implements NavigationPort {
       return intent
     }
 
-    // 8. Calculate bounded step without overshoot
+    // 9. Calculate travel speed per tick
     const speedPerTick =
-      speedWorldUnitsPerTick !== undefined && speedWorldUnitsPerTick > 0
+      speedWorldUnitsPerTick !== undefined
         ? speedWorldUnitsPerTick
         : calculateSpeedPerTick(traversability.travel)
 
-    const stepDistance = Math.min(speedPerTick, distance)
-    const ux = dx / distance
-    const uy = dy / distance
-    const uz = dz / distance
+    // 10. Anchor-driven local steering: resolve next intermediate waypoint anchor
+    const anchors = traversability.navigationAnchors ?? traversability.anchors ?? []
+    let nextWaypoint: WorldPosition = target
+    let waypointDistance = distance
+
+    if (anchors.length > 0) {
+      let bestAnchor: WorldPosition | null = null
+      let minAnchorDist = distance
+
+      for (const anchor of anchors) {
+        if (!isPositionInTraversableGround(anchor.position, traversability.traversableGround)) {
+          continue
+        }
+        const distFromCurrent = distanceBetween(state.position, anchor.position)
+        const distToTarget = distanceBetween(anchor.position, target)
+
+        if (
+          distFromCurrent > 0 &&
+          distFromCurrent < distance &&
+          distToTarget < distance
+        ) {
+          if (distFromCurrent < minAnchorDist) {
+            minAnchorDist = distFromCurrent
+            bestAnchor = anchor.position
+          }
+        }
+      }
+
+      if (bestAnchor !== null) {
+        nextWaypoint = bestAnchor
+        waypointDistance = minAnchorDist
+      }
+    }
+
+    // 11. Calculate local steering vector towards next waypoint
+    const wdx = nextWaypoint.x - state.position.x
+    const wdy = nextWaypoint.y - state.position.y
+    const wdz = nextWaypoint.z - state.position.z
+
+    const stepDistance = Math.min(speedPerTick, waypointDistance)
+    const ux = wdx / waypointDistance
+    const uy = wdy / waypointDistance
+    const uz = wdz / waypointDistance
 
     const step: WorldPosition = Object.freeze({
       x: ux * stepDistance,

@@ -167,6 +167,140 @@ describe('Navigation Port and Authored Navigation Adapter (ARCH-014, ARCH-015)',
     }
   })
 
+  it('handles targets near and below the formal arrival threshold deterministically', () => {
+    // 1. Target strictly below ARRIVAL_DISTANCE_THRESHOLD (1e-13 <= 1e-9) reports arrived: true
+    const current: WorldPosition = { x: 0, y: 0, z: 1.0 }
+    const subThresholdTarget: WorldPosition = { x: 0, y: 0, z: 1.0 - 1e-13 }
+
+    const subResult = adapter.computeSteering({
+      state: { position: current },
+      target: subThresholdTarget,
+      traversability: OVERWORLD,
+      tick: 0,
+    })
+
+    expect(isSteeringIntent(subResult)).toBe(true)
+    if (isSteeringIntent(subResult)) {
+      expect(subResult.arrived).toBe(true)
+      expect(subResult.step).toEqual({ x: 0, y: 0, z: 0 })
+      expect(subResult.remainingDistance).toBe(0)
+    }
+
+    // 2. Target above threshold (e.g. 1e-7 > 1e-9) steps exact distance and arrives on next tick
+    const aboveThresholdTarget: WorldPosition = { x: 0, y: 0, z: 1.0 - 1e-7 }
+    const stepResult = adapter.computeSteering({
+      state: { position: current },
+      target: aboveThresholdTarget,
+      traversability: OVERWORLD,
+      tick: 0,
+    })
+
+    expect(isSteeringIntent(stepResult)).toBe(true)
+    if (isSteeringIntent(stepResult)) {
+      expect(stepResult.arrived).toBe(false)
+      expect(stepResult.remainingDistance).toBeCloseTo(1e-7, 9)
+      expect(stepResult.step.z).toBeCloseTo(-1e-7, 9)
+
+      const nextPos: WorldPosition = {
+        x: current.x + stepResult.step.x,
+        y: current.y + stepResult.step.y,
+        z: current.z + stepResult.step.z,
+      }
+      const arrivalResult = adapter.computeSteering({
+        state: { position: nextPos },
+        target: aboveThresholdTarget,
+        traversability: OVERWORLD,
+        tick: 1,
+      })
+      expect(isSteeringIntent(arrivalResult)).toBe(true)
+      if (isSteeringIntent(arrivalResult)) {
+        expect(arrivalResult.arrived).toBe(true)
+        expect(arrivalResult.step).toEqual({ x: 0, y: 0, z: 0 })
+        expect(arrivalResult.remainingDistance).toBe(0)
+      }
+    }
+  })
+
+  it('rejects malformed negative and non-finite travel speed without backward movement', () => {
+    const negativeSpeedResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: OVERWORLD,
+      tick: 0,
+      speedWorldUnitsPerTick: -0.5,
+    })
+    expect(isInvalidNavigationResult(negativeSpeedResult)).toBe(true)
+    if (isInvalidNavigationResult(negativeSpeedResult)) {
+      expect(negativeSpeedResult.reason).toBe('invalid-state')
+      expect(negativeSpeedResult.message).toContain('speed')
+    }
+
+    const nanSpeedResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: OVERWORLD,
+      tick: 0,
+      speedWorldUnitsPerTick: Number.NaN,
+    })
+    expect(isInvalidNavigationResult(nanSpeedResult)).toBe(true)
+    if (isInvalidNavigationResult(nanSpeedResult)) {
+      expect(nanSpeedResult.reason).toBe('invalid-state')
+    }
+
+    const negativeAuthoredResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          speedWorldUnitsPerDay: -3.0,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(negativeAuthoredResult)).toBe(true)
+    if (isInvalidNavigationResult(negativeAuthoredResult)) {
+      expect(negativeAuthoredResult.reason).toBe('invalid-state')
+    }
+  })
+
+  it('demonstrates deterministic anchor-driven steering with non-collinear anchor influence', () => {
+    const nonCollinearAnchor = {
+      id: 'poc-anchor-dogleg',
+      position: Object.freeze({ x: 1.0, y: 0, z: 0.75 }),
+    }
+
+    const traversabilityWithDogleg = {
+      ...OVERWORLD,
+      navigationAnchors: [nonCollinearAnchor],
+    }
+
+    const result = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: traversabilityWithDogleg,
+      tick: 0,
+    })
+
+    expect(isSteeringIntent(result)).toBe(true)
+    if (isSteeringIntent(result)) {
+      expect(result.arrived).toBe(false)
+      const expectedDistToAnchor = 1.25
+      const expectedUx = 1.0 / expectedDistToAnchor
+      const expectedUz = -0.75 / expectedDistToAnchor
+
+      expect(result.desiredDirection.x).toBeCloseTo(expectedUx, 9)
+      expect(result.desiredDirection.y).toBeCloseTo(0, 9)
+      expect(result.desiredDirection.z).toBeCloseTo(expectedUz, 9)
+
+      const speed = calculateSpeedPerTick(OVERWORLD.travel)
+      expect(result.step.x).toBeCloseTo(expectedUx * speed, 9)
+      expect(result.step.z).toBeCloseTo(expectedUz * speed, 9)
+      expect(result.step.x).toBeGreaterThan(0)
+    }
+  })
+
   it('returns a typed invalid result for non-traversable targets outside ground bounds', () => {
     // Target outside positive X
     const outXResult = adapter.computeSteering({
@@ -273,10 +407,12 @@ describe('Navigation Port and Authored Navigation Adapter (ARCH-014, ARCH-015)',
     const request: NavigationRequest = {
       state: { position: OVERWORLD.startPosition },
       target: secondDestination.position,
-      traversability: OVERWORLD,
+      traversability: {
+        ...OVERWORLD,
+        navigationAnchors: [],
+      },
       tick: 0,
     }
-
     const result = adapter.computeSteering(request)
 
     expect(isSteeringIntent(result)).toBe(true)

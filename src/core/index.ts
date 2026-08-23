@@ -34,3 +34,5 @@ export type {
   NavigationTraversabilityData,
   SteeringIntent,
 } from './navigation'
+
+export { ARRIVAL_DISTANCE_THRESHOLD } from './navigation'

@@ -17,6 +17,13 @@ import type {
 } from '../content'
 
 /**
+ * Formal arrival distance threshold in production world units (ARCH-014, ARCH-015).
+ *
+ * Distances less than or equal to this threshold are considered arrived at the target.
+ */
+export const ARRIVAL_DISTANCE_THRESHOLD = 1e-9
+
+/**
  * Current navigation state of an entity navigating the Overworld (ARCH-014).
  */
 export interface NavigationState {
