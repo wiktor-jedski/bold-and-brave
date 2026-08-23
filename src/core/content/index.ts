@@ -15,6 +15,13 @@ export {
   INITIAL_PROVISIONS,
   STARTUP_SCENE,
   SCENES,
+  OVERWORLD,
+  OVERWORLD_TRAVEL,
+  OVERWORLD_TRAVERSABLE_GROUND,
+  OVERWORLD_NAVIGATION_ANCHORS,
+  OVERWORLD_DESTINATIONS,
+  OVERWORLD_CAMERA_BOUNDS,
+  OVERWORLD_PRESENTATION_NODES,
 } from './catalog'
 export type {
   AgentRole,
@@ -25,4 +32,13 @@ export type {
   BandMemberContent,
   SceneAssetContent,
   SceneContent,
+  WorldPosition,
+  TraversableGround,
+  NavigationAnchorContent,
+  OverworldEntryBoundary,
+  OverworldDestinationContent,
+  OverworldTravelContent,
+  OverworldCameraBoundsContent,
+  OverworldPresentationNodesContent,
+  OverworldContent,
 } from './interface'

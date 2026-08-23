@@ -1,4 +1,15 @@
-import type { AgentContent, BandMemberContent, SceneContent } from './interface'
+import type {
+  AgentContent,
+  BandMemberContent,
+  NavigationAnchorContent,
+  OverworldCameraBoundsContent,
+  OverworldContent,
+  OverworldDestinationContent,
+  OverworldPresentationNodesContent,
+  OverworldTravelContent,
+  SceneContent,
+  TraversableGround,
+} from './interface'
 
 /**
  * The initial named-Agent relationship content of a new campaign
@@ -109,3 +120,122 @@ export const STARTUP_SCENE: SceneContent = Object.freeze({
  * later phases add settlement and battlefield Scenes.
  */
 export const SCENES: readonly SceneContent[] = Object.freeze([STARTUP_SCENE])
+
+/**
+ * The authored normal travel tuning values for Overworld travel (ARCH-016,
+ * REQ-017, REQ-018, REQ-082, PVS-FLW-004, PVS-PRP-006).
+ *
+ * Normal travel speed is 3.0 world units per Overworld day. At 1× speed,
+ * one Overworld hour takes 5.0 real-time seconds (120 seconds per Overworld
+ * day). Moving travel consumes 0.2 Provisions per Band member per Overworld
+ * day.
+ */
+export const OVERWORLD_TRAVEL: OverworldTravelContent = Object.freeze({
+  speedWorldUnitsPerDay: 3.0,
+  realSecondsPerOverworldHour: 5.0,
+  hoursPerOverworldDay: 24,
+  provisionsPerMemberPerDay: 0.2,
+})
+
+/**
+ * The authored traversable ground bounds on the Overworld (ARCH-015, ARCH-016).
+ *
+ * Defines the rectangular area of navigable moorland encompassing the start
+ * position, the route, and the settlement destination.
+ */
+export const OVERWORLD_TRAVERSABLE_GROUND: TraversableGround = Object.freeze({
+  minX: -4.0,
+  maxX: 4.0,
+  minZ: -2.0,
+  maxZ: 4.0,
+})
+
+/**
+ * The authored navigation anchors on the Overworld (ARCH-014, ARCH-015, ARCH-016, REQ-117).
+ *
+ * Authored waypoints for deterministic local steering behind the Navigation
+ * Port. All anchors belong to traversable ground.
+ */
+export const OVERWORLD_NAVIGATION_ANCHORS: readonly NavigationAnchorContent[] = Object.freeze([
+  Object.freeze({
+    id: 'poc-anchor-start',
+    position: Object.freeze({ x: 0, y: 0, z: 1.5 }),
+  }),
+  Object.freeze({
+    id: 'poc-anchor-mid',
+    position: Object.freeze({ x: 0, y: 0, z: 0.75 }),
+  }),
+  Object.freeze({
+    id: 'poc-anchor-settlement-entry',
+    position: Object.freeze({ x: 0, y: 0, z: 0 }),
+  }),
+])
+
+/**
+ * The authored Overworld destinations collection (ARCH-016, REQ-035, PVS-FLW-022).
+ *
+ * Stored as a collection so adding a second location needs new data, not a
+ * new travel rule.
+ */
+export const OVERWORLD_DESTINATIONS: readonly OverworldDestinationContent[] = Object.freeze([
+  Object.freeze({
+    id: 'poc-settlement',
+    name: 'Frontier Settlement',
+    targetSceneId: 'poc-settlement',
+    position: Object.freeze({ x: 0, y: 0, z: 0 }),
+    entryBoundary: Object.freeze({
+      position: Object.freeze({ x: 0, y: 0, z: 0 }),
+      radius: 0.25,
+    }),
+  }),
+])
+
+/**
+ * Authored top-down strategic camera bounds and defaults (ARCH-016, PVS-FLW-002).
+ */
+export const OVERWORLD_CAMERA_BOUNDS: OverworldCameraBoundsContent = Object.freeze({
+  minDistance: 3.0,
+  maxDistance: 8.0,
+  defaultDistance: 5.0,
+  minPitch: 0.785398,
+  maxPitch: 1.308997,
+  defaultPitch: 1.047198,
+  fov: 45,
+})
+
+/**
+ * Authored presentation node and animation clip IDs in the Overworld glTF asset (ARCH-016, REQ-170).
+ */
+export const OVERWORLD_PRESENTATION_NODES: OverworldPresentationNodesContent = Object.freeze({
+  bandPawnNodeId: 'poc-band-pawn',
+  idleAnimationClip: 'poc-band-idle',
+  travelAnimationClip: 'poc-band-travel',
+  terrainNodeId: 'poc-overworld-terrain',
+  settlementLandmarkNodeId: 'poc-settlement-landmark',
+})
+
+/**
+ * The one authored Overworld content record (ARCH-003, ARCH-014, ARCH-015,
+ * ARCH-016, REQ-017, REQ-035, REQ-117, PVS-FLW-001, PVS-FLW-022).
+ *
+ * Defines the shared 1:1 production scale, stable location and destination
+ * IDs, the settlement entry boundary, the exact new-campaign position,
+ * traversable ground, authored navigation anchors, normal travel values,
+ * camera bounds, and presentation node IDs.
+ *
+ * The start position (0, 0, 1.5) is exactly 1.5 world units and 0.5
+ * Overworld day (at 3.0 world units per day) from the settlement entry
+ * boundary (0, 0, 0).
+ */
+export const OVERWORLD: OverworldContent = Object.freeze({
+  id: 'poc-overworld',
+  name: 'Overworld',
+  productionScale: 1.0,
+  startPosition: Object.freeze({ x: 0, y: 0, z: 1.5 }),
+  travel: OVERWORLD_TRAVEL,
+  traversableGround: OVERWORLD_TRAVERSABLE_GROUND,
+  navigationAnchors: OVERWORLD_NAVIGATION_ANCHORS,
+  destinations: OVERWORLD_DESTINATIONS,
+  cameraBounds: OVERWORLD_CAMERA_BOUNDS,
+  presentationNodes: OVERWORLD_PRESENTATION_NODES,
+})
