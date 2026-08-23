@@ -227,9 +227,11 @@ export function validateOverworldContent(overworld: OverworldContent): string[] 
     )
   }
 
-  // 3. ID and name checks
-  if (!overworld.id || typeof overworld.id !== 'string') {
-    rejections.push('The Overworld ID must be a non-empty string.')
+  // 3. Stable ID and name checks (ARCH-016)
+  if (overworld.id !== 'poc-overworld') {
+    rejections.push(
+      `The Overworld ID must be the stable root Scene ID poc-overworld (found ${overworld.id}).`,
+    )
   }
   if (!overworld.name || typeof overworld.name !== 'string') {
     rejections.push('The Overworld name must be a non-empty string.')
@@ -412,23 +414,46 @@ export function validateOverworldContent(overworld: OverworldContent): string[] 
   if (!nodes) {
     rejections.push('The Overworld presentationNodes record is missing.')
   } else {
-    if (!nodes.bandPawnNodeId || typeof nodes.bandPawnNodeId !== 'string') {
-      rejections.push('The Overworld presentationNodes bandPawnNodeId must be a non-empty string.')
+    if (nodes.bandPawnNodeId !== 'poc-band-pawn') {
+      rejections.push(
+        `The Overworld presentationNodes bandPawnNodeId must be poc-band-pawn (found ${nodes.bandPawnNodeId}).`,
+      )
     }
-    if (!nodes.idleAnimationClip || typeof nodes.idleAnimationClip !== 'string') {
-      rejections.push('The Overworld presentationNodes idleAnimationClip must be a non-empty string.')
+    if (nodes.idleAnimationClip !== 'poc-band-idle') {
+      rejections.push(
+        `The Overworld presentationNodes idleAnimationClip must be poc-band-idle (found ${nodes.idleAnimationClip}).`,
+      )
     }
-    if (!nodes.travelAnimationClip || typeof nodes.travelAnimationClip !== 'string') {
-      rejections.push('The Overworld presentationNodes travelAnimationClip must be a non-empty string.')
+    if (nodes.travelAnimationClip !== 'poc-band-travel') {
+      rejections.push(
+        `The Overworld presentationNodes travelAnimationClip must be poc-band-travel (found ${nodes.travelAnimationClip}).`,
+      )
     }
-    if (!nodes.terrainNodeId || typeof nodes.terrainNodeId !== 'string') {
-      rejections.push('The Overworld presentationNodes terrainNodeId must be a non-empty string.')
+    if (nodes.terrainNodeId !== 'poc-overworld-terrain') {
+      rejections.push(
+        `The Overworld presentationNodes terrainNodeId must be poc-overworld-terrain (found ${nodes.terrainNodeId}).`,
+      )
     }
-    if (!nodes.settlementLandmarkNodeId || typeof nodes.settlementLandmarkNodeId !== 'string') {
-      rejections.push('The Overworld presentationNodes settlementLandmarkNodeId must be a non-empty string.')
+    if (nodes.settlementLandmarkNodeId !== 'poc-settlement-landmark') {
+      rejections.push(
+        `The Overworld presentationNodes settlementLandmarkNodeId must be poc-settlement-landmark (found ${nodes.settlementLandmarkNodeId}).`,
+      )
+    }
+
+    const presentationNodeIds = [
+      nodes.bandPawnNodeId,
+      nodes.terrainNodeId,
+      nodes.settlementLandmarkNodeId,
+    ].filter((id) => typeof id === 'string')
+    const uniqueNodeIds = new Set(presentationNodeIds)
+    if (uniqueNodeIds.size !== presentationNodeIds.length) {
+      rejections.push('The Overworld presentation node IDs must be unique.')
+    }
+
+    if (nodes.idleAnimationClip === nodes.travelAnimationClip) {
+      rejections.push('The Overworld idle and travel animation clip names must be distinct.')
     }
   }
-
   return rejections
 }
 

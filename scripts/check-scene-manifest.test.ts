@@ -175,6 +175,46 @@ describe('Overworld content rejection rules (REQ-017, REQ-035, REQ-117)', () => 
     const rejections = validateOverworldContent(frozen)
     expect(rejections.some((r) => r.includes('cameraBounds distance'))).toBe(true)
   })
+
+  it('rejects an arbitrary Overworld ID that is not poc-overworld', () => {
+    const mutated = cloneOverworld()
+    mutated.id = 'not-poc-overworld'
+    const frozen = deepFreeze(mutated) as unknown as OverworldContent
+    const rejections = validateOverworldContent(frozen)
+    expect(rejections.some((r) => r.includes('must be the stable root Scene ID poc-overworld'))).toBe(true)
+  })
+
+  it('rejects wrong presentation node IDs', () => {
+    const mutated = cloneOverworld()
+    mutated.presentationNodes.bandPawnNodeId = 'wrong-band-pawn'
+    const frozen = deepFreeze(mutated) as unknown as OverworldContent
+    const rejections = validateOverworldContent(frozen)
+    expect(rejections.some((r) => r.includes('bandPawnNodeId must be poc-band-pawn'))).toBe(true)
+  })
+
+  it('rejects wrong animation clip names', () => {
+    const mutated = cloneOverworld()
+    mutated.presentationNodes.idleAnimationClip = 'wrong-idle'
+    const frozen = deepFreeze(mutated) as unknown as OverworldContent
+    const rejections = validateOverworldContent(frozen)
+    expect(rejections.some((r) => r.includes('idleAnimationClip must be poc-band-idle'))).toBe(true)
+  })
+
+  it('rejects duplicate presentation node IDs', () => {
+    const mutated = cloneOverworld()
+    mutated.presentationNodes.terrainNodeId = 'poc-band-pawn' // duplicates bandPawnNodeId
+    const frozen = deepFreeze(mutated) as unknown as OverworldContent
+    const rejections = validateOverworldContent(frozen)
+    expect(rejections.some((r) => r.includes('presentation node IDs must be unique') || r.includes('terrainNodeId must be'))).toBe(true)
+  })
+
+  it('rejects identical idle and travel animation clip names', () => {
+    const mutated = cloneOverworld()
+    mutated.presentationNodes.travelAnimationClip = 'poc-band-idle'
+    const frozen = deepFreeze(mutated) as unknown as OverworldContent
+    const rejections = validateOverworldContent(frozen)
+    expect(rejections.some((r) => r.includes('idle and travel animation clip names must be distinct') || r.includes('travelAnimationClip must be'))).toBe(true)
+  })
 })
 
 describe('Destination schema extensibility (REQ-035, PVS-FLW-022)', () => {
