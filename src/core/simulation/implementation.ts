@@ -186,11 +186,11 @@ export function createSimulation(options?: SimulationOptions): Simulation {
         return
       }
 
-      if (command.targetTick < tick) {
+      if (command.targetTick <= tick) {
         emitInvalidAction(
           command.kind ?? 'unknown',
           'past-target-tick',
-          `Command target tick ${command.targetTick} is in the past (current tick is ${tick}).`,
+          `Command target tick ${command.targetTick} must be greater than current tick ${tick}.`,
         )
         return
       }

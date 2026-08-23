@@ -600,6 +600,55 @@ describe('Simulation module', () => {
     expect(events[0].reason).toBe('invalid-target')
   })
 
+  it('rejects targetTick 0 at initial tick 0 and emits typed feedback immediately', () => {
+    const simulation = createSimulation()
+    expect(simulation.readProjection().tick).toBe(0)
+
+    // Submit command targeting tick 0 (current initial tick).
+    simulation.submitCommand({
+      kind: 'set-destination',
+      targetTick: 0,
+      destination: { x: 0, y: 0, z: 0 },
+    })
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      kind: 'invalid-action',
+      tick: 0,
+      action: 'set-destination',
+      reason: 'past-target-tick',
+      message: 'Command target tick 0 must be greater than current tick 0.',
+    })
+
+    // Authoritative destination remains null.
+    expect(simulation.readProjection().destination).toBeNull()
+  })
+
+  it('rejects a command targeting the current tick and emits typed feedback immediately', () => {
+    const simulation = createSimulation()
+
+    simulation.advanceTick()
+    expect(simulation.readProjection().tick).toBe(1)
+
+    // Submit command targeting tick 1 (current tick).
+    simulation.submitCommand({
+      kind: 'set-destination',
+      targetTick: 1,
+      destination: { x: 0, y: 0, z: 0 },
+    })
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      kind: 'invalid-action',
+      tick: 1,
+      action: 'set-destination',
+      reason: 'past-target-tick',
+      message: 'Command target tick 1 must be greater than current tick 1.',
+    })
+  })
+
   it('rejects a past-target-tick command and emits typed feedback immediately', () => {
     const simulation = createSimulation()
 
@@ -621,8 +670,38 @@ describe('Simulation module', () => {
       tick: 2,
       action: 'set-destination',
       reason: 'past-target-tick',
-      message: 'Command target tick 1 is in the past (current tick is 2).',
+      message: 'Command target tick 1 must be greater than current tick 2.',
     })
+  })
+
+  it('executes a target-tick command exactly on the target tick without delay', () => {
+    const simulation = createSimulation()
+    expect(simulation.readProjection().tick).toBe(0)
+
+    // Submit command targeting tick 3.
+    simulation.submitCommand({
+      kind: 'set-destination',
+      targetTick: 3,
+      destination: { x: 0, y: 0, z: 0 },
+    })
+
+    // Advance to tick 1: command is not due yet.
+    simulation.advanceTick()
+    expect(simulation.readProjection().tick).toBe(1)
+    expect(simulation.readProjection().destination).toBeNull()
+    expect(simulation.readProjection().movementState).toBe('idle')
+
+    // Advance to tick 2: command is not due yet.
+    simulation.advanceTick()
+    expect(simulation.readProjection().tick).toBe(2)
+    expect(simulation.readProjection().destination).toBeNull()
+    expect(simulation.readProjection().movementState).toBe('idle')
+
+    // Advance to tick 3: command executes exactly on target tick 3.
+    simulation.advanceTick()
+    expect(simulation.readProjection().tick).toBe(3)
+    expect(simulation.readProjection().destination).toEqual({ x: 0, y: 0, z: 0 })
+    expect(simulation.readProjection().movementState).toBe('travel')
   })
 
   it('allows replacing the Navigation Port without altering command or travel rules', () => {
