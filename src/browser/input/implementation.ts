@@ -136,12 +136,29 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
       isSecondaryDragging = true
       lastDragX = pointerEvent.clientX
       lastDragY = pointerEvent.clientY
+      const targetEl = (event.currentTarget ?? event.target ?? pointerTarget) as Element | null
+      if (
+        targetEl !== null &&
+        typeof targetEl.setPointerCapture === 'function' &&
+        'pointerId' in pointerEvent &&
+        typeof pointerEvent.pointerId === 'number'
+      ) {
+        try {
+          targetEl.setPointerCapture(pointerEvent.pointerId)
+        } catch {}
+      }
     }
   }
 
   function handlePointerMove(event: Event): void {
     const pointerEvent = event as PointerEvent | MouseEvent
     if (!isSecondaryDragging) {
+      return
+    }
+
+    // Safeguard: if other buttons are held but secondary button is released, end drag
+    if (typeof pointerEvent.buttons === 'number' && pointerEvent.buttons > 0 && (pointerEvent.buttons & 2) === 0) {
+      isSecondaryDragging = false
       return
     }
 
@@ -160,13 +177,31 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
     }
   }
 
+  function releaseCapture(event: Event): void {
+    const pointerEvent = event as PointerEvent
+    const targetEl = (event.currentTarget ?? event.target ?? pointerTarget) as Element | null
+    if (
+      targetEl !== null &&
+      typeof targetEl.releasePointerCapture === 'function' &&
+      'pointerId' in pointerEvent &&
+      typeof pointerEvent.pointerId === 'number'
+    ) {
+      try {
+        targetEl.releasePointerCapture(pointerEvent.pointerId)
+      } catch {}
+    }
+  }
+
   function handlePointerUp(event: Event): void {
     const pointerEvent = event as PointerEvent | MouseEvent
     const button = pointerEvent.button
 
-    if (button === 2) {
+    if (button === 2 || isSecondaryDragging) {
       isSecondaryDragging = false
-      return
+      releaseCapture(event)
+      if (button === 2) {
+        return
+      }
     }
 
     if (button === 0) {
@@ -174,6 +209,14 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
     }
   }
 
+  function handlePointerCancel(event: Event): void {
+    isSecondaryDragging = false
+    releaseCapture(event)
+  }
+
+  function handleBlur(): void {
+    isSecondaryDragging = false
+  }
   function handleClick(event: Event): void {
     const mouseEvent = event as MouseEvent
     if (mouseEvent.button === 0) {
@@ -244,9 +287,19 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
         pointerTarget.addEventListener('pointerdown', handlePointerDown as EventListener)
         pointerTarget.addEventListener('pointermove', handlePointerMove as EventListener)
         pointerTarget.addEventListener('pointerup', handlePointerUp as EventListener)
+        pointerTarget.addEventListener('pointercancel', handlePointerCancel as EventListener)
         pointerTarget.addEventListener('click', handleClick as EventListener)
         pointerTarget.addEventListener('wheel', handleWheel as EventListener, { passive: false })
         pointerTarget.addEventListener('contextmenu', handleContextMenu as EventListener)
+        pointerTarget.addEventListener('blur', handleBlur as EventListener)
+      }
+
+      if (
+        defaultTarget !== null &&
+        defaultTarget !== pointerTarget &&
+        typeof defaultTarget.addEventListener === 'function'
+      ) {
+        defaultTarget.addEventListener('blur', handleBlur as EventListener)
       }
 
       if (keyboardTarget !== null && typeof keyboardTarget.addEventListener === 'function') {
@@ -265,9 +318,19 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
         pointerTarget.removeEventListener('pointerdown', handlePointerDown as EventListener)
         pointerTarget.removeEventListener('pointermove', handlePointerMove as EventListener)
         pointerTarget.removeEventListener('pointerup', handlePointerUp as EventListener)
+        pointerTarget.removeEventListener('pointercancel', handlePointerCancel as EventListener)
         pointerTarget.removeEventListener('click', handleClick as EventListener)
         pointerTarget.removeEventListener('wheel', handleWheel as EventListener)
         pointerTarget.removeEventListener('contextmenu', handleContextMenu as EventListener)
+        pointerTarget.removeEventListener('blur', handleBlur as EventListener)
+      }
+
+      if (
+        defaultTarget !== null &&
+        defaultTarget !== pointerTarget &&
+        typeof defaultTarget.removeEventListener === 'function'
+      ) {
+        defaultTarget.removeEventListener('blur', handleBlur as EventListener)
       }
 
       if (keyboardTarget !== null && typeof keyboardTarget.removeEventListener === 'function') {

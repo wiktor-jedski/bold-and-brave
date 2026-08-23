@@ -471,4 +471,84 @@ describe('Browser Input Adapter integration (ARCH-007, ARCH-002, ARCH-006, ARCH-
     simulation.advanceTick()
     expect(simulation.readProjection().paused).toBe(false)
   })
+
+  it('captures pointer on secondary drag and cleans up on pointerup, pointercancel, and blur', async () => {
+    const { simulation, runtime, presenter, canvas } = await createTestRig()
+
+    let capturedPointerId: number | null = null
+    let releasedPointerId: number | null = null
+    canvas.setPointerCapture = (id: number) => {
+      capturedPointerId = id
+    }
+    canvas.releasePointerCapture = (id: number) => {
+      releasedPointerId = id
+    }
+
+    const inputAdapter = createInputAdapter({
+      simulation,
+      runtime,
+      presenter,
+      target: canvas,
+    })
+
+    runtime.start()
+    inputAdapter.attach()
+
+    // 1. Pointerdown with secondary button captures pointer
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: 500, clientY: 500, button: 2, pointerId: 42, bubbles: true }),
+    )
+    expect(capturedPointerId).toBe(42)
+
+    // 2. Pointerup releases pointer capture
+    canvas.dispatchEvent(
+      new PointerEvent('pointerup', { clientX: 550, clientY: 500, button: 2, pointerId: 42, bubbles: true }),
+    )
+    expect(releasedPointerId).toBe(42)
+
+    // 3. Pointercancel resets drag state and releases capture
+    capturedPointerId = null
+    releasedPointerId = null
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: 500, clientY: 500, button: 2, pointerId: 43, bubbles: true }),
+    )
+    expect(capturedPointerId).toBe(43)
+
+    canvas.dispatchEvent(
+      new PointerEvent('pointercancel', { pointerId: 43, bubbles: true }),
+    )
+    expect(releasedPointerId).toBe(43)
+
+    // Subsequent pointermove without drag does not rotate camera
+    const yawAfterCancel = presenter.readCameraState?.()?.yaw
+    canvas.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 600, clientY: 500, bubbles: true }),
+    )
+    expect(presenter.readCameraState?.()?.yaw).toBe(yawAfterCancel)
+
+    // 4. Blur resets drag state
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: 500, clientY: 500, button: 2, pointerId: 44, bubbles: true }),
+    )
+    window.dispatchEvent(new Event('blur'))
+
+    const yawAfterBlur = presenter.readCameraState?.()?.yaw
+    canvas.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 700, clientY: 500, bubbles: true }),
+    )
+    expect(presenter.readCameraState?.()?.yaw).toBe(yawAfterBlur)
+
+    // 5. Pointermove with buttons = 1 (only primary held, secondary released) ends drag
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: 500, clientY: 500, button: 2, pointerId: 45, bubbles: true }),
+    )
+    canvas.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 520, clientY: 500, buttons: 1, bubbles: true }),
+    )
+    const yawAfterButtonCheck = presenter.readCameraState?.()?.yaw
+    canvas.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 700, clientY: 500, buttons: 1, bubbles: true }),
+    )
+    expect(presenter.readCameraState?.()?.yaw).toBe(yawAfterButtonCheck)
+  })
 })
