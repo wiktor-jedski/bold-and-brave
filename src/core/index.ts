@@ -8,7 +8,7 @@
 export const APPLICATION_NAME = 'Bold and Brave'
 
 /**
- * The read-only Simulation output type, re-exported from the neutral core
+ * The read-only Simulation output and command types, re-exported from the neutral core
  * root (ARCH-002, REQ-121).
  *
  * The Three.js Presentation Adapter (ARCH-009) consumes the immutable
@@ -19,7 +19,21 @@ export const APPLICATION_NAME = 'Bold and Brave'
  * type-only re-export gives the adapter the public, deeply readonly
  * projection contract through the neutral core facade instead.
  */
-export type { SimulationProjection } from './simulation'
+export type {
+  AgentRecord,
+  BandMemberRecord,
+  InvalidActionFeedbackEvent,
+  MovementState,
+  PauseCommand,
+  ResumeCommand,
+  SetDestinationCommand,
+  SetPausedCommand,
+  SimulationCommand,
+  SimulationFeedbackEvent,
+  SimulationOptions,
+  SimulationProjection,
+  TogglePauseCommand,
+} from './simulation'
 
 /**
  * The platform-neutral Navigation Port types (ARCH-014, REQ-121).
