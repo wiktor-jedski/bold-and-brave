@@ -118,12 +118,12 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-015, REQ-019, REQ-022, REQ-027, REQ-039–REQ-042, REQ-048, REQ-061, REQ-088, REQ-096, REQ-119 |
-| Dependencies | ARCH-002, ARCH-006 |
+| Requirements | REQ-015, REQ-018–REQ-019, REQ-022, REQ-027, REQ-039–REQ-042, REQ-048, REQ-061, REQ-088, REQ-096, REQ-119 |
+| Dependencies | ARCH-002, ARCH-006, ARCH-009 |
 
 **Responsibility:** Normalize supported browser input into the target-tick command stream.
 
-**Contract:** The adapter converts keyboard events, Pointer Events, mouse buttons, pointer drags, pointer selections, and DOM actions into typed commands with target ticks. It preserves CSS-pixel coordinates and input phase so the Simulation decides dead zones, sectors, guards, commands, and command validity. It does not apply game rules. Unsupported input modes do not create a second command path.
+**Contract:** The adapter converts keyboard events, Pointer Events, mouse buttons, pointer drags, pointer selections, and DOM actions into typed commands with target ticks. It preserves CSS-pixel coordinates and input phase so the Simulation decides dead zones, sectors, guards, commands, and command validity. For a primary-button Overworld selection, it first checks the Browser Runtime gameplay-input gate, then asks the Three.js Presentation Adapter to resolve the CSS-pixel position to a candidate world point. It creates and submits a target-tick destination command only when the adapter returns a candidate. Overworld camera rotation and zoom change presentation state and create no gameplay command. It does not apply game rules. Unsupported input modes do not create a second command path.
 
 ## ARCH-008 — Browser Frame Collaboration
 
@@ -146,12 +146,12 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146, REQ-170 |
+| Requirements | REQ-001–REQ-002, REQ-006–REQ-007, REQ-011, REQ-018, REQ-027, REQ-033, REQ-038, REQ-040–REQ-042, REQ-044–REQ-045, REQ-057, REQ-061–REQ-062, REQ-089–REQ-096, REQ-110, REQ-118, REQ-121, REQ-136, REQ-146, REQ-170 |
 | Dependencies | ARCH-002, ARCH-006, ARCH-016 |
 
-**Responsibility:** Render the Overworld, Scenes, and visual feedback from read-only gameplay output.
+**Responsibility:** Render the Overworld, Scenes, and visual feedback from read-only gameplay output, and resolve presentation-space selection without owning gameplay rules.
 
-**Contract:** The adapter uses Three.js WebGPU for rendering. It owns the top-down strategic Overworld camera, third-person Scene cameras, glTF loading, `AnimationMixer`, interpolation, lighting, visual effects, world markers, and canvas presentation. On the Overworld, it renders the whole Band as one Band pawn that is a small-scale version of the player character and does not render separate individual Band members. It consumes immutable projections and typed events. It stores no authoritative gameplay state and cannot decide combat, relationship, fate, or outcome results. A non-WebGPU Three.js backend cannot enter gameplay.
+**Contract:** The adapter uses Three.js WebGPU for rendering. It owns the top-down strategic Overworld camera, third-person Scene cameras, glTF loading, `AnimationMixer`, interpolation, lighting, visual effects, world markers, and canvas presentation. On the Overworld, it applies bounded camera rotation and zoom and maps a CSS-pixel selection through the current camera. It returns a candidate production-scale world point only when the selection intersects authored traversable terrain; otherwise, it returns no point. The Simulation remains responsible for authoritative target validity and movement. The adapter renders the whole Band as one Band pawn that is a small-scale version of the player character and does not render separate individual Band members. It consumes immutable projections and typed events. It stores no authoritative gameplay state and cannot decide combat, relationship, fate, or outcome results. A non-WebGPU Three.js backend cannot enter gameplay.
 
 ## ARCH-010 — DOM Interface Adapter
 
@@ -450,7 +450,7 @@ flowchart LR
 | REQ-015 | Input and support exclusions | ARCH-007, ARCH-024 |
 | REQ-016 | Canonical player-facing terms | ARCH-010, ARCH-016 |
 | REQ-017 | New campaign start position | ARCH-001, ARCH-003, ARCH-016 |
-| REQ-018 | Overworld movement and time | ARCH-001, ARCH-003, ARCH-005, ARCH-014, ARCH-015 |
+| REQ-018 | Overworld movement and time | ARCH-001, ARCH-003, ARCH-005, ARCH-007, ARCH-009, ARCH-014, ARCH-015 |
 | REQ-019 | Overworld pause and time speed | ARCH-001, ARCH-005, ARCH-007 |
 | REQ-020 | Overworld time scaling | ARCH-001, ARCH-005 |
 | REQ-021 | Settlement Scene entry and layout | ARCH-001, ARCH-003, ARCH-016, ARCH-022 |

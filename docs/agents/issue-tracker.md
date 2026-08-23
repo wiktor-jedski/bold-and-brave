@@ -83,3 +83,32 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 - Phase 8 does not run `SCN-16-WEBGPU-DEVICE-LOSS` during an active battle or check the later typed gameplay-event stream because combat and that event stream do not exist yet. The local check instead runs the active fixed-tick Simulation, compares the complete immutable projection at loss with every pre-Reload sample, and confirms that presentation stops. Phase 43 runs the complete scenario and checks the no-post-loss-event claim.
 - No gameplay Input Adapter exists before Phase 9. Phase 8 therefore checks every `acceptsGameplayInput()` lifecycle state, permanent closure after device loss, refused runtime restart, and the Reload-only `Device lost` surface. Phase 9 performs the first check with a real gameplay command.
+
+## Phase 9 — Overworld travel
+
+### Assumptions
+
+- One authoritative world unit maps to one glTF and Three.js scene unit. The Typed Content Catalog owns this 1:1 production scale. Simulation movement, authored navigation, camera bounds, Band-pawn size, and asset validation use the same value.
+- Campaign time starts at elapsed Overworld time 0 because the sources define no absolute new-campaign clock or date. Travel stores exact elapsed time. A later interface can format it without a travel-math change.
+- To avoid temporary behavior, Tasks 25, 28, and 29 implement the final 1× `Space` pause behavior and the final moving-travel rate and 0.1-step Provisions remainder needed by the initial two-member Band. Phase 10 still owns speed selection. Phase 11 still owns all member-count, save-and-load, floor, and non-moving-state coverage.
+- Overworld controls use primary-button click for movement, secondary-button drag for camera rotation, the wheel for camera zoom, and `Space` for pause and resume. Camera angle and distance bounds are authored content and must keep the view top-down and the Band pawn and current route readable.
+
+### Clarifications
+
+- The project owner selected the Three.js Presentation Adapter as the owner of CSS-pixel-to-world selection. For a primary-button Overworld selection, the Input Adapter checks the Browser Runtime gameplay-input gate and passes the unchanged CSS-pixel position to the Presentation Adapter. The Presentation Adapter maps the selection through its current camera and returns a candidate production-scale world point only from authored traversable terrain. The Input Adapter submits a target-tick destination command only for a returned candidate. The Simulation remains responsible for authoritative target validity and movement. Camera rotation and zoom remain presentation-only and create no gameplay command.
+- Phase 9 must finish one representative start-boundary visual slice: frontier terrain, one direct route, a compact settlement-entry landmark, one Band pawn, terrain and pawn materials, lighting, and idle and travel feedback. Phase 38 completes and harmonizes assets from earlier phases. It does not replace a Phase 9 placeholder or first introduce these representative elements.
+- Resolving these source decisions does not make an implementation task ready. Tasks 23–29 remain `OPEN` until a separate readiness review marks them `PREPARED`.
+
+### Approved visual reference and pass checklist
+
+- Use [`phase-9-visual.png`](../../phase-9-visual.png) as the directional reference for composition and visual language. It is not a production asset or a pixel-exact target.
+- Use a high, oblique, top-down default view with no visible horizon. Keep the direct route, settlement destination, and Band pawn readable at the authored rotation and zoom bounds.
+- Use large faceted terrain shapes, a damp warm moor palette, a few broad pools, little surface noise, and soft warm overcast light.
+- Show a compact settlement destination with three to five timber buildings that use less than about 10 percent of the authored default frame. Do not use a gate. Mark the settlement entry boundary through the change from open moor to low fences, worked ground, and the first buildings.
+- Show exactly one Band pawn with a deep hood, long blue-grey tabard, one-handed sword, and narrow heater shield. Do not show separate Band members. At the authored default view and every camera bound, keep the pawn small, readable, and subordinate to the map. Do not use a fixed screen-height percentage.
+- Replace every technical box mesh and separate Band-member node with committed authored glTF terrain, route, materials, lighting, one `poc-band-pawn`, and idle and travel clips. The reference image, an asset generator, and generated runtime code must not be runtime dependencies.
+
+### Testing coverage deviations
+
+- No unit tests are planned because unit tests are forbidden on phase and master branches. Real catalog, navigation, Simulation, Presentation Adapter, Input Adapter, Browser Runtime, and glTF collaborations are checked through integration tests, build validation, and browser e2e tests.
+- Phase 9 does not run `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS`, or `CP-UI-HUD` end to end. Those checkpoints also require later time-speed, full Provisions, settlement, Journal, and representative-presentation work. The phase uses focused core integration checks and a real promised-workstation travel journey. Later implementation and evidence phases complete the checkpoint scenarios, manifests, and canonical artifacts.
