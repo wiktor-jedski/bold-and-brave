@@ -17,6 +17,8 @@
 export { runWebGPUBackendGate } from './implementation'
 export { createScenePresenter } from './presenter'
 export type {
+  PresentedAnimationAction,
+  PresentedAnimationClip,
   PresentedAnimationMixer,
   PresentedCamera,
   PresentedNode,
@@ -27,6 +29,7 @@ export type {
 export { productionFramePresentationPublisher } from './record'
 export type {
   FramePresentationRecord,
+  PresentedCameraState,
   PresentationRenderer,
   PresentationRendererBackend,
   PresentationResult,

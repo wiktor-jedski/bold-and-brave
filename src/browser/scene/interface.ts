@@ -130,6 +130,20 @@ export interface SceneObject3D {
   readonly name: string
   /** Presentation-only visibility of the node (ARCH-009). */
   visible: boolean
+  /** Presentation position of the node in production world units. */
+  readonly position?: {
+    x: number
+    y: number
+    z: number
+    set?(x: number, y: number, z: number): void
+  }
+  /** Presentation rotation of the node. */
+  readonly rotation?: {
+    x: number
+    y: number
+    z: number
+    set?(x: number, y: number, z: number): void
+  }
   /** Add a child object to this object. */
   add(object: unknown): void
 }
@@ -150,7 +164,7 @@ export interface SceneAnimationClip {
  */
 export interface SceneAnimationMixer {
   /** Start the authored clip named `name`. */
-  clipAction(clip: SceneAnimationClip): { play(): void }
+  clipAction(clip: SceneAnimationClip | string): { play(): unknown; stop(): unknown }
   /** Advance the mixer to `time`. */
   update(time: number): void
   /** Set the absolute mixer time in seconds (ARCH-009). */
@@ -199,6 +213,8 @@ export interface ScenePresentation {
   readonly camera: SceneCamera
   /** The one AnimationMixer playing the first authored clip. */
   readonly mixer: SceneAnimationMixer
+  /** The authored animation clips of the loaded Scene. */
+  readonly animations?: readonly SceneAnimationClip[]
 }
 
 /**
