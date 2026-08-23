@@ -263,19 +263,36 @@ describe('Scene manifest contract (ARCH-016, REQ-136)', () => {
 describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170, PVS-FLW-002)', () => {
   const validDoc = {
     asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ name: 'poc-overworld', nodes: [0, 1, 2] }],
     nodes: [
-      { name: 'poc-overworld-terrain' },
-      { name: 'poc-settlement-landmark' },
-      { name: 'poc-band-pawn' },
+      { name: 'poc-overworld-terrain', mesh: 0, translation: [0, 0, 0] },
+      { name: 'poc-settlement-landmark', mesh: 1, translation: [0, 0, 0] },
+      { name: 'poc-band-pawn', mesh: 2, translation: [0, 0, 1.5] },
     ],
     meshes: [
-      { name: 'poc-overworld-terrain-mesh' },
+      {
+        name: 'poc-overworld-terrain-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
       { name: 'poc-settlement-landmark-mesh' },
       { name: 'poc-band-pawn-mesh' },
     ],
+    accessors: [
+      { min: [-4.5, -0.05, -2.5], max: [4.5, 0.25, 4.5], type: 'VEC3', componentType: 5126 },
+    ],
     animations: [
-      { name: 'poc-band-idle' },
-      { name: 'poc-band-travel' },
+      {
+        name: 'poc-band-idle',
+        channels: [{ target: { node: 2, path: 'translation' } }],
+      },
+      {
+        name: 'poc-band-travel',
+        channels: [
+          { target: { node: 2, path: 'translation' } },
+          { target: { node: 2, path: 'rotation' } },
+        ],
+      },
     ],
   }
 
@@ -376,5 +393,66 @@ describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170,
     const rejections = validateOverworldGltfAsset(doc)
     expect(rejections.some((r) => r.includes('missing the Band-pawn node'))).toBe(true)
     expect(rejections.some((r) => r.includes('technical box mesh'))).toBe(true)
+  })
+
+  it('rejects unreachable / orphaned required nodes', () => {
+    const doc = {
+      ...validDoc,
+      scenes: [{ name: 'poc-overworld', nodes: [0, 1] }], // node 2 orphaned
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('not reachable from the active scene root'))).toBe(true)
+  })
+
+  it('rejects non-unit node scale', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { ...validDoc.nodes[2], scale: [1000, 1000, 1000] },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('scale must be exactly 1.0'))).toBe(true)
+  })
+
+  it('rejects Band-pawn position mismatching start position', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { ...validDoc.nodes[2], translation: [0, 0, 10.0] },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('does not match the start position'))).toBe(true)
+  })
+
+  it('rejects terrain bounds that do not cover traversable ground', () => {
+    const doc = {
+      ...validDoc,
+      accessors: [
+        { min: [-1.0, 0, -1.0], max: [1.0, 0, 1.0], type: 'VEC3', componentType: 5126 },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('do not cover traversable ground'))).toBe(true)
+  })
+
+  it('rejects animation clips targeting wrong node index', () => {
+    const doc = {
+      ...validDoc,
+      animations: [
+        {
+          name: 'poc-band-idle',
+          channels: [{ target: { node: 0, path: 'translation' } }], // targets terrain (node 0) instead of pawn (node 2)
+        },
+        validDoc.animations[1],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('targets node index 0, expected Band-pawn index 2'))).toBe(true)
   })
 })

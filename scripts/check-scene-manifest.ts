@@ -530,9 +530,12 @@ export function validateOverworldGltfAsset(
 
   const doc = gltfContent as {
     asset?: { version?: unknown }
-    nodes?: Array<{ name?: unknown; mesh?: unknown }>
-    meshes?: Array<{ name?: unknown }>
-    animations?: Array<{ name?: unknown }>
+    scene?: unknown
+    scenes?: Array<{ name?: unknown; nodes?: unknown }>
+    nodes?: Array<{ name?: unknown; mesh?: unknown; translation?: unknown; scale?: unknown; children?: unknown }>
+    meshes?: Array<{ name?: unknown; primitives?: Array<{ attributes?: Record<string, unknown> }> }>
+    accessors?: Array<{ min?: unknown; max?: unknown; type?: unknown; componentType?: unknown }>
+    animations?: Array<{ name?: unknown; channels?: Array<{ target?: { node?: unknown; path?: unknown } }> }>
   }
 
   if (doc.asset?.version !== '2.0') {
@@ -543,31 +546,160 @@ export function validateOverworldGltfAsset(
   const nodeNames = nodes.map((n) =>
     typeof n === 'object' && n !== null && typeof n.name === 'string' ? n.name : '',
   )
+
   const expectedPawnId = overworld.presentationNodes?.bandPawnNodeId ?? 'poc-band-pawn'
   const expectedTerrainId = overworld.presentationNodes?.terrainNodeId ?? 'poc-overworld-terrain'
   const expectedLandmarkId = overworld.presentationNodes?.settlementLandmarkNodeId ?? 'poc-settlement-landmark'
   const expectedIdleClip = overworld.presentationNodes?.idleAnimationClip ?? 'poc-band-idle'
   const expectedTravelClip = overworld.presentationNodes?.travelAnimationClip ?? 'poc-band-travel'
 
-  // Exactly one Band-pawn node
-  const pawnCount = nodeNames.filter((name) => name === expectedPawnId).length
-  if (pawnCount === 0) {
-    rejections.push(`The Overworld glTF asset is missing the Band-pawn node ${expectedPawnId}.`)
-  } else if (pawnCount > 1) {
-    rejections.push(`The Overworld glTF asset must contain exactly one ${expectedPawnId} node (found ${pawnCount}).`)
+  // 1. Node presence and uniqueness
+  const pawnIndices: number[] = []
+  let terrainIndex = -1
+  let landmarkIndex = -1
+
+  for (let i = 0; i < nodes.length; i++) {
+    const name = nodeNames[i]
+    if (name === expectedPawnId) {
+      pawnIndices.push(i)
+    } else if (name === expectedTerrainId) {
+      terrainIndex = i
+    } else if (name === expectedLandmarkId) {
+      landmarkIndex = i
+    }
   }
 
-  // Terrain node
-  if (!nodeNames.includes(expectedTerrainId)) {
+  if (pawnIndices.length === 0) {
+    rejections.push(`The Overworld glTF asset is missing the Band-pawn node ${expectedPawnId}.`)
+  } else if (pawnIndices.length > 1) {
+    rejections.push(`The Overworld glTF asset must contain exactly one ${expectedPawnId} node (found ${pawnIndices.length}).`)
+  }
+
+  if (terrainIndex === -1) {
     rejections.push(`The Overworld glTF asset is missing the terrain node ${expectedTerrainId}.`)
   }
-
-  // Settlement landmark node
-  if (!nodeNames.includes(expectedLandmarkId)) {
+  if (landmarkIndex === -1) {
     rejections.push(`The Overworld glTF asset is missing the settlement landmark node ${expectedLandmarkId}.`)
   }
 
-  // Prohibited separate nodes: player-character, companion, troops
+  // 2. Scene reachability
+  const scenes = Array.isArray(doc.scenes) ? doc.scenes : []
+  const activeSceneIndex = typeof doc.scene === 'number' ? doc.scene : 0
+  const activeScene = scenes[activeSceneIndex]
+  if (typeof activeScene !== 'object' || activeScene === null) {
+    rejections.push(`The Overworld glTF active scene ${activeSceneIndex} is missing or invalid.`)
+  } else {
+    const reachable = new Set<number>()
+    const rootNodes = Array.isArray(activeScene.nodes) ? activeScene.nodes : []
+    function visit(nodeIdx: unknown): void {
+      if (typeof nodeIdx !== 'number' || nodeIdx < 0 || nodeIdx >= nodes.length || reachable.has(nodeIdx)) {
+        return
+      }
+      reachable.add(nodeIdx)
+      const n = nodes[nodeIdx]
+      if (typeof n === 'object' && n !== null && Array.isArray(n.children)) {
+        for (const child of n.children) {
+          visit(child)
+        }
+      }
+    }
+    for (const root of rootNodes) {
+      visit(root)
+    }
+
+    if (pawnIndices.length === 1 && !reachable.has(pawnIndices[0])) {
+      rejections.push(`The Band-pawn node '${expectedPawnId}' is not reachable from the active scene root.`)
+    }
+    if (terrainIndex !== -1 && !reachable.has(terrainIndex)) {
+      rejections.push(`The terrain node '${expectedTerrainId}' is not reachable from the active scene root.`)
+    }
+    if (landmarkIndex !== -1 && !reachable.has(landmarkIndex)) {
+      rejections.push(`The settlement landmark node '${expectedLandmarkId}' is not reachable from the active scene root.`)
+    }
+  }
+
+  // 3. Scale and transform checks (ARCH-016 1:1 production scale)
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]
+    if (typeof n === 'object' && n !== null && Array.isArray(n.scale)) {
+      const scale = n.scale as unknown[]
+      if (
+        scale.length !== 3 ||
+        scale.some((s) => typeof s !== 'number' || Math.abs(s - 1.0) > 1e-4)
+      ) {
+        rejections.push(`Node '${nodeNames[i]}' scale must be exactly 1.0 (found [${scale.join(', ')}]).`)
+      }
+    }
+  }
+
+  // Band pawn start position check
+  if (pawnIndices.length === 1 && overworld.startPosition) {
+    const pawnNode = nodes[pawnIndices[0]]
+    if (typeof pawnNode === 'object' && pawnNode !== null && Array.isArray(pawnNode.translation)) {
+      const t = pawnNode.translation as unknown[]
+      if (
+        t.length !== 3 ||
+        typeof t[0] !== 'number' ||
+        typeof t[1] !== 'number' ||
+        typeof t[2] !== 'number' ||
+        Math.abs(t[0] - overworld.startPosition.x) > 1e-3 ||
+        Math.abs(t[1] - overworld.startPosition.y) > 1e-3 ||
+        Math.abs(t[2] - overworld.startPosition.z) > 1e-3
+      ) {
+        rejections.push(
+          `Band-pawn node position [${t.join(', ')}] does not match the start position (${overworld.startPosition.x}, ${overworld.startPosition.y}, ${overworld.startPosition.z}).`,
+        )
+      }
+    }
+  }
+
+  // Terrain geometry bounds check (covers traversable moorland)
+  const accessors = Array.isArray(doc.accessors) ? doc.accessors : []
+  const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
+  if (terrainIndex !== -1 && overworld.traversableGround) {
+    const tNode = nodes[terrainIndex]
+    const meshIdx = typeof tNode === 'object' && tNode !== null ? tNode.mesh : undefined
+    if (typeof meshIdx === 'number' && meshIdx >= 0 && meshIdx < meshes.length) {
+      const mesh = meshes[meshIdx]
+      const prims = Array.isArray(mesh.primitives) ? mesh.primitives : []
+      let tMinX = Infinity
+      let tMaxX = -Infinity
+      let tMinZ = Infinity
+      let tMaxZ = -Infinity
+      let hasPositionAccessor = false
+
+      for (const prim of prims) {
+        const posAccIdx = prim.attributes?.POSITION
+        if (typeof posAccIdx === 'number' && posAccIdx >= 0 && posAccIdx < accessors.length) {
+          const acc = accessors[posAccIdx]
+          if (Array.isArray(acc.min) && Array.isArray(acc.max) && acc.min.length >= 3 && acc.max.length >= 3) {
+            hasPositionAccessor = true
+            const minVals = acc.min as number[]
+            const maxVals = acc.max as number[]
+            tMinX = Math.min(tMinX, minVals[0])
+            tMaxX = Math.max(tMaxX, maxVals[0])
+            tMinZ = Math.min(tMinZ, minVals[2])
+            tMaxZ = Math.max(tMaxZ, maxVals[2])
+          }
+        }
+      }
+
+      if (hasPositionAccessor) {
+        if (tMinX > overworld.traversableGround.minX || tMaxX < overworld.traversableGround.maxX) {
+          rejections.push(
+            `Terrain X bounds [${tMinX}, ${tMaxX}] do not cover traversable ground [${overworld.traversableGround.minX}, ${overworld.traversableGround.maxX}].`,
+          )
+        }
+        if (tMinZ > overworld.traversableGround.minZ || tMaxZ < overworld.traversableGround.maxZ) {
+          rejections.push(
+            `Terrain Z bounds [${tMinZ}, ${tMaxZ}] do not cover traversable ground [${overworld.traversableGround.minZ}, ${overworld.traversableGround.maxZ}].`,
+          )
+        }
+      }
+    }
+  }
+
+  // 4. Prohibited separate nodes: player-character, companion, troops
   const prohibitedNodePatterns = [
     /player-character/i,
     /companion/i,
@@ -584,8 +716,7 @@ export function validateOverworldGltfAsset(
     }
   }
 
-  // Meshes: no technical box mesh
-  const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
+  // 5. Meshes: no technical box mesh
   for (const mesh of meshes) {
     const meshName =
       typeof mesh === 'object' && mesh !== null && typeof mesh.name === 'string' ? mesh.name : ''
@@ -594,16 +725,36 @@ export function validateOverworldGltfAsset(
     }
   }
 
-  // Animations: idle and travel clips
+  // 6. Animations: idle and travel clips targeting Band pawn
   const animations = Array.isArray(doc.animations) ? doc.animations : []
   const clipNames = animations.map((a) =>
     typeof a === 'object' && a !== null && typeof a.name === 'string' ? a.name : '',
   )
+
   if (!clipNames.includes(expectedIdleClip)) {
     rejections.push(`The Overworld glTF asset is missing the idle animation clip '${expectedIdleClip}'.`)
   }
   if (!clipNames.includes(expectedTravelClip)) {
     rejections.push(`The Overworld glTF asset is missing the travel animation clip '${expectedTravelClip}'.`)
+  }
+
+  if (pawnIndices.length === 1) {
+    const targetPawnIdx = pawnIndices[0]
+    for (const anim of animations) {
+      if (typeof anim !== 'object' || anim === null) continue
+      const animName = typeof anim.name === 'string' ? anim.name : 'unknown'
+      if (animName !== expectedIdleClip && animName !== expectedTravelClip) continue
+      const channels = Array.isArray(anim.channels) ? anim.channels : []
+      if (channels.length === 0) {
+        rejections.push(`Animation clip '${animName}' has no channels.`)
+      }
+      for (const ch of channels) {
+        const targetNode = ch?.target?.node
+        if (targetNode !== targetPawnIdx) {
+          rejections.push(`Animation clip '${animName}' channel targets node index ${targetNode}, expected Band-pawn index ${targetPawnIdx}.`)
+        }
+      }
+    }
   }
 
   return rejections
