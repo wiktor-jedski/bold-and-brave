@@ -85,6 +85,13 @@ function projectionWith(band: readonly string[]): SimulationProjection {
     band: Object.freeze(band.map((id) => Object.freeze({ id, name: id }))),
     coin: 100,
     provisions: 10.0,
+    scene: 'poc-overworld',
+    bandPawnPosition: Object.freeze({ x: 0, y: 0, z: 1.5 }),
+    destination: null,
+    movementState: 'idle',
+    paused: false,
+    elapsedCampaignTime: 0,
+    consumptionRemainder: 0,
   })
 }
 

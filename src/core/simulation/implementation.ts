@@ -1,6 +1,31 @@
-import { INITIAL_AGENTS, INITIAL_BAND, INITIAL_COIN, INITIAL_PROVISIONS } from '../content'
-import type { AgentContent, BandMemberContent } from '../content'
-import type { AgentRecord, BandMemberRecord, Simulation, SimulationProjection } from './interface'
+import {
+  INITIAL_AGENTS,
+  INITIAL_BAND,
+  INITIAL_COIN,
+  INITIAL_PROVISIONS,
+  OVERWORLD,
+} from '../content'
+import type { AgentContent, BandMemberContent, WorldPosition } from '../content'
+import {
+  ARRIVAL_DISTANCE_THRESHOLD,
+  calculateSpeedPerTick,
+  createAuthoredNavigationAdapter,
+  distanceBetween,
+  isInvalidNavigationResult,
+  isPositionInTraversableGround,
+  isSteeringIntent,
+} from '../navigation'
+import type {
+  AgentRecord,
+  BandMemberRecord,
+  InvalidActionFeedbackEvent,
+  MovementState,
+  Simulation,
+  SimulationCommand,
+  SimulationFeedbackEvent,
+  SimulationOptions,
+  SimulationProjection,
+} from './interface'
 
 /** The Simulation starts at tick 0. */
 const INITIAL_TICK = 0
@@ -45,7 +70,10 @@ function copyBandMemberContent(member: BandMemberContent): BandMemberRecord {
  * Create the authoritative Simulation (ARCH-001).
  *
  * The Simulation tick, the Agent relationship state, the Band membership,
- * and the initial resources are privately owned by the closure created here.
+ * initial resources, current Scene, Band-pawn position, destination, movement
+ * state, pause state, elapsed campaign time, Provisions, and the consumption
+ * remainder are privately owned by the closure created here (ARCH-003).
+ *
  * A new campaign starts with exactly the two named Agents from the Typed
  * Content Catalog — Village Elder (`poc-contract-giver`) and Varek
  * (`poc-enemy-agent`) — copied into private state (REQ-167, PVS-REL-001);
@@ -55,14 +83,19 @@ function copyBandMemberContent(member: BandMemberContent): BandMemberRecord {
  * starts at 100 and Provisions at 10.0. Miro's fixed 0-Coin cost means no
  * Coin deduction is applied when Miro joins the new campaign.
  *
+ * A new campaign starts on the Overworld (`poc-overworld`) outside the
+ * settlement boundary at the authored start position (0, 0, 1.5), with
+ * elapsed campaign time 0 and consumption remainder 0 (REQ-017, PVS-FLW-001).
+ *
  * `advanceTick` is the only external way to advance the private Simulation
  * tick (ARCH-002, REQ-113): each call moves the private tick forward by
  * exactly one fixed 60 Hz tick (ARCH-005). Callers receive only a deeply
- * frozen readonly projection, never mutable state (ARCH-003). This factory
- * is exposed to callers only through the public module entry `./index` so
- * that the external seam stays deep.
+ * frozen readonly projection, never mutable state (ARCH-003).
  */
-export function createSimulation(): Simulation {
+export function createSimulation(options?: SimulationOptions): Simulation {
+  const overworld = options?.overworld ?? OVERWORLD
+  const navigationPort = options?.navigationPort ?? createAuthoredNavigationAdapter()
+
   let tick = INITIAL_TICK
   // Private authoritative state (ARCH-003): each new Simulation owns a copy
   // of the authored Agent content, never a reference into the catalog.
@@ -74,8 +107,35 @@ export function createSimulation(): Simulation {
   // minus the total fixed join cost of the initial Band members. Both the
   // player character and Miro cost 0 Coin, so no Coin deduction is applied
   // when Miro joins the new campaign (PVS-PRP-001).
-  let coin = INITIAL_COIN - INITIAL_BAND.reduce((total, member) => total + member.costCoin, 0)
+  const coin = INITIAL_COIN - INITIAL_BAND.reduce((total, member) => total + member.costCoin, 0)
   let provisions = INITIAL_PROVISIONS
+
+  // Authoritative Overworld travel state (ARCH-003, REQ-017, REQ-018).
+  const scene = overworld.id
+  let bandPawnPosition: WorldPosition = {
+    x: overworld.startPosition.x,
+    y: overworld.startPosition.y,
+    z: overworld.startPosition.z,
+  }
+  let destination: WorldPosition | null = null
+  let movementState: MovementState = 'idle'
+  let paused = false
+  let elapsedCampaignTime = 0
+  let consumptionRemainder = 0
+
+  let queuedCommands: SimulationCommand[] = []
+  const feedbackEvents: SimulationFeedbackEvent[] = []
+
+  function emitInvalidAction(action: string, reason: string, message: string): void {
+    const event: InvalidActionFeedbackEvent = Object.freeze({
+      kind: 'invalid-action',
+      tick,
+      action,
+      reason,
+      message,
+    })
+    feedbackEvents.push(event)
+  }
 
   return {
     readProjection(): SimulationProjection {
@@ -94,10 +154,190 @@ export function createSimulation(): Simulation {
         ),
         coin,
         provisions,
+        scene,
+        bandPawnPosition: Object.freeze({
+          x: Math.round(bandPawnPosition.x * 1e12) / 1e12,
+          y: Math.round(bandPawnPosition.y * 1e12) / 1e12,
+          z: Math.round(bandPawnPosition.z * 1e12) / 1e12,
+        }),
+        destination:
+          destination !== null
+            ? Object.freeze({
+                x: Math.round(destination.x * 1e12) / 1e12,
+                y: Math.round(destination.y * 1e12) / 1e12,
+                z: Math.round(destination.z * 1e12) / 1e12,
+              })
+            : null,
+        movementState,
+        paused,
+        elapsedCampaignTime: Math.round(elapsedCampaignTime * 1e12) / 1e12,
+        consumptionRemainder: Math.round(consumptionRemainder * 1e12) / 1e12,
       })
     },
+
+    submitCommand(command: SimulationCommand): void {
+      if (
+        command === null ||
+        typeof command !== 'object' ||
+        typeof command.targetTick !== 'number' ||
+        !Number.isInteger(command.targetTick)
+      ) {
+        emitInvalidAction('unknown', 'invalid-command', 'Command must be an object with an integer targetTick.')
+        return
+      }
+
+      if (command.targetTick < tick) {
+        emitInvalidAction(
+          command.kind ?? 'unknown',
+          'past-target-tick',
+          `Command target tick ${command.targetTick} is in the past (current tick is ${tick}).`,
+        )
+        return
+      }
+
+      queuedCommands.push(command)
+    },
+
+    drainFeedbackEvents(): readonly SimulationFeedbackEvent[] {
+      const drained = Object.freeze([...feedbackEvents])
+      feedbackEvents.length = 0
+      return drained
+    },
+
     advanceTick(): void {
       tick += 1
+
+      // 1. Process due commands for this target tick in FIFO order (ARCH-002, ARCH-005).
+      const dueCommands: SimulationCommand[] = []
+      const remainingCommands: SimulationCommand[] = []
+
+      for (const cmd of queuedCommands) {
+        if (cmd.targetTick <= tick) {
+          dueCommands.push(cmd)
+        } else {
+          remainingCommands.push(cmd)
+        }
+      }
+      queuedCommands = remainingCommands
+
+      for (const cmd of dueCommands) {
+        switch (cmd.kind) {
+          case 'set-destination': {
+            const dest = cmd.destination
+            if (
+              dest === null ||
+              typeof dest !== 'object' ||
+              !Number.isFinite(dest.x) ||
+              !Number.isFinite(dest.y) ||
+              !Number.isFinite(dest.z)
+            ) {
+              emitInvalidAction('set-destination', 'invalid-target', 'Target position contains non-finite coordinates.')
+              break
+            }
+
+            if (!isPositionInTraversableGround(dest, overworld.traversableGround)) {
+              emitInvalidAction('set-destination', 'out-of-bounds', 'Target position is outside traversable ground.')
+              break
+            }
+
+            destination = { x: dest.x, y: dest.y, z: dest.z }
+            movementState = paused ? 'idle' : 'travel'
+            break
+          }
+          case 'toggle-pause': {
+            paused = !paused
+            movementState = destination !== null && !paused ? 'travel' : 'idle'
+            break
+          }
+          case 'set-paused': {
+            paused = cmd.paused
+            movementState = destination !== null && !paused ? 'travel' : 'idle'
+            break
+          }
+          case 'pause': {
+            paused = true
+            movementState = 'idle'
+            break
+          }
+          case 'resume': {
+            paused = false
+            movementState = destination !== null ? 'travel' : 'idle'
+            break
+          }
+          default: {
+            emitInvalidAction('unknown', 'unknown-command', 'Unrecognized simulation command kind.')
+            break
+          }
+        }
+      }
+
+      // 2. Perform authoritative Overworld movement if travel is active (ARCH-003, REQ-018).
+      if (!paused && destination !== null) {
+        const speedPerTick = calculateSpeedPerTick(overworld.travel)
+        const steeringResult = navigationPort.computeSteering({
+          state: { position: bandPawnPosition },
+          target: destination,
+          traversability: {
+            traversableGround: overworld.traversableGround,
+            navigationAnchors: overworld.navigationAnchors,
+            travel: overworld.travel,
+          },
+          tick,
+          speedWorldUnitsPerTick: speedPerTick,
+        })
+
+        if (isInvalidNavigationResult(steeringResult)) {
+          emitInvalidAction('navigate', steeringResult.reason, steeringResult.message)
+          destination = null
+          movementState = 'idle'
+        } else if (isSteeringIntent(steeringResult)) {
+          if (steeringResult.arrived) {
+            bandPawnPosition = { x: destination.x, y: destination.y, z: destination.z }
+            destination = null
+            movementState = 'idle'
+          } else {
+            const step = steeringResult.step
+            const stepDist = Math.hypot(step.x, step.y, step.z)
+            const newX = bandPawnPosition.x + step.x
+            const newY = bandPawnPosition.y + step.y
+            const newZ = bandPawnPosition.z + step.z
+            const remainingDist = distanceBetween({ x: newX, y: newY, z: newZ }, destination)
+
+            if (remainingDist <= ARRIVAL_DISTANCE_THRESHOLD) {
+              bandPawnPosition = { x: destination.x, y: destination.y, z: destination.z }
+              destination = null
+              movementState = 'idle'
+            } else {
+              bandPawnPosition = { x: newX, y: newY, z: newZ }
+              movementState = 'travel'
+            }
+
+            // 3. Advance campaign time and Provisions consumption only for moving distance (REQ-018, REQ-082, REQ-083).
+            if (stepDist > 0) {
+              const speedPerDay = overworld.travel.speedWorldUnitsPerDay
+              const daysMoved = stepDist / speedPerDay
+              elapsedCampaignTime += daysMoved
+
+              const memberCount = band.length
+              const memberDays = memberCount * daysMoved
+              consumptionRemainder += memberDays
+
+              while (consumptionRemainder >= 0.5 - 1e-12) {
+                consumptionRemainder = Math.max(0, consumptionRemainder - 0.5)
+                provisions = Math.max(0, Math.round((provisions - 0.1) * 10) / 10)
+              }
+
+              if (Math.abs(consumptionRemainder) < 1e-12) {
+                consumptionRemainder = 0
+              }
+            }
+          }
+        }
+      }
+
+      if (destination === null || paused) {
+        movementState = 'idle'
+      }
     },
   }
 }

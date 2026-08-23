@@ -7,4 +7,19 @@
  * seam remains deep.
  */
 export { createSimulation } from './implementation'
-export type { Simulation, SimulationProjection, AgentRecord, BandMemberRecord } from './interface'
+export type {
+  AgentRecord,
+  BandMemberRecord,
+  InvalidActionFeedbackEvent,
+  MovementState,
+  PauseCommand,
+  ResumeCommand,
+  SetDestinationCommand,
+  SetPausedCommand,
+  Simulation,
+  SimulationCommand,
+  SimulationFeedbackEvent,
+  SimulationOptions,
+  SimulationProjection,
+  TogglePauseCommand,
+} from './interface'
