@@ -197,6 +197,7 @@ export function createSceneLoadingHandoff(
   simulation?: Simulation,
   runtime?: BrowserRuntime,
   publishTravelObservation?: (getObservation: () => TravelObservation) => void,
+  onDeviceLoss?: (cleanup: () => void) => void,
 ): SceneLoadingHandoff {
   return (renderer: PresentationRenderer): void => {
     // One diagnostics log per handoff invocation: the log accumulates
@@ -261,8 +262,13 @@ export function createSceneLoadingHandoff(
               keyboardTarget: typeof window !== 'undefined' ? window : null,
             })
             inputAdapter.attach()
+            // Dispose and detach the InputAdapter immediately upon terminal device loss
+            if (onDeviceLoss !== undefined) {
+              onDeviceLoss(() => {
+                inputAdapter?.dispose()
+              })
+            }
           }
-          // Publish read-only travel observation for acceptance (ARCH-024,
           // REQ-018, REQ-170).
           if (simulation !== undefined) {
             const publisher =

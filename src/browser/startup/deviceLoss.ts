@@ -122,6 +122,10 @@ export interface DeviceLossCoordinator {
    * every later callback after a loss.
    */
   readonly surface: DeliveryStateSurface
+  /**
+   * Register a cleanup callback executed immediately upon terminal device loss.
+   */
+  readonly onLoss?: (cleanup: () => void) => void
 }
 
 /**
@@ -161,7 +165,15 @@ export function createDeviceLossCoordinator(
    * before any loss resolved (REQ-138, PVS-WEB-005).
    */
   let lossProjection: SimulationProjection | null = null
+  const cleanups: Array<() => void> = []
 
+  function onLoss(cleanup: () => void): void {
+    if (terminal) {
+      cleanup()
+      return
+    }
+    cleanups.push(cleanup)
+  }
   // Publish the read-only device-loss observation before the runtime or
   // Scene-loading handoff starts (ARCH-024, REQ-138): the acceptance reads
   // the complete projection — advancing before loss, frozen at the loss
@@ -271,6 +283,13 @@ export function createDeviceLossCoordinator(
     // while no frame can be shown.
     options.runtime.terminalStop()
 
+    // Execute all registered cleanups (such as disposing the InputAdapter)
+    for (const cleanup of cleanups) {
+      try {
+        cleanup()
+      } catch {}
+    }
+
     // Show one readable semantic failure and one Reload action; the
     // terminal state exposes no other action (REQ-134, PVS-WEB-001).
     options.surface.showDeviceLost(DEVICE_LOST_MESSAGE, options.reload)
@@ -281,5 +300,6 @@ export function createDeviceLossCoordinator(
       return terminal
     },
     surface,
+    onLoss,
   }
 }

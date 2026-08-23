@@ -5,9 +5,11 @@
  * These tests prove that the local promised-row acceptance rejects each wrong
  * Overworld travel evidence value — wrong initial state, wrong route distance,
  * camera pitch or zoom outside authored bounds, missing or malformed pause,
- * wrong final position/time/provisions, non-deterministic runs, failed visual
- * checklist items, commands accepted after device loss, or a wrong delivery
- * state — before it can produce passing evidence.
+ * wrong final position/time/provisions, non-null final destination,
+ * non-deterministic runs, mismatched complete projections (including tick,
+ * agents, band, consumption remainder), cross-check mismatches between top-level
+ * and run states, failed visual checklist items, missing device loss provenance,
+ * or commands accepted after device loss — before it can produce passing evidence.
  */
 import { describe, expect, it } from 'vitest'
 import type { SimulationProjection } from '../src/core/simulation'
@@ -16,6 +18,7 @@ import {
   OVERWORLD_CAMERA_BOUNDS,
 } from '../src/core/content'
 import {
+  projectionsEqual,
   REQUIRED_TRAVEL_DELIVERY_STATE,
   validateOverworldTravelEvidenceRecord,
 } from './overworld-travel-record'
@@ -29,7 +32,26 @@ type DeepMutable<T> = { -readonly [Key in keyof T]: DeepMutable<T[Key]> }
 
 const INITIAL_PROJECTION: SimulationProjection = Object.freeze({
   tick: 0,
-  agents: Object.freeze([]),
+  agents: Object.freeze([
+    Object.freeze({
+      id: 'poc-contract-giver',
+      name: 'Village Elder',
+      role: 'contract-giver',
+      disposition: 'Neutral',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+    Object.freeze({
+      id: 'poc-enemy-agent',
+      name: 'Varek',
+      role: 'enemy-agent',
+      disposition: 'Hostile',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+  ]),
   band: Object.freeze([
     Object.freeze({ id: 'poc-player-character', name: 'Player Character' }),
     Object.freeze({ id: 'poc-companion', name: 'Miro' }),
@@ -47,7 +69,26 @@ const INITIAL_PROJECTION: SimulationProjection = Object.freeze({
 
 const PAUSED_PROJECTION: SimulationProjection = Object.freeze({
   tick: 1800,
-  agents: Object.freeze([]),
+  agents: Object.freeze([
+    Object.freeze({
+      id: 'poc-contract-giver',
+      name: 'Village Elder',
+      role: 'contract-giver',
+      disposition: 'Neutral',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+    Object.freeze({
+      id: 'poc-enemy-agent',
+      name: 'Varek',
+      role: 'enemy-agent',
+      disposition: 'Hostile',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+  ]),
   band: Object.freeze([
     Object.freeze({ id: 'poc-player-character', name: 'Player Character' }),
     Object.freeze({ id: 'poc-companion', name: 'Miro' }),
@@ -65,7 +106,26 @@ const PAUSED_PROJECTION: SimulationProjection = Object.freeze({
 
 const FINAL_PROJECTION: SimulationProjection = Object.freeze({
   tick: 3600,
-  agents: Object.freeze([]),
+  agents: Object.freeze([
+    Object.freeze({
+      id: 'poc-contract-giver',
+      name: 'Village Elder',
+      role: 'contract-giver',
+      disposition: 'Neutral',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+    Object.freeze({
+      id: 'poc-enemy-agent',
+      name: 'Varek',
+      role: 'enemy-agent',
+      disposition: 'Hostile',
+      status: 'Active',
+      grievances: Object.freeze([]),
+      fate: null,
+    }),
+  ]),
   band: Object.freeze([
     Object.freeze({ id: 'poc-player-character', name: 'Player Character' }),
     Object.freeze({ id: 'poc-companion', name: 'Miro' }),
@@ -78,7 +138,22 @@ const FINAL_PROJECTION: SimulationProjection = Object.freeze({
   movementState: 'idle',
   paused: false,
   elapsedCampaignTime: 0.5,
-  consumptionRemainder: 0,
+  consumptionRemainder: 0.008,
+})
+
+const LOSS_PROJECTION: SimulationProjection = Object.freeze({
+  tick: 3650,
+  agents: Object.freeze([...FINAL_PROJECTION.agents]),
+  band: Object.freeze([...FINAL_PROJECTION.band]),
+  coin: 100,
+  provisions: 9.8,
+  scene: 'poc-overworld',
+  bandPawnPosition: Object.freeze({ x: 0, y: 0, z: 0 }),
+  destination: Object.freeze({ x: 0, y: 0, z: 0.5 }),
+  movementState: 'travel',
+  paused: false,
+  elapsedCampaignTime: 0.5,
+  consumptionRemainder: 0.008,
 })
 
 function makeValidRunTrace(): TravelRunTrace {
@@ -112,7 +187,7 @@ function makeValidRecord(): OverworldTravelEvidenceRecord {
       yaw: 0.2,
       pitch: 1.0,
       distance: 5.0,
-      bounds: OVERWORLD_CAMERA_BOUNDS,
+      bounds: { ...OVERWORLD_CAMERA_BOUNDS },
       topDown: true,
     },
     pauseMidRoute: {
@@ -129,7 +204,7 @@ function makeValidRecord(): OverworldTravelEvidenceRecord {
       paused: false,
       elapsedCampaignTime: 0.5,
       provisions: 9.8,
-      consumptionRemainder: 0,
+      consumptionRemainder: 0.008,
     },
     runs: [makeValidRunTrace(), makeValidRunTrace()],
     tracesEqual: true,
@@ -144,6 +219,13 @@ function makeValidRecord(): OverworldTravelEvidenceRecord {
       imagePath: 'test-results/support-row/phase-9-visual-review.png',
     },
     deviceLossInputGate: {
+      lossTick: 3650,
+      projectionAtLoss: LOSS_PROJECTION,
+      projectionAfterAttemptedInput: LOSS_PROJECTION,
+      inputAdapterAttachedBeforeLoss: true,
+      inputAdapterAttachedAfterLoss: false,
+      inputGateOpenBeforeLoss: true,
+      inputGateOpenAfterLoss: false,
       commandBeforeLoss: true,
       commandAfterLoss: false,
       inputGateClosedAfterLoss: true,
@@ -238,6 +320,12 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     })
   })
 
+  it('rejects manipulated camera bounds', () => {
+    expectRecordRejected((record) => {
+      record.camera.bounds.maxPitch = 3.0
+    })
+  })
+
   it('rejects camera pitch below minimum bound', () => {
     expectRecordRejected((record) => {
       record.camera.pitch = OVERWORLD_CAMERA_BOUNDS.minPitch - 0.1
@@ -288,7 +376,10 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
 
   it('rejects pause mid-route with time outside valid range', () => {
     expectRecordRejected((record) => {
-      record.pauseMidRoute.pausedTime = 1.0
+      record.pauseMidRoute.pausedTime = 0
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedTime = 0.6
     })
   })
 
@@ -304,6 +395,20 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     })
   })
 
+  it('rejects non-null final destination upon arrival', () => {
+    expectRecordRejected((record) => {
+      record.finalState.destination = { x: 0, y: 0, z: 0 }
+    })
+    expectRecordRejected((record) => {
+      record.runs[0] = {
+        ...makeValidRunTrace(),
+        finalProjection: {
+          ...FINAL_PROJECTION,
+          destination: { x: 0, y: 0, z: 0 },
+        },
+      }
+    })
+  })
   it('rejects non-idle final movement state', () => {
     expectRecordRejected((record) => {
       record.finalState.movementState = 'travel'
@@ -355,7 +460,49 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     })
   })
 
-  it('rejects mismatched projection traces between clean runs', () => {
+  it('rejects mismatched complete start projections between clean runs', () => {
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          startProjection: {
+            ...INITIAL_PROJECTION,
+            tick: 5,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          startProjection: {
+            ...INITIAL_PROJECTION,
+            coin: 50,
+          },
+        },
+      ]
+    })
+  })
+
+  it('rejects mismatched paused projections between clean runs', () => {
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...PAUSED_PROJECTION,
+            provisions: 9.8,
+          },
+        },
+      ]
+    })
+  })
+
+  it('rejects mismatched final projections between clean runs', () => {
     expectRecordRejected((record) => {
       record.runs = [
         makeValidRunTrace(),
@@ -367,6 +514,27 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           },
         },
       ]
+    })
+  })
+
+  it('rejects top-level initialState mismatch with Run 1 startProjection', () => {
+    expectRecordRejected((record) => {
+      record.initialState.provisions = 9.0
+    })
+    expectRecordRejected((record) => {
+      record.initialState.startPosition = { x: 0, y: 0, z: 0 }
+    })
+  })
+
+  it('rejects top-level pauseMidRoute mismatch with Run 1 pausedProjection', () => {
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedTime = 0.1
+    })
+  })
+
+  it('rejects top-level finalState mismatch with Run 1 finalProjection', () => {
+    expectRecordRejected((record) => {
+      record.finalState.elapsedCampaignTime = 0.6
     })
   })
 
@@ -412,12 +580,33 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     expect(rejections.length).toBeGreaterThan(0)
   })
 
-  it('rejects device loss input gate violations', () => {
+  it('rejects device loss input gate provenance violations', () => {
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.lossTick = 9999
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.projectionAfterAttemptedInput = {
+        ...LOSS_PROJECTION,
+        provisions: 5.0,
+      }
+    })
     expectRecordRejected((record) => {
       record.deviceLossInputGate.commandBeforeLoss = false
     })
     expectRecordRejected((record) => {
       record.deviceLossInputGate.commandAfterLoss = true
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.inputAdapterAttachedBeforeLoss = false
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.inputAdapterAttachedAfterLoss = true
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.inputGateOpenBeforeLoss = false
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.inputGateOpenAfterLoss = true
     })
     expectRecordRejected((record) => {
       record.deviceLossInputGate.inputGateClosedAfterLoss = false

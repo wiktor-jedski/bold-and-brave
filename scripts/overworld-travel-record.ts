@@ -11,9 +11,10 @@
  *   - clicks traversable ground to travel to the settlement boundary;
  *   - pauses and resumes mid-route;
  *   - observes an exact stop at 0.5 elapsed Overworld day with Provisions 9.8;
- *   - proves two clean runs have equal command and projection traces;
+ *   - proves two clean runs have equal command and complete projection traces;
  *   - verifies the Phase 9 visual checklist and captures one visual review PNG;
- *   - proves device loss closes input before another command can be created.
+ *   - proves device loss closes input and detaches the input adapter before
+ *     another command can be created.
  *
  * This module owns the machine-readable evidence shape and the validation
  * that gates the `test-results/support-row/overworld-travel.json` record.
@@ -33,6 +34,7 @@ export const REQUIRED_TRAVEL_DELIVERY_STATE = 'Ready'
 
 /** Position tolerance for floating-point comparisons (within settlement boundary radius 0.25). */
 const EPSILON = 0.05
+
 /**
  * Trace of one clean campaign travel run.
  */
@@ -66,9 +68,23 @@ export interface Phase9VisualChecklist {
 }
 
 /**
- * Device loss input gate verification facts (ARCH-006, ARCH-007, REQ-138).
+ * Device loss input gate verification facts with complete provenance (ARCH-006, ARCH-007, REQ-138).
  */
 export interface DeviceLossInputGateEvidence {
+  /** The Simulation tick when device loss occurred. */
+  readonly lossTick: number
+  /** The complete immutable projection captured at the moment of loss. */
+  readonly projectionAtLoss: SimulationProjection
+  /** The complete projection sampled after attempting input post-loss. */
+  readonly projectionAfterAttemptedInput: SimulationProjection
+  /** Whether the InputAdapter was attached before loss. */
+  readonly inputAdapterAttachedBeforeLoss: boolean
+  /** Whether the InputAdapter was detached and disposed after loss. */
+  readonly inputAdapterAttachedAfterLoss: boolean
+  /** Whether the gameplay input gate was open before loss. */
+  readonly inputGateOpenBeforeLoss: boolean
+  /** Whether the gameplay input gate was closed after loss. */
+  readonly inputGateOpenAfterLoss: boolean
   /** Whether a real move command was accepted and processed before loss. */
   readonly commandBeforeLoss: boolean
   /** Whether any command was accepted or processed after device loss. */
@@ -177,6 +193,16 @@ function deepEqual(left: unknown, right: unknown): boolean {
 }
 
 /**
+ * Check if two complete Simulation projections are value-equal in all fields.
+ */
+export function projectionsEqual(
+  left: SimulationProjection,
+  right: SimulationProjection,
+): boolean {
+  return deepEqual(left, right)
+}
+
+/**
  * Check if two WorldPositions are approximately equal.
  */
 function positionsEqual(
@@ -191,24 +217,6 @@ function positionsEqual(
     Math.abs(left.x - right.x) <= tolerance &&
     Math.abs(left.y - right.y) <= tolerance &&
     Math.abs(left.z - right.z) <= tolerance
-  )
-}
-/**
- * Check if two gameplay projections are value-equal in all authoritative fields.
- */
-function gameplayProjectionEqual(
-  left: SimulationProjection,
-  right: SimulationProjection,
-): boolean {
-  return (
-    left.scene === right.scene &&
-    positionsEqual(left.bandPawnPosition, right.bandPawnPosition) &&
-    positionsEqual(left.destination, right.destination) &&
-    left.movementState === right.movementState &&
-    left.paused === right.paused &&
-    Math.abs(left.elapsedCampaignTime - right.elapsedCampaignTime) <= EPSILON &&
-    Math.abs(left.provisions - right.provisions) <= EPSILON &&
-    left.coin === right.coin
   )
 }
 
@@ -289,22 +297,38 @@ export function validateOverworldTravelEvidenceRecord(
     rejections.push(`Production scale must be 1.0; received ${record.route.scale}.`)
   }
 
-  // 4. Camera bounds validation (ARCH-009, REQ-018)
-  const bounds = record.camera.bounds ?? OVERWORLD_CAMERA_BOUNDS
+  // 4. Camera bounds validation against canonical catalog (ARCH-009, REQ-018)
+  const canonicalBounds = OVERWORLD_CAMERA_BOUNDS
+  const bounds = record.camera.bounds
+  if (!bounds) {
+    rejections.push('Camera bounds object is missing.')
+  } else {
+    if (
+      Math.abs(bounds.minPitch - canonicalBounds.minPitch) > EPSILON ||
+      Math.abs(bounds.maxPitch - canonicalBounds.maxPitch) > EPSILON ||
+      Math.abs(bounds.minDistance - canonicalBounds.minDistance) > EPSILON ||
+      Math.abs(bounds.maxDistance - canonicalBounds.maxDistance) > EPSILON ||
+      Math.abs(bounds.defaultPitch - canonicalBounds.defaultPitch) > EPSILON ||
+      Math.abs(bounds.defaultDistance - canonicalBounds.defaultDistance) > EPSILON
+    ) {
+      rejections.push('Camera bounds do not match canonical authored catalog OVERWORLD_CAMERA_BOUNDS.')
+    }
+  }
+
   if (
-    record.camera.pitch < bounds.minPitch - EPSILON ||
-    record.camera.pitch > bounds.maxPitch + EPSILON
+    record.camera.pitch < canonicalBounds.minPitch - EPSILON ||
+    record.camera.pitch > canonicalBounds.maxPitch + EPSILON
   ) {
     rejections.push(
-      `Camera pitch ${record.camera.pitch} is outside authored bounds [${bounds.minPitch}, ${bounds.maxPitch}].`,
+      `Camera pitch ${record.camera.pitch} is outside authored bounds [${canonicalBounds.minPitch}, ${canonicalBounds.maxPitch}].`,
     )
   }
   if (
-    record.camera.distance < bounds.minDistance - EPSILON ||
-    record.camera.distance > bounds.maxDistance + EPSILON
+    record.camera.distance < canonicalBounds.minDistance - EPSILON ||
+    record.camera.distance > canonicalBounds.maxDistance + EPSILON
   ) {
     rejections.push(
-      `Camera distance ${record.camera.distance} is outside authored bounds [${bounds.minDistance}, ${bounds.maxDistance}].`,
+      `Camera distance ${record.camera.distance} is outside authored bounds [${canonicalBounds.minDistance}, ${canonicalBounds.maxDistance}].`,
     )
   }
   if (record.camera.topDown !== true) {
@@ -329,11 +353,11 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
-    record.pauseMidRoute.pausedTime < 0 ||
-    record.pauseMidRoute.pausedTime > 0.5 + EPSILON
+    record.pauseMidRoute.pausedTime <= 0 ||
+    record.pauseMidRoute.pausedTime >= 0.5 + EPSILON
   ) {
     rejections.push(
-      `pauseMidRoute pausedTime=${record.pauseMidRoute.pausedTime} is outside valid range [0, 0.5].`,
+      `pauseMidRoute pausedTime=${record.pauseMidRoute.pausedTime} is outside valid range (0, 0.5).`,
     )
   }
   if (
@@ -345,10 +369,15 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
 
-  // 6. Final state validation (REQ-017, REQ-018, REQ-082, REQ-083)
+  // 6. Final state validation and destination-null invariant (REQ-017, REQ-018, REQ-082, REQ-083)
   if (!positionsEqual(record.finalState.finalPosition, settlementPos)) {
     rejections.push(
       `Final position (${record.finalState.finalPosition?.x}, ${record.finalState.finalPosition?.y}, ${record.finalState.finalPosition?.z}) does not match settlement boundary (${settlementPos.x}, ${settlementPos.y}, ${settlementPos.z}).`,
+    )
+  }
+  if (record.finalState.destination !== null) {
+    rejections.push(
+      `Final destination must be null upon arrival; received ${JSON.stringify(record.finalState.destination)}.`,
     )
   }
   if (record.finalState.movementState !== 'idle') {
@@ -378,7 +407,7 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
 
-  // 7. Determinism across clean runs (ARCH-005)
+  // 7. Determinism across clean runs & Complete projection comparison (ARCH-005)
   if (!Array.isArray(record.runs) || record.runs.length !== 2) {
     rejections.push(`Must contain exactly 2 clean run traces; received ${record.runs?.length ?? 0}.`)
   } else {
@@ -387,16 +416,60 @@ export function validateOverworldTravelEvidenceRecord(
     if (!deepEqual(run1.commands, run2.commands)) {
       rejections.push('Run 1 and Run 2 command traces do not match.')
     }
-    if (!gameplayProjectionEqual(run1.startProjection, run2.startProjection)) {
-      rejections.push('Run 1 and Run 2 start projections do not match.')
+    if (!projectionsEqual(run1.startProjection, run2.startProjection)) {
+      rejections.push('Run 1 and Run 2 complete start projections do not match.')
     }
-    if (!gameplayProjectionEqual(run1.pausedProjection, run2.pausedProjection)) {
-      rejections.push('Run 1 and Run 2 paused projections do not match.')
+    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection)) {
+      rejections.push('Run 1 and Run 2 complete paused projections do not match.')
     }
-    if (!gameplayProjectionEqual(run1.finalProjection, run2.finalProjection)) {
-      rejections.push('Run 1 and Run 2 final projections do not match.')
+    if (!projectionsEqual(run1.finalProjection, run2.finalProjection)) {
+      rejections.push('Run 1 and Run 2 complete final projections do not match.')
+    }
+
+    // Cross-check top-level record states against run projections
+    if (
+      record.initialState.scene !== run1.startProjection.scene ||
+      !positionsEqual(record.initialState.startPosition, run1.startProjection.bandPawnPosition) ||
+      record.initialState.destination !== run1.startProjection.destination ||
+      record.initialState.movementState !== run1.startProjection.movementState ||
+      record.initialState.paused !== run1.startProjection.paused ||
+      record.initialState.elapsedCampaignTime !== run1.startProjection.elapsedCampaignTime ||
+      record.initialState.provisions !== run1.startProjection.provisions ||
+      record.initialState.consumptionRemainder !== run1.startProjection.consumptionRemainder
+    ) {
+      rejections.push('Top-level initialState does not match Run 1 startProjection.')
+    }
+
+    if (
+      record.pauseMidRoute.paused !== run1.pausedProjection.paused ||
+      record.pauseMidRoute.movementState !== run1.pausedProjection.movementState ||
+      !positionsEqual(record.pauseMidRoute.pausedPosition, run1.pausedProjection.bandPawnPosition) ||
+      Math.abs(record.pauseMidRoute.pausedTime - run1.pausedProjection.elapsedCampaignTime) > EPSILON ||
+      Math.abs(record.pauseMidRoute.pausedProvisions - run1.pausedProjection.provisions) > EPSILON
+    ) {
+      rejections.push('Top-level pauseMidRoute does not match Run 1 pausedProjection.')
+    }
+
+    if (
+      !positionsEqual(record.finalState.finalPosition, run1.finalProjection.bandPawnPosition) ||
+      record.finalState.destination !== run1.finalProjection.destination ||
+      record.finalState.movementState !== run1.finalProjection.movementState ||
+      record.finalState.paused !== run1.finalProjection.paused ||
+      Math.abs(record.finalState.elapsedCampaignTime - run1.finalProjection.elapsedCampaignTime) > EPSILON ||
+      Math.abs(record.finalState.provisions - run1.finalProjection.provisions) > EPSILON ||
+      Math.abs(record.finalState.consumptionRemainder - run1.finalProjection.consumptionRemainder) > EPSILON
+    ) {
+      rejections.push('Top-level finalState does not match Run 1 finalProjection.')
+    }
+
+    if (run1.finalProjection.destination !== null) {
+      rejections.push('Run 1 finalProjection destination must be null upon arrival.')
+    }
+    if (run2.finalProjection.destination !== null) {
+      rejections.push('Run 2 finalProjection destination must be null upon arrival.')
     }
   }
+
   if (record.tracesEqual !== true) {
     rejections.push('tracesEqual must be true.')
   }
@@ -444,19 +517,43 @@ export function validateOverworldTravelEvidenceRecord(
     }
   }
 
-  // 10. Device loss input gate validation (REQ-138)
+  // 10. Device loss input gate provenance validation (REQ-138)
   const lossGate = record.deviceLossInputGate
   if (!lossGate) {
     rejections.push('deviceLossInputGate is missing.')
   } else {
+    if (lossGate.lossTick !== lossGate.projectionAtLoss?.tick) {
+      rejections.push(
+        `lossTick ${lossGate.lossTick} does not match projectionAtLoss tick ${lossGate.projectionAtLoss?.tick}.`,
+      )
+    }
+    if (
+      !lossGate.projectionAtLoss ||
+      !lossGate.projectionAfterAttemptedInput ||
+      !projectionsEqual(lossGate.projectionAtLoss, lossGate.projectionAfterAttemptedInput)
+    ) {
+      rejections.push('Projection changed after attempted input post-loss.')
+    }
     if (lossGate.commandBeforeLoss !== true) {
       rejections.push('deviceLossInputGate.commandBeforeLoss must be true.')
     }
     if (lossGate.commandAfterLoss !== false) {
       rejections.push('deviceLossInputGate.commandAfterLoss must be false.')
     }
+    if (lossGate.inputGateOpenBeforeLoss !== true) {
+      rejections.push('deviceLossInputGate.inputGateOpenBeforeLoss must be true.')
+    }
+    if (lossGate.inputGateOpenAfterLoss !== false) {
+      rejections.push('deviceLossInputGate.inputGateOpenAfterLoss must be false.')
+    }
     if (lossGate.inputGateClosedAfterLoss !== true) {
       rejections.push('deviceLossInputGate.inputGateClosedAfterLoss must be true.')
+    }
+    if (lossGate.inputAdapterAttachedBeforeLoss !== true) {
+      rejections.push('deviceLossInputGate.inputAdapterAttachedBeforeLoss must be true.')
+    }
+    if (lossGate.inputAdapterAttachedAfterLoss !== false) {
+      rejections.push('deviceLossInputGate.inputAdapterAttachedAfterLoss must be false.')
     }
     if (lossGate.projectionUnchangedAfterLoss !== true) {
       rejections.push('deviceLossInputGate.projectionUnchangedAfterLoss must be true.')

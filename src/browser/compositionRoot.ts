@@ -293,6 +293,8 @@ export async function runApplicationStartup(
       () => loss.lost,
       application.simulation,
       application.runtime,
+      undefined,
+      loss.onLoss,
     )
   handoff(backend.renderer)
 }
