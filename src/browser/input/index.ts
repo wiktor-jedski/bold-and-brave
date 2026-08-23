@@ -9,3 +9,5 @@
  */
 export { CAMERA_ROTATION_SPEED, CAMERA_ZOOM_SPEED, createInputAdapter } from './implementation'
 export type { InputAdapter, InputAdapterOptions } from './interface'
+export { productionTravelObservationPublisher } from './travelObservation'
+export type { TravelObservation } from './travelObservation'

@@ -163,6 +163,21 @@ export const FRAME_PRESENTATION_RECORD_PATH = join(
 export const DEVICE_LOSS_RECORD_PATH = join('test-results', 'support-row', 'device-loss.json')
 
 /**
+ * The machine-readable Phase 9 Overworld travel evidence file.
+ *
+ * The promised-row spec writes this file only after the built product
+ * performed the complete focused travel check twice from clean campaigns,
+ * validated a real command before device loss and no command after loss,
+ * captured the Phase 9 visual-review PNG against the approved checklist,
+ * and the Overworld travel record of that journey passes validation
+ * (REQ-017, REQ-018, REQ-035, REQ-117, REQ-170, PVS-FLW-002, PVS-UI-001).
+ */
+export const OVERWORLD_TRAVEL_RECORD_PATH = join(
+  'test-results',
+  'support-row',
+  'overworld-travel.json',
+)
+/**
  * Parse the product name and version from a Chromium `--version` output
  * line, e.g. `Chromium 151.0.7922.137 Arch Linux`.
  */
@@ -444,7 +459,7 @@ function main(): void {
   rmSync(SCENE_LOAD_RECORD_PATH, { force: true })
   rmSync(FRAME_PRESENTATION_RECORD_PATH, { force: true })
   rmSync(DEVICE_LOSS_RECORD_PATH, { force: true })
-
+  rmSync(OVERWORLD_TRAVEL_RECORD_PATH, { force: true })
   const { facts, rejections } = checkSupportRowSystem(SUPPORT_PROMISE)
   if (rejections.length > 0) {
     for (const rejection of rejections) {

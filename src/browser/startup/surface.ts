@@ -53,7 +53,10 @@ import { buildSceneLoadRecord, productionSceneLoadRecorder, SCENE_LOAD_READY_STA
 import type { SceneLoadRecorder } from '../scene/record'
 import { createScenePresenter, productionFramePresentationPublisher } from '../presentation'
 import type { PresentationRenderer } from '../presentation'
-import type { PresenterSlot } from '../runtime'
+import { createInputAdapter, productionTravelObservationPublisher } from '../input'
+import type { InputAdapter, TravelObservation } from '../input'
+import type { Simulation } from '../../core/simulation'
+import type { BrowserRuntime, PresenterSlot } from '../runtime'
 
 /**
  * The delivery-state presentation driven by startup (REQ-134, PVS-WEB-001,
@@ -191,6 +194,9 @@ export function createSceneLoadingHandoff(
    * or re-run — after the terminal stop (REQ-134, PVS-WEB-001).
    */
   isAborted: () => boolean = () => false,
+  simulation?: Simulation,
+  runtime?: BrowserRuntime,
+  publishTravelObservation?: (getObservation: () => TravelObservation) => void,
 ): SceneLoadingHandoff {
   return (renderer: PresentationRenderer): void => {
     // One diagnostics log per handoff invocation: the log accumulates
@@ -243,6 +249,32 @@ export function createSceneLoadingHandoff(
           // Expose the presentation-only facts of the frame loop for the
           // promised-row acceptance (ARCH-024, REQ-118).
           productionFramePresentationPublisher.publish(presenter)
+          // Wire Overworld presenter and Input Adapter after Scene reaches
+          // Ready (ARCH-007, ARCH-008, REQ-018).
+          let inputAdapter: InputAdapter | null = null
+          if (simulation !== undefined && runtime !== undefined) {
+            inputAdapter = createInputAdapter({
+              simulation,
+              runtime,
+              presenter,
+              target: renderer.domElement,
+              keyboardTarget: typeof window !== 'undefined' ? window : null,
+            })
+            inputAdapter.attach()
+          }
+          // Publish read-only travel observation for acceptance (ARCH-024,
+          // REQ-018, REQ-170).
+          if (simulation !== undefined) {
+            const publisher =
+              publishTravelObservation ?? productionTravelObservationPublisher.publish
+            publisher(() =>
+              Object.freeze({
+                currentProjection: simulation.readProjection(),
+                cameraState: presenter.readCameraState?.() ?? null,
+                isInputAttached: inputAdapter?.isAttached() ?? false,
+              }),
+            )
+          }
           // Enter `Ready` only after the real load passes (REQ-136,
           // PVS-WEB-001).
           surface.showReady()

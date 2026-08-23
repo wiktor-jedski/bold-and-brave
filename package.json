@@ -19,6 +19,7 @@
     "test:support-row": "vitest run scripts/check-support-row.test.ts",
     "test:device-loss-record": "vitest run scripts/device-loss-record.test.ts",
     "test:startup-record": "vitest run scripts/startup-record.test.ts",
+    "test:overworld-travel-record": "vitest run scripts/overworld-travel-record.test.ts",
     "check:support-row": "bun scripts/check-support-row.ts",
     "check:scene-manifest": "bun scripts/check-scene-manifest.ts",
     "test:scene-manifest": "vitest run scripts/check-scene-manifest.test.ts",
