@@ -349,7 +349,7 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       assetId: 'poc-overworld-environment',
       stages: ['download', 'decode', 'upload', 'ready'],
       backend: 'webgpu',
-      animationClips: ['poc-band-idle'],
+      animationClips: ['poc-band-idle', 'poc-band-travel'],
       deliveryState: 'Ready',
       events: [
         { event: 'scene-load', sceneId: 'poc-overworld', assetId: 'poc-overworld-environment' },

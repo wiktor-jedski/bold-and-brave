@@ -29,10 +29,8 @@ const AUTHORED_GLTF_BYTES = readFileSync(
   join('public', 'scenes', 'poc-overworld', 'poc-overworld-environment.gltf'),
 )
 
-/** The two Band-member IDs authored as nodes in the committed asset. */
-const PLAYER_ID = 'poc-player-character'
-const COMPANION_ID = 'poc-companion'
-
+/** The Band-pawn ID authored as a node in the committed asset (REQ-170). */
+const PAWN_ID = 'poc-band-pawn'
 /** Stream the committed authored asset as one response, as the server would. */
 function committedAssetResponse(): Response {
   const stream = new ReadableStream<Uint8Array>({
@@ -111,29 +109,23 @@ describe('Three.js frame presenter integration with the real startup Scene (ARCH
     expect(result.sceneId).toBe('poc-overworld')
     expect(result.assetId).toBe('poc-overworld-environment')
     expect(result.backend).toBe('webgpu')
-    expect(result.animationClips).toEqual(['poc-band-idle'])
+    expect(result.animationClips).toEqual(['poc-band-idle', 'poc-band-travel'])
 
     // The real presenter consumes the real presentation handle.
     const presenter = createScenePresenter(result.presentation, renderer)
     const scene = result.presentation.scene
 
-    // The initial projection projects both Band members — the player
-    // character and Miro (`poc-companion`) — exactly like a new campaign
-    // (REQ-077): both authored nodes are bound and shown, and the record
-    // reports both, in projection order.
-    presenter.present(projectionWith([PLAYER_ID, COMPANION_ID]), 0)
-    expect(presenter.readFramePresentation().presentedNodes).toEqual([PLAYER_ID, COMPANION_ID])
-    expect(scene.getObjectByName(PLAYER_ID)?.visible).toBe(true)
-    expect(scene.getObjectByName(COMPANION_ID)?.visible).toBe(true)
+    // The initial projection projects the Band pawn node: the authored
+    // node is bound and shown, and the record reports it.
+    presenter.present(projectionWith([PAWN_ID]), 0)
+    expect(presenter.readFramePresentation().presentedNodes).toEqual([PAWN_ID])
+    expect(scene.getObjectByName(PAWN_ID)?.visible).toBe(true)
 
-    // The `[a, b]` then `[a]` transition: the companion leaves the Band.
-    // The real bound companion node is hidden, and the record reports
-    // exactly the last presented projection — only the player — never the
-    // ever-bound set.
-    presenter.present(projectionWith([PLAYER_ID]), 0)
-    expect(presenter.readFramePresentation().presentedNodes).toEqual([PLAYER_ID])
-    expect(scene.getObjectByName(PLAYER_ID)?.visible).toBe(true)
-    expect(scene.getObjectByName(COMPANION_ID)?.visible).toBe(false)
+    // When the pawn is no longer projected, the bound node is hidden and
+    // the record reports an empty list.
+    presenter.present(projectionWith([]), 0)
+    expect(presenter.readFramePresentation().presentedNodes).toEqual([])
+    expect(scene.getObjectByName(PAWN_ID)?.visible).toBe(false)
 
     // The record carries only presentation facts: the presented node IDs,
     // the frame count, and the animation time — no projection, resource
@@ -152,7 +144,7 @@ describe('Three.js frame presenter integration with the real startup Scene (ARCH
     const result = await loadStartupScene(renderer, STARTUP_SCENE, realSceneLoadDependencies, reporter, diagnostics)
 
     const presenter = createScenePresenter(result.presentation, renderer)
-    presenter.present(projectionWith([PLAYER_ID, 'poc-troop-1']), 0)
-    expect(presenter.readFramePresentation().presentedNodes).toEqual([PLAYER_ID])
+    presenter.present(projectionWith([PAWN_ID, 'poc-troop-1']), 0)
+    expect(presenter.readFramePresentation().presentedNodes).toEqual([PAWN_ID])
   })
 })

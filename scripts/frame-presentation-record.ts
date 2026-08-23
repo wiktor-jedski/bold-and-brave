@@ -47,7 +47,9 @@ export function readAuthoredBandNodeNames(projectRoot: string): string[] {
   const gltf = JSON.parse(readFileSync(authoredGltfPath(projectRoot), 'utf8')) as {
     nodes?: Array<{ name?: string }>
   }
-  return (gltf.nodes ?? []).map((node) => node.name ?? '')
+  return (gltf.nodes ?? [])
+    .map((node) => node.name ?? '')
+    .filter((name) => name === 'poc-band-pawn' || name.startsWith('poc-player') || name.startsWith('poc-companion'))
 }
 
 /**

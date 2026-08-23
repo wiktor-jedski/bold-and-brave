@@ -85,6 +85,13 @@ export function validateSceneManifest(
         rejections.push(
           `Scene ${scene.id} asset ${asset.id} source ${asset.source} does not resolve to a committed authored glTF 2.0 file under ${PUBLIC_ASSETS_DIR}/.`,
         )
+      } else if (scene.id === 'poc-overworld' && asset.id === 'poc-overworld-environment') {
+        try {
+          const gltf = JSON.parse(readFileSync(assetFile, 'utf8'))
+          rejections.push(...validateOverworldGltfAsset(gltf, OVERWORLD))
+        } catch {
+          rejections.push(`Scene ${scene.id} asset ${asset.id} is not valid JSON.`)
+        }
       }
     }
   }
@@ -497,6 +504,106 @@ export function isAuthoredGltfFile(file: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Validate the authored Overworld glTF asset structure against the catalog contract
+ * (ARCH-009, ARCH-016, REQ-089, REQ-170, PVS-FLW-002, PVS-UI-001).
+ *
+ * Checks that the asset:
+ *   - is valid glTF 2.0;
+ *   - contains exactly one Band-pawn node with the catalog ID (`poc-band-pawn`);
+ *   - contains the settlement-boundary landmark node with the catalog ID (`poc-settlement-landmark`);
+ *   - contains the traversable terrain node with the catalog ID (`poc-overworld-terrain`);
+ *   - contains the required idle and travel animation clips (`poc-band-idle` and `poc-band-travel`);
+ *   - contains NO technical box mesh (e.g. `player-character-box`, `companion-box`, or box mesh names);
+ *   - contains NO separate player-character, Companion, or Troop node (`poc-player-character`, `poc-companion`, `poc-troop-*`, etc.).
+ */
+export function validateOverworldGltfAsset(
+  gltfContent: unknown,
+  overworld: OverworldContent = OVERWORLD,
+): string[] {
+  const rejections: string[] = []
+  if (typeof gltfContent !== 'object' || gltfContent === null) {
+    return ['The Overworld glTF asset is not a valid JSON object.']
+  }
+
+  const doc = gltfContent as {
+    asset?: { version?: unknown }
+    nodes?: Array<{ name?: unknown; mesh?: unknown }>
+    meshes?: Array<{ name?: unknown }>
+    animations?: Array<{ name?: unknown }>
+  }
+
+  if (doc.asset?.version !== '2.0') {
+    rejections.push(`The Overworld glTF asset version must be exactly '2.0' (found ${doc.asset?.version}).`)
+  }
+
+  const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+  const nodeNames = nodes.map((n) => (typeof n.name === 'string' ? n.name : ''))
+
+  const expectedPawnId = overworld.presentationNodes?.bandPawnNodeId ?? 'poc-band-pawn'
+  const expectedTerrainId = overworld.presentationNodes?.terrainNodeId ?? 'poc-overworld-terrain'
+  const expectedLandmarkId = overworld.presentationNodes?.settlementLandmarkNodeId ?? 'poc-settlement-landmark'
+  const expectedIdleClip = overworld.presentationNodes?.idleAnimationClip ?? 'poc-band-idle'
+  const expectedTravelClip = overworld.presentationNodes?.travelAnimationClip ?? 'poc-band-travel'
+
+  // Exactly one Band-pawn node
+  const pawnCount = nodeNames.filter((name) => name === expectedPawnId).length
+  if (pawnCount === 0) {
+    rejections.push(`The Overworld glTF asset is missing the Band-pawn node ${expectedPawnId}.`)
+  } else if (pawnCount > 1) {
+    rejections.push(`The Overworld glTF asset must contain exactly one ${expectedPawnId} node (found ${pawnCount}).`)
+  }
+
+  // Terrain node
+  if (!nodeNames.includes(expectedTerrainId)) {
+    rejections.push(`The Overworld glTF asset is missing the terrain node ${expectedTerrainId}.`)
+  }
+
+  // Settlement landmark node
+  if (!nodeNames.includes(expectedLandmarkId)) {
+    rejections.push(`The Overworld glTF asset is missing the settlement landmark node ${expectedLandmarkId}.`)
+  }
+
+  // Prohibited separate nodes: player-character, companion, troops
+  const prohibitedNodePatterns = [
+    /player-character/i,
+    /companion/i,
+    /troop/i,
+  ]
+  for (const name of nodeNames) {
+    if (name === expectedPawnId || name === expectedTerrainId || name === expectedLandmarkId) {
+      continue
+    }
+    for (const pattern of prohibitedNodePatterns) {
+      if (pattern.test(name)) {
+        rejections.push(`The Overworld glTF asset contains prohibited separate node '${name}'.`)
+      }
+    }
+  }
+
+  // Meshes: no technical box mesh
+  const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
+  for (const mesh of meshes) {
+    const meshName = typeof mesh.name === 'string' ? mesh.name : ''
+    if (/box/i.test(meshName)) {
+      rejections.push(`The Overworld glTF asset contains technical box mesh '${meshName}'.`)
+    }
+  }
+
+  // Animations: idle and travel clips
+  const animations = Array.isArray(doc.animations) ? doc.animations : []
+  const clipNames = animations.map((a) => (typeof a.name === 'string' ? a.name : ''))
+
+  if (!clipNames.includes(expectedIdleClip)) {
+    rejections.push(`The Overworld glTF asset is missing the idle animation clip '${expectedIdleClip}'.`)
+  }
+  if (!clipNames.includes(expectedTravelClip)) {
+    rejections.push(`The Overworld glTF asset is missing the travel animation clip '${expectedTravelClip}'.`)
+  }
+
+  return rejections
 }
 
 /** Run the Scene-manifest and Overworld content-contract checks against the real catalog. */
