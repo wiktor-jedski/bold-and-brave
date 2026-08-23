@@ -326,6 +326,29 @@ describe('Browser Input Adapter integration (ARCH-007, ARCH-002, ARCH-006, ARCH-
     expect(simulation.readProjection().bandPawnPosition.z).toBeLessThan(pausedPosition.z)
   })
 
+  it('defaults keyboardTarget to global window when target is a canvas and keyboardTarget is omitted', async () => {
+    const { simulation, runtime, presenter, canvas } = await createTestRig()
+
+    // Omit keyboardTarget: must default to global window even when target is a canvas element
+    const inputAdapter = createInputAdapter({
+      simulation,
+      runtime,
+      presenter,
+      target: canvas,
+    })
+
+    runtime.start()
+    inputAdapter.attach()
+
+    expect(simulation.readProjection().paused).toBe(false)
+
+    // Dispatch Space on global window
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+    simulation.advanceTick()
+
+    expect(simulation.readProjection().paused).toBe(true)
+  })
+
   it('rejects input and resolves no ground point when acceptsGameplayInput is false', async () => {
     const { simulation, runtime, presenter, canvas } = await createTestRig()
 

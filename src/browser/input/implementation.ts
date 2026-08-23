@@ -45,8 +45,8 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
   const presenter: ScenePresenter = options.presenter
 
   const defaultTarget = typeof window !== 'undefined' ? window : null
-  const pointerTarget = options.target ?? defaultTarget
-  const keyboardTarget = options.keyboardTarget ?? options.target ?? defaultTarget
+  const pointerTarget = options.target !== undefined ? options.target : defaultTarget
+  const keyboardTarget = options.keyboardTarget !== undefined ? options.keyboardTarget : defaultTarget
 
   let attached = false
   let isSecondaryDragging = false
