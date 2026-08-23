@@ -37,7 +37,7 @@
  * WebGPU backend, and final state — and only then writes
  * `test-results/support-row/scene-load.json` (REQ-136, REQ-137). The same
  * headed run also observes the real frame presentation through the loaded
- * Scene — the two projected initial Band members rendered and the authored
+ * Scene — the projected Band pawn rendered and the authored
  * animation advancing from the current projection tick and interpolation
  * value on the existing frame loop — and writes
  * `test-results/support-row/frame-presentation.json` only after the
@@ -134,7 +134,7 @@ export const SCENE_LOAD_RECORD_PATH = join('test-results', 'support-row', 'scene
  * The machine-readable frame-presentation evidence file.
  *
  * The promised-row spec writes this file only after the built product
- * presented the two projected initial Band members and advanced its
+ * presented the projected Band pawn and advanced its
  * authored animation from the current projection tick and interpolation
  * value on the existing frame loop, and the frame-presentation record
  * passes validation (REQ-118, PVS-ARC-008). The gate removes any stale

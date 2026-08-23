@@ -36,12 +36,12 @@ export function authoredGltfPath(projectRoot: string): string {
 }
 
 /**
- * The authored Band-node names of the committed glTF file (ARCH-016).
+ * The authored Band-node names of the committed glTF file (ARCH-016, REQ-170).
  *
  * The record validation compares the product-presented node names with the
- * node names actually authored in the committed asset — the nodes of the
- * initial Band — so the check observes the authored nodes and rejects a
- * product that presents no, wrong, or extra nodes.
+ * Band pawn node authored in the committed asset so the check observes the
+ * authored Band pawn and rejects a product that presents no, wrong, or extra
+ * nodes.
  */
 export function readAuthoredBandNodeNames(projectRoot: string): string[] {
   const gltf = JSON.parse(readFileSync(authoredGltfPath(projectRoot), 'utf8')) as {
@@ -49,14 +49,14 @@ export function readAuthoredBandNodeNames(projectRoot: string): string[] {
   }
   return (gltf.nodes ?? [])
     .map((node) => node.name ?? '')
-    .filter((name) => name === 'poc-band-pawn' || name.startsWith('poc-player') || name.startsWith('poc-companion'))
+    .filter((name) => name === 'poc-band-pawn')
 }
 
 /**
  * Validate one frame-presentation evidence record (REQ-118, PVS-ARC-008).
  *
  * Returns the list of rejection reasons; an empty list means the product
- * presented exactly the two authored Band-member nodes of the initial Band
+ * presented the authored Band pawn node of the Overworld
  * through the frame loop, presented repeatedly (at least
  * `REQUIRED_MIN_PRESENTED_FRAMES` times), and advanced the authored
  * animation beyond time zero from the current projection tick and

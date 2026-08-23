@@ -130,9 +130,9 @@ export type PresentationResult = PresentationUnsupported | PresentationSuccess
  * and interpolation history — and never a projection, resource value,
  * combat result, relationship result, fate result, or outcome
  * (PVS-ARC-008). The promised-row acceptance reads this record from the
- * built product to prove that the two projected initial Band members are
- * rendered and that the authored animation advances from the current
- * projection tick and interpolation value on the existing frame loop.
+ * built product to prove that the projected Band pawn is rendered and
+ * that the authored animation advances from the current projection tick
+ * and interpolation value on the existing frame loop.
  */
 export interface FramePresentationRecord {
   /**
