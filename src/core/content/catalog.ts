@@ -92,13 +92,13 @@ export const INITIAL_PROVISIONS = 10.0
  *
  * The startup Scene is `poc-overworld` — the simplified strategic map
  * through which the Band travels (CONTEXT.md) — and its one glTF asset
- * `poc-overworld-environment`, a small committed authored asset containing
- * nodes for the initial Band (the player character and Miro) and one
- * animation clip. The Scene loader receives this exact manifest after
- * every startup gate passes and loads its asset by Scene (REQ-136). The
- * manifest is deeply frozen so the authored content stays immutable; the
- * asset reference is the same path the content-contract check resolves to
- * the committed authored glTF file.
+ * `poc-overworld-environment`, a committed authored frontier-map asset
+ * containing terrain, the settlement landmark, the one Band pawn, and
+ * idle and travel animation clips. The Scene loader receives this exact
+ * manifest after every startup gate passes and loads its asset by Scene
+ * (REQ-136). The manifest is deeply frozen so the authored content stays
+ * immutable; the asset reference is the same path the content-contract
+ * check resolves to the committed authored glTF file.
  */
 export const STARTUP_SCENE: SceneContent = Object.freeze({
   id: 'poc-overworld',

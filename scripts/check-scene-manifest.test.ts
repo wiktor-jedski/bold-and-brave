@@ -11,6 +11,7 @@ import {
   isPositionInTraversableGround,
   validateDestinationRecord,
   validateOverworldContent,
+  validateOverworldGltfAsset,
   validateSceneManifest,
 } from './check-scene-manifest'
 
@@ -256,5 +257,298 @@ describe('Scene manifest contract (ARCH-016, REQ-136)', () => {
   it('accepts the authored Scene catalog with real glTF fixture', () => {
     const rejections = validateSceneManifest(SCENES, (source) => `public/${source}`)
     expect(rejections).toEqual([])
+  })
+})
+
+describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170, PVS-FLW-002)', () => {
+  const validDoc = {
+    asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ name: 'poc-overworld', nodes: [0, 1, 2] }],
+    nodes: [
+      { name: 'poc-overworld-terrain', mesh: 0, translation: [0, 0, 0] },
+      { name: 'poc-settlement-landmark', mesh: 1, translation: [0, 0, 0] },
+      { name: 'poc-band-pawn', mesh: 2, translation: [0, 0, 1.5] },
+    ],
+    meshes: [
+      {
+        name: 'poc-overworld-terrain-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
+      {
+        name: 'poc-settlement-landmark-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
+      {
+        name: 'poc-band-pawn-mesh',
+        primitives: [{ attributes: { POSITION: 0 } }],
+      },
+    ],
+    accessors: [
+      { min: [-4.5, -0.05, -2.5], max: [4.5, 0.25, 4.5], type: 'VEC3', componentType: 5126 },
+    ],
+    animations: [
+      {
+        name: 'poc-band-idle',
+        channels: [{ target: { node: 2, path: 'translation' } }],
+      },
+      {
+        name: 'poc-band-travel',
+        channels: [
+          { target: { node: 2, path: 'translation' } },
+          { target: { node: 2, path: 'rotation' } },
+        ],
+      },
+    ],
+  }
+
+  it('accepts a valid Overworld glTF document', () => {
+    const rejections = validateOverworldGltfAsset(validDoc)
+    expect(rejections).toEqual([])
+  })
+
+  it('rejects an invalid asset version', () => {
+    const rejections = validateOverworldGltfAsset({ ...validDoc, asset: { version: '1.0' } })
+    expect(rejections.some((r) => r.includes('asset version must be exactly'))).toBe(true)
+  })
+
+  it('rejects when the Band-pawn node is missing', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [{ name: 'poc-overworld-terrain' }, { name: 'poc-settlement-landmark' }],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the Band-pawn node'))).toBe(true)
+  })
+
+  it('rejects multiple Band-pawn nodes', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        { name: 'poc-overworld-terrain' },
+        { name: 'poc-settlement-landmark' },
+        { name: 'poc-band-pawn' },
+        { name: 'poc-band-pawn' },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('must contain exactly one'))).toBe(true)
+  })
+
+  it('rejects when the terrain node is missing', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [{ name: 'poc-settlement-landmark' }, { name: 'poc-band-pawn' }],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the terrain node'))).toBe(true)
+  })
+
+  it('rejects when the settlement landmark node is missing', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [{ name: 'poc-overworld-terrain' }, { name: 'poc-band-pawn' }],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the settlement landmark node'))).toBe(true)
+  })
+
+  it('rejects separate player-character or companion nodes', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        ...validDoc.nodes,
+        { name: 'poc-player-character' },
+        { name: 'poc-companion' },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('poc-player-character'))).toBe(true)
+    expect(rejections.some((r) => r.includes('poc-companion'))).toBe(true)
+  })
+
+  it('rejects technical box meshes', () => {
+    const doc = {
+      ...validDoc,
+      meshes: [
+        { name: 'player-character-box' },
+        { name: 'companion-box' },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('technical box mesh'))).toBe(true)
+  })
+
+  it('rejects missing idle or travel animation clips', () => {
+    const doc = {
+      ...validDoc,
+      animations: [{ name: 'poc-band-idle' }],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the travel animation clip'))).toBe(true)
+  })
+
+  it('handles malformed array elements without throwing', () => {
+    const doc = {
+      asset: { version: '2.0' },
+      nodes: [null, undefined, 42, 'invalid', { name: null }],
+      meshes: [null, undefined, 42, { name: null }, { name: 'some-box' }],
+      animations: [null, undefined, 42, { name: null }],
+    }
+    expect(() => validateOverworldGltfAsset(doc)).not.toThrow()
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('missing the Band-pawn node'))).toBe(true)
+    expect(rejections.some((r) => r.includes('technical box mesh'))).toBe(true)
+  })
+
+  it('rejects unreachable / orphaned required nodes', () => {
+    const doc = {
+      ...validDoc,
+      scenes: [{ name: 'poc-overworld', nodes: [0, 1] }], // node 2 orphaned
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('not reachable from the active scene root'))).toBe(true)
+  })
+
+  it('rejects non-unit node scale', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { ...validDoc.nodes[2], scale: [1000, 1000, 1000] },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('scale must be exactly 1.0'))).toBe(true)
+  })
+
+  it('rejects Band-pawn position mismatching start position', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { ...validDoc.nodes[2], translation: [0, 0, 10.0] },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('does not match the start position'))).toBe(true)
+  })
+
+  it('rejects terrain bounds that do not cover traversable ground', () => {
+    const doc = {
+      ...validDoc,
+      accessors: [
+        { min: [-1.0, 0, -1.0], max: [1.0, 0, 1.0], type: 'VEC3', componentType: 5126 },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('do not cover traversable ground'))).toBe(true)
+  })
+
+  it('rejects animation clips targeting wrong node index', () => {
+    const doc = {
+      ...validDoc,
+      animations: [
+        {
+          name: 'poc-band-idle',
+          channels: [{ target: { node: 0, path: 'translation' } }], // targets terrain (node 0) instead of pawn (node 2)
+        },
+        validDoc.animations[1],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('targets node index 0, expected Band-pawn index 2'))).toBe(true)
+  })
+
+  it('rejects Band-pawn with omitted translation coordinates', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { name: 'poc-band-pawn', mesh: 2 }, // omitted translation
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('must declare translation coordinates'))).toBe(true)
+  })
+
+  it('rejects terrain node without a valid mesh', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        { name: 'poc-overworld-terrain' }, // missing mesh property
+        validDoc.nodes[1],
+        validDoc.nodes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('terrain node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects terrain mesh with empty primitives or missing POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      meshes: [
+        { name: 'poc-overworld-terrain-mesh', primitives: [] },
+        validDoc.meshes[1],
+        validDoc.meshes[2],
+      ],
+      accessors: [],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('no valid POSITION attribute accessors with finite min/max bounds'))).toBe(true)
+  })
+
+  it('rejects terrain geometry scaled excessively beyond production scale bounds', () => {
+    const doc = {
+      ...validDoc,
+      accessors: [
+        { min: [-4500.0, 0, -2500.0], max: [4500.0, 0, 4500.0], type: 'VEC3', componentType: 5126 },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('exceed production scale bounds'))).toBe(true)
+  })
+
+  it('rejects Band-pawn node without a valid mesh or POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { name: 'poc-band-pawn', translation: [0, 0, 1.5] }, // missing mesh
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('Band-pawn node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects settlement landmark node without a valid mesh or POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        { name: 'poc-settlement-landmark', translation: [0, 0, 0] }, // missing mesh
+        validDoc.nodes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('settlement landmark node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects Band-pawn or landmark mesh with empty primitives', () => {
+    const doc = {
+      ...validDoc,
+      meshes: [
+        validDoc.meshes[0],
+        { name: 'poc-settlement-landmark-mesh', primitives: [] },
+        validDoc.meshes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('settlement landmark mesh has no valid POSITION attribute accessors'))).toBe(true)
   })
 })

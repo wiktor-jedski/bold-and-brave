@@ -6,8 +6,8 @@
  * rendered frame loop from the built product: the product exposes a
  * getter that returns the presenter's current `FramePresentationRecord` —
  * the presented Band-member node names, the presented-frame count, and
- * the animation time — so the headed run proves that the two projected
- * initial Band members are rendered through Three.js WebGPU and that the
+ * the animation time — so the headed run proves that the projected
+ * Band pawn is rendered through Three.js WebGPU and that the
  * authored animation advances from the current projection tick and
  * interpolation value on the existing frame loop.
  *
@@ -23,10 +23,10 @@ declare global {
      * Read the presentation-only facts of the last presented frame of the
      * built product (ARCH-008, REQ-118).
      *
-     * The promised-row acceptance calls this getter to prove that the two
-     * projected initial Band members are rendered through Three.js WebGPU
-     * and that the authored animation advances from the current projection
-     * tick and interpolation value on the existing frame loop.
+     * The promised-row acceptance calls this getter to prove that the
+     * projected Band pawn is rendered through Three.js WebGPU and that
+     * the authored animation advances from the current projection tick
+     * and interpolation value on the existing frame loop.
      */
     __boldAndBraveFramePresentation?: () => FramePresentationRecord
   }
