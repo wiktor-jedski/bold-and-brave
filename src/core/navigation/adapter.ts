@@ -58,10 +58,17 @@ export function calculateSpeedPerTick(travel?: OverworldTravelContent): number {
   if (travel === undefined) {
     return 3.0 / 7200
   }
-  const totalTicksPerDay = travel.realSecondsPerOverworldHour * travel.hoursPerOverworldDay * 60
-  if (totalTicksPerDay <= 0) {
+  if (
+    !Number.isFinite(travel.realSecondsPerOverworldHour) ||
+    travel.realSecondsPerOverworldHour <= 0 ||
+    !Number.isFinite(travel.hoursPerOverworldDay) ||
+    travel.hoursPerOverworldDay <= 0 ||
+    !Number.isFinite(travel.speedWorldUnitsPerDay) ||
+    travel.speedWorldUnitsPerDay < 0
+  ) {
     return 0
   }
+  const totalTicksPerDay = travel.realSecondsPerOverworldHour * travel.hoursPerOverworldDay * 60
   return travel.speedWorldUnitsPerDay / totalTicksPerDay
 }
 
@@ -146,17 +153,40 @@ export class AuthoredNavigationAdapter implements NavigationPort {
       return invalid
     }
 
-    if (
-      traversability.travel !== undefined &&
-      (!Number.isFinite(traversability.travel.speedWorldUnitsPerDay) ||
-        traversability.travel.speedWorldUnitsPerDay < 0)
-    ) {
-      const invalid: InvalidNavigationResult = Object.freeze({
-        kind: 'invalid',
-        reason: 'invalid-state',
-        message: 'Authored travel speed cannot be negative or non-finite.',
-      })
-      return invalid
+    if (traversability.travel !== undefined) {
+      if (
+        !Number.isFinite(traversability.travel.speedWorldUnitsPerDay) ||
+        traversability.travel.speedWorldUnitsPerDay < 0
+      ) {
+        const invalid: InvalidNavigationResult = Object.freeze({
+          kind: 'invalid',
+          reason: 'invalid-state',
+          message: 'Authored travel speed must be non-negative and finite.',
+        })
+        return invalid
+      }
+      if (
+        !Number.isFinite(traversability.travel.realSecondsPerOverworldHour) ||
+        traversability.travel.realSecondsPerOverworldHour <= 0
+      ) {
+        const invalid: InvalidNavigationResult = Object.freeze({
+          kind: 'invalid',
+          reason: 'invalid-state',
+          message: 'Authored real seconds per Overworld hour must be positive and finite.',
+        })
+        return invalid
+      }
+      if (
+        !Number.isFinite(traversability.travel.hoursPerOverworldDay) ||
+        traversability.travel.hoursPerOverworldDay <= 0
+      ) {
+        const invalid: InvalidNavigationResult = Object.freeze({
+          kind: 'invalid',
+          reason: 'invalid-state',
+          message: 'Authored hours per Overworld day must be positive and finite.',
+        })
+        return invalid
+      }
     }
 
     // 7. Calculate displacement and Euclidean distance to target

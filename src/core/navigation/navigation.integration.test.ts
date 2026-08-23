@@ -265,6 +265,118 @@ describe('Navigation Port and Authored Navigation Adapter (ARCH-014, ARCH-015)',
     }
   })
 
+  it('rejects non-positive and non-finite travel timing fields (realSecondsPerOverworldHour and hoursPerOverworldDay)', () => {
+    // Zero realSecondsPerOverworldHour
+    const zeroSecResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          realSecondsPerOverworldHour: 0,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(zeroSecResult)).toBe(true)
+    if (isInvalidNavigationResult(zeroSecResult)) {
+      expect(zeroSecResult.reason).toBe('invalid-state')
+      expect(zeroSecResult.message).toContain('real seconds per Overworld hour')
+    }
+
+    // Negative realSecondsPerOverworldHour
+    const negSecResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          realSecondsPerOverworldHour: -5.0,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(negSecResult)).toBe(true)
+    if (isInvalidNavigationResult(negSecResult)) {
+      expect(negSecResult.reason).toBe('invalid-state')
+    }
+
+    // Non-finite (NaN / Infinity) realSecondsPerOverworldHour
+    const nanSecResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          realSecondsPerOverworldHour: Number.NaN,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(nanSecResult)).toBe(true)
+    if (isInvalidNavigationResult(nanSecResult)) {
+      expect(nanSecResult.reason).toBe('invalid-state')
+    }
+
+    // Zero hoursPerOverworldDay
+    const zeroHoursResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          hoursPerOverworldDay: 0,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(zeroHoursResult)).toBe(true)
+    if (isInvalidNavigationResult(zeroHoursResult)) {
+      expect(zeroHoursResult.reason).toBe('invalid-state')
+      expect(zeroHoursResult.message).toContain('hours per Overworld day')
+    }
+
+    // Negative hoursPerOverworldDay
+    const negHoursResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          hoursPerOverworldDay: -24,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(negHoursResult)).toBe(true)
+    if (isInvalidNavigationResult(negHoursResult)) {
+      expect(negHoursResult.reason).toBe('invalid-state')
+    }
+
+    // Non-finite hoursPerOverworldDay
+    const infHoursResult = adapter.computeSteering({
+      state: { position: OVERWORLD.startPosition },
+      target: OVERWORLD_DESTINATIONS[0].position,
+      traversability: {
+        ...OVERWORLD,
+        travel: {
+          ...OVERWORLD.travel,
+          hoursPerOverworldDay: Number.POSITIVE_INFINITY,
+        },
+      },
+      tick: 0,
+    })
+    expect(isInvalidNavigationResult(infHoursResult)).toBe(true)
+    if (isInvalidNavigationResult(infHoursResult)) {
+      expect(infHoursResult.reason).toBe('invalid-state')
+    }
+  })
+
   it('demonstrates deterministic anchor-driven steering with non-collinear anchor influence', () => {
     const nonCollinearAnchor = {
       id: 'poc-anchor-dogleg',
@@ -601,7 +713,12 @@ describe('Navigation Port and Authored Navigation Adapter (ARCH-014, ARCH-015)',
     expect(calculateSpeedPerTick(OVERWORLD_TRAVEL)).toBeCloseTo(3.0 / 7200, 9)
     expect(calculateSpeedPerTick(undefined)).toBeCloseTo(3.0 / 7200, 9)
     expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: 6.0, realSecondsPerOverworldHour: 5.0, hoursPerOverworldDay: 24, provisionsPerMemberPerDay: 0.2 })).toBeCloseTo(6.0 / 7200, 9)
-
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: 3.0, realSecondsPerOverworldHour: 0, hoursPerOverworldDay: 24, provisionsPerMemberPerDay: 0.2 })).toBe(0)
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: 3.0, realSecondsPerOverworldHour: -5.0, hoursPerOverworldDay: 24, provisionsPerMemberPerDay: 0.2 })).toBe(0)
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: 3.0, realSecondsPerOverworldHour: 5.0, hoursPerOverworldDay: 0, provisionsPerMemberPerDay: 0.2 })).toBe(0)
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: 3.0, realSecondsPerOverworldHour: 5.0, hoursPerOverworldDay: -24, provisionsPerMemberPerDay: 0.2 })).toBe(0)
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: -3.0, realSecondsPerOverworldHour: 5.0, hoursPerOverworldDay: 24, provisionsPerMemberPerDay: 0.2 })).toBe(0)
+    expect(calculateSpeedPerTick({ speedWorldUnitsPerDay: Number.NaN, realSecondsPerOverworldHour: 5.0, hoursPerOverworldDay: 24, provisionsPerMemberPerDay: 0.2 })).toBe(0)
     // Navigation anchors all fall within traversable ground
     for (const anchor of OVERWORLD_NAVIGATION_ANCHORS) {
       expect(isPositionInTraversableGround(anchor.position, OVERWORLD_TRAVERSABLE_GROUND)).toBe(true)
