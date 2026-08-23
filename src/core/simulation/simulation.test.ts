@@ -4,6 +4,7 @@ import type {
   AgentRecord,
   SetDestinationCommand,
   Simulation,
+  SimulationCommand,
   SimulationProjection,
   TogglePauseCommand,
 } from './index'
@@ -588,8 +589,6 @@ describe('Simulation module', () => {
       destination: { x: Number.NaN, y: 0, z: 0 },
     })
 
-    simulation.advanceTick()
-
     const projection = simulation.readProjection()
     expect(projection.destination).toBeNull()
     expect(projection.movementState).toBe('idle')
@@ -600,6 +599,118 @@ describe('Simulation module', () => {
     expect(events[0].reason).toBe('invalid-target')
   })
 
+  it('rejects malformed set-paused command without boolean paused and preserves boolean invariant', () => {
+    const simulation = createSimulation()
+
+    // Submit malformed set-paused without paused field.
+    simulation.submitCommand({
+      kind: 'set-paused',
+      targetTick: 1,
+    } as unknown as SimulationCommand)
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      kind: 'invalid-action',
+      tick: 0,
+      action: 'set-paused',
+      reason: 'invalid-command',
+      message: 'set-paused command requires a boolean paused field.',
+    })
+
+    // Advance tick: projection.paused must remain strictly boolean false.
+    simulation.advanceTick()
+    const projection = simulation.readProjection()
+    expect(projection.paused).toBe(false)
+    expect(typeof projection.paused).toBe('boolean')
+  })
+
+  it('rejects malformed set-paused command with string paused and preserves boolean invariant', () => {
+    const simulation = createSimulation()
+
+    // Submit malformed set-paused with string paused field.
+    simulation.submitCommand({
+      kind: 'set-paused',
+      targetTick: 1,
+      paused: 'yes',
+    } as unknown as SimulationCommand)
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      kind: 'invalid-action',
+      tick: 0,
+      action: 'set-paused',
+      reason: 'invalid-command',
+      message: 'set-paused command requires a boolean paused field.',
+    })
+
+    simulation.advanceTick()
+    const projection = simulation.readProjection()
+    expect(projection.paused).toBe(false)
+    expect(typeof projection.paused).toBe('boolean')
+  })
+
+  it('rejects malformed command lacking object structure or integer targetTick', () => {
+    const simulation = createSimulation()
+
+    simulation.submitCommand(null as unknown as SimulationCommand)
+    simulation.submitCommand('not-a-command' as unknown as SimulationCommand)
+    simulation.submitCommand({ kind: 'toggle-pause', targetTick: 1.5 } as unknown as SimulationCommand)
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(3)
+    for (const event of events) {
+      expect(event.kind).toBe('invalid-action')
+      expect(event.reason).toBe('invalid-command')
+    }
+  })
+
+  it('rejects unknown command kind and preserves authoritative state', () => {
+    const simulation = createSimulation()
+
+    simulation.submitCommand({
+      kind: 'unknown-action',
+      targetTick: 1,
+    } as unknown as SimulationCommand)
+
+    const events = simulation.drainFeedbackEvents()
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({
+      kind: 'invalid-action',
+      tick: 0,
+      action: 'unknown',
+      reason: 'unknown-command',
+      message: 'Unrecognized simulation command kind.',
+    })
+  })
+
+  it('isolates queued commands from caller object mutation after submission', () => {
+    const simulation = createSimulation()
+
+    const mutableDest = { x: 0, y: 0, z: 0 }
+    const mutableCommand = {
+      kind: 'set-destination' as const,
+      targetTick: 2,
+      destination: mutableDest,
+    }
+
+    simulation.submitCommand(mutableCommand)
+
+    // Mutate caller objects after submission.
+    mutableDest.x = 100
+    mutableCommand.targetTick = 999
+
+    // Advance to tick 1: command is not due yet.
+    simulation.advanceTick()
+    expect(simulation.readProjection().destination).toBeNull()
+
+    // Advance to tick 2: command executes with original (0, 0, 0) target and original targetTick 2.
+    simulation.advanceTick()
+    expect(simulation.readProjection().tick).toBe(2)
+    expect(simulation.readProjection().destination).toEqual({ x: 0, y: 0, z: 0 })
+    expect(simulation.readProjection().movementState).toBe('travel')
+  })
   it('rejects targetTick 0 at initial tick 0 and emits typed feedback immediately', () => {
     const simulation = createSimulation()
     expect(simulation.readProjection().tick).toBe(0)

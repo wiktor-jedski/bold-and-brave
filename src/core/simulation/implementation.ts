@@ -179,25 +179,92 @@ export function createSimulation(options?: SimulationOptions): Simulation {
       if (
         command === null ||
         typeof command !== 'object' ||
-        typeof command.targetTick !== 'number' ||
-        !Number.isInteger(command.targetTick)
+        typeof (command as SimulationCommand).kind !== 'string' ||
+        typeof (command as SimulationCommand).targetTick !== 'number' ||
+        !Number.isInteger((command as SimulationCommand).targetTick)
       ) {
-        emitInvalidAction('unknown', 'invalid-command', 'Command must be an object with an integer targetTick.')
+        emitInvalidAction('unknown', 'invalid-command', 'Command must be an object with kind and an integer targetTick.')
         return
       }
 
       if (command.targetTick <= tick) {
         emitInvalidAction(
-          command.kind ?? 'unknown',
+          command.kind,
           'past-target-tick',
           `Command target tick ${command.targetTick} must be greater than current tick ${tick}.`,
         )
         return
       }
 
-      queuedCommands.push(command)
+      switch (command.kind) {
+        case 'set-destination': {
+          const dest = command.destination
+          if (
+            dest === null ||
+            typeof dest !== 'object' ||
+            !Number.isFinite(dest.x) ||
+            !Number.isFinite(dest.y) ||
+            !Number.isFinite(dest.z)
+          ) {
+            emitInvalidAction('set-destination', 'invalid-target', 'Target position contains non-finite coordinates.')
+            return
+          }
+          queuedCommands.push(
+            Object.freeze({
+              kind: 'set-destination',
+              targetTick: command.targetTick,
+              destination: Object.freeze({ x: dest.x, y: dest.y, z: dest.z }),
+            }),
+          )
+          break
+        }
+        case 'set-paused': {
+          if (typeof command.paused !== 'boolean') {
+            emitInvalidAction('set-paused', 'invalid-command', 'set-paused command requires a boolean paused field.')
+            return
+          }
+          queuedCommands.push(
+            Object.freeze({
+              kind: 'set-paused',
+              targetTick: command.targetTick,
+              paused: command.paused,
+            }),
+          )
+          break
+        }
+        case 'toggle-pause': {
+          queuedCommands.push(
+            Object.freeze({
+              kind: 'toggle-pause',
+              targetTick: command.targetTick,
+            }),
+          )
+          break
+        }
+        case 'pause': {
+          queuedCommands.push(
+            Object.freeze({
+              kind: 'pause',
+              targetTick: command.targetTick,
+            }),
+          )
+          break
+        }
+        case 'resume': {
+          queuedCommands.push(
+            Object.freeze({
+              kind: 'resume',
+              targetTick: command.targetTick,
+            }),
+          )
+          break
+        }
+        default: {
+          emitInvalidAction('unknown', 'unknown-command', 'Unrecognized simulation command kind.')
+          return
+        }
+      }
     },
-
     drainFeedbackEvents(): readonly SimulationFeedbackEvent[] {
       const drained = Object.freeze([...feedbackEvents])
       feedbackEvents.length = 0
@@ -250,6 +317,10 @@ export function createSimulation(options?: SimulationOptions): Simulation {
             break
           }
           case 'set-paused': {
+            if (typeof cmd.paused !== 'boolean') {
+              emitInvalidAction('set-paused', 'invalid-command', 'set-paused command requires a boolean paused field.')
+              break
+            }
             paused = cmd.paused
             movementState = destination !== null && !paused ? 'travel' : 'idle'
             break
