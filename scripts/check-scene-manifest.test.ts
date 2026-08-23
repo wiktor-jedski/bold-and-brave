@@ -455,4 +455,55 @@ describe('Overworld glTF asset validation (ARCH-009, ARCH-016, REQ-089, REQ-170,
     const rejections = validateOverworldGltfAsset(doc)
     expect(rejections.some((r) => r.includes('targets node index 0, expected Band-pawn index 2'))).toBe(true)
   })
+
+  it('rejects Band-pawn with omitted translation coordinates', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        validDoc.nodes[0],
+        validDoc.nodes[1],
+        { name: 'poc-band-pawn', mesh: 2 }, // omitted translation
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('must declare translation coordinates'))).toBe(true)
+  })
+
+  it('rejects terrain node without a valid mesh', () => {
+    const doc = {
+      ...validDoc,
+      nodes: [
+        { name: 'poc-overworld-terrain' }, // missing mesh property
+        validDoc.nodes[1],
+        validDoc.nodes[2],
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('terrain node must reference a valid mesh'))).toBe(true)
+  })
+
+  it('rejects terrain mesh with empty primitives or missing POSITION accessors', () => {
+    const doc = {
+      ...validDoc,
+      meshes: [
+        { name: 'poc-overworld-terrain-mesh', primitives: [] },
+        validDoc.meshes[1],
+        validDoc.meshes[2],
+      ],
+      accessors: [],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('no valid POSITION attribute accessors with finite min/max bounds'))).toBe(true)
+  })
+
+  it('rejects terrain geometry scaled excessively beyond production scale bounds', () => {
+    const doc = {
+      ...validDoc,
+      accessors: [
+        { min: [-4500.0, 0, -2500.0], max: [4500.0, 0, 4500.0], type: 'VEC3', componentType: 5126 },
+      ],
+    }
+    const rejections = validateOverworldGltfAsset(doc)
+    expect(rejections.some((r) => r.includes('exceed production scale bounds'))).toBe(true)
+  })
 })

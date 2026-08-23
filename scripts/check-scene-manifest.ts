@@ -632,16 +632,21 @@ export function validateOverworldGltfAsset(
     }
   }
 
-  // Band pawn start position check
+  // Band pawn start position check (mandatory translation)
   if (pawnIndices.length === 1 && overworld.startPosition) {
     const pawnNode = nodes[pawnIndices[0]]
-    if (typeof pawnNode === 'object' && pawnNode !== null && Array.isArray(pawnNode.translation)) {
+    if (typeof pawnNode !== 'object' || pawnNode === null || !Array.isArray(pawnNode.translation)) {
+      rejections.push('The Band-pawn node must declare translation coordinates.')
+    } else {
       const t = pawnNode.translation as unknown[]
       if (
         t.length !== 3 ||
         typeof t[0] !== 'number' ||
         typeof t[1] !== 'number' ||
         typeof t[2] !== 'number' ||
+        !Number.isFinite(t[0]) ||
+        !Number.isFinite(t[1]) ||
+        !Number.isFinite(t[2]) ||
         Math.abs(t[0] - overworld.startPosition.x) > 1e-3 ||
         Math.abs(t[1] - overworld.startPosition.y) > 1e-3 ||
         Math.abs(t[2] - overworld.startPosition.z) > 1e-3
@@ -653,15 +658,17 @@ export function validateOverworldGltfAsset(
     }
   }
 
-  // Terrain geometry bounds check (covers traversable moorland)
+  // Terrain geometry bounds check (mandatory mesh and POSITION accessors covering traversable moorland)
   const accessors = Array.isArray(doc.accessors) ? doc.accessors : []
   const meshes = Array.isArray(doc.meshes) ? doc.meshes : []
   if (terrainIndex !== -1 && overworld.traversableGround) {
     const tNode = nodes[terrainIndex]
     const meshIdx = typeof tNode === 'object' && tNode !== null ? tNode.mesh : undefined
-    if (typeof meshIdx === 'number' && meshIdx >= 0 && meshIdx < meshes.length) {
+    if (typeof meshIdx !== 'number' || meshIdx < 0 || meshIdx >= meshes.length) {
+      rejections.push('The terrain node must reference a valid mesh.')
+    } else {
       const mesh = meshes[meshIdx]
-      const prims = Array.isArray(mesh.primitives) ? mesh.primitives : []
+      const prims = Array.isArray(mesh?.primitives) ? mesh.primitives : []
       let tMinX = Infinity
       let tMaxX = -Infinity
       let tMinZ = Infinity
@@ -669,30 +676,55 @@ export function validateOverworldGltfAsset(
       let hasPositionAccessor = false
 
       for (const prim of prims) {
-        const posAccIdx = prim.attributes?.POSITION
+        const posAccIdx = prim?.attributes?.POSITION
         if (typeof posAccIdx === 'number' && posAccIdx >= 0 && posAccIdx < accessors.length) {
           const acc = accessors[posAccIdx]
-          if (Array.isArray(acc.min) && Array.isArray(acc.max) && acc.min.length >= 3 && acc.max.length >= 3) {
+          if (
+            Array.isArray(acc?.min) &&
+            Array.isArray(acc?.max) &&
+            acc.min.length >= 3 &&
+            acc.max.length >= 3 &&
+            typeof acc.min[0] === 'number' && Number.isFinite(acc.min[0]) &&
+            typeof acc.max[0] === 'number' && Number.isFinite(acc.max[0]) &&
+            typeof acc.min[2] === 'number' && Number.isFinite(acc.min[2]) &&
+            typeof acc.max[2] === 'number' && Number.isFinite(acc.max[2])
+          ) {
             hasPositionAccessor = true
-            const minVals = acc.min as number[]
-            const maxVals = acc.max as number[]
-            tMinX = Math.min(tMinX, minVals[0])
-            tMaxX = Math.max(tMaxX, maxVals[0])
-            tMinZ = Math.min(tMinZ, minVals[2])
-            tMaxZ = Math.max(tMaxZ, maxVals[2])
+            tMinX = Math.min(tMinX, acc.min[0])
+            tMaxX = Math.max(tMaxX, acc.max[0])
+            tMinZ = Math.min(tMinZ, acc.min[2])
+            tMaxZ = Math.max(tMaxZ, acc.max[2])
           }
         }
       }
 
-      if (hasPositionAccessor) {
+      if (!hasPositionAccessor) {
+        rejections.push('The terrain mesh has no valid POSITION attribute accessors with finite min/max bounds.')
+      } else {
+        const margin = 2.0
         if (tMinX > overworld.traversableGround.minX || tMaxX < overworld.traversableGround.maxX) {
           rejections.push(
             `Terrain X bounds [${tMinX}, ${tMaxX}] do not cover traversable ground [${overworld.traversableGround.minX}, ${overworld.traversableGround.maxX}].`,
           )
+        } else if (
+          tMinX < overworld.traversableGround.minX - margin ||
+          tMaxX > overworld.traversableGround.maxX + margin
+        ) {
+          rejections.push(
+            `Terrain X bounds [${tMinX}, ${tMaxX}] exceed production scale bounds [${overworld.traversableGround.minX - margin}, ${overworld.traversableGround.maxX + margin}].`,
+          )
         }
+
         if (tMinZ > overworld.traversableGround.minZ || tMaxZ < overworld.traversableGround.maxZ) {
           rejections.push(
             `Terrain Z bounds [${tMinZ}, ${tMaxZ}] do not cover traversable ground [${overworld.traversableGround.minZ}, ${overworld.traversableGround.maxZ}].`,
+          )
+        } else if (
+          tMinZ < overworld.traversableGround.minZ - margin ||
+          tMaxZ > overworld.traversableGround.maxZ + margin
+        ) {
+          rejections.push(
+            `Terrain Z bounds [${tMinZ}, ${tMaxZ}] exceed production scale bounds [${overworld.traversableGround.minZ - margin}, ${overworld.traversableGround.maxZ + margin}].`,
           )
         }
       }
