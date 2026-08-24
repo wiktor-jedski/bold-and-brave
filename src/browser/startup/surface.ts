@@ -278,6 +278,8 @@ export function createSceneLoadingHandoff(
                 currentProjection: simulation.readProjection(),
                 cameraState: presenter.readCameraState?.() ?? null,
                 isInputAttached: inputAdapter?.isAttached() ?? false,
+                acceptsGameplayInput: runtime?.acceptsGameplayInput() ?? false,
+                submittedCommandsCount: inputAdapter?.getSubmittedCommandsCount() ?? 0,
               }),
             )
           }

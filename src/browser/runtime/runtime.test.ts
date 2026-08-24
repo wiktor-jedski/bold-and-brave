@@ -299,4 +299,26 @@ describe('Browser Runtime timing loop (ARCH-006, ARCH-008)', () => {
     expect(runtime.acceptsGameplayInput()).toBe(false)
     expect(simulation.readProjection().tick).toBe(0)
   })
+
+  it('invokes registered onStart and onStop lifecycle callbacks across ordinary stop, restart, and terminal stop', () => {
+    const simulation = createSimulation()
+    const scheduler = createControlledFrameScheduler()
+    const runtime = createBrowserRuntime(simulation, scheduler)
+
+    const events: string[] = []
+    runtime.onStart?.(() => events.push('start'))
+    runtime.onStop?.(() => events.push('stop'))
+
+    expect(events).toEqual([])
+    runtime.start()
+    expect(events).toEqual(['start'])
+    runtime.stop()
+    expect(events).toEqual(['start', 'stop'])
+    runtime.start()
+    expect(events).toEqual(['start', 'stop', 'start'])
+    runtime.terminalStop()
+    expect(events).toEqual(['start', 'stop', 'start', 'stop'])
+    runtime.start()
+    expect(events).toEqual(['start', 'stop', 'start', 'stop'])
+  })
 })

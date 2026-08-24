@@ -624,8 +624,12 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
       currentProjection: unknown
       cameraState: unknown
       isInputAttached: boolean
+      acceptsGameplayInput: boolean
+      submittedCommandsCount: number
     })()
     expect(obs.isInputAttached).toBe(true)
+    expect(obs.acceptsGameplayInput).toBe(true)
+    expect(obs.submittedCommandsCount).toBe(0)
     expect(obs.currentProjection).toEqual(application.simulation.readProjection())
     expect(obs.cameraState).not.toBeNull()
   })

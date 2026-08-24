@@ -94,6 +94,7 @@ import {
 } from '../../scripts/device-loss-record'
 import type { DeviceLossEvidenceRecord } from '../../scripts/device-loss-record'
 import {
+  projectionsEqual,
   validateOverworldTravelEvidenceRecord,
   type OverworldTravelEvidenceRecord,
   type TravelRunTrace,
@@ -1462,13 +1463,18 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
 
   const gltfContent = JSON.parse(readFileSync(authoredGltfPath(PROJECT_ROOT), 'utf8')) as {
     nodes?: Array<{ name?: string }>
+    materials?: Array<{ name?: string }>
+    animations?: Array<{ name?: string }>
   }
   const gltfNodeNames = (gltfContent.nodes ?? []).map((node) => node.name ?? '')
+  const gltfMaterials = gltfContent.materials ?? []
+  const gltfAnimations = gltfContent.animations ?? []
 
   const frontierBoundaryLandmark = gltfNodeNames.includes(
     OVERWORLD.presentationNodes.settlementLandmarkNodeId,
   )
   const woodcutTerrainAndPawnMaterials =
+    gltfMaterials.length >= 2 &&
     gltfNodeNames.includes(OVERWORLD.presentationNodes.terrainNodeId) &&
     gltfNodeNames.includes(OVERWORLD.presentationNodes.bandPawnNodeId)
   const separateBandMemberNodesAbsent = !gltfNodeNames.some((name) =>
@@ -1482,10 +1488,13 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     authoredBandNodeNames[0] === OVERWORLD.presentationNodes.bandPawnNodeId &&
     (presentationRecord?.presentedNodes.length ?? 0) === 1 &&
     presentationRecord?.presentedNodes[0] === OVERWORLD.presentationNodes.bandPawnNodeId
-  const movementFeedback = (presentationRecord?.animationTime ?? 0) > 0
+  const movementFeedback =
+    (presentationRecord?.animationTime ?? 0) > 0 &&
+    (presentationRecord?.presentedFrames ?? 0) >= 20 &&
+    gltfAnimations.some((a) => a.name === 'poc-band-idle') &&
+    gltfAnimations.some((a) => a.name === 'poc-band-travel')
   const imageExists =
-    existsSync(PHASE_9_VISUAL_REVIEW_FILE) && statSync(PHASE_9_VISUAL_REVIEW_FILE).size > 0
-
+    existsSync(PHASE_9_VISUAL_REVIEW_FILE) && statSync(PHASE_9_VISUAL_REVIEW_FILE).size > 10_000
   const record: OverworldTravelEvidenceRecord = {
     initialState: {
       scene: initial1Projection.scene,
@@ -1542,14 +1551,19 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       lossTick: projAtLoss.tick,
       projectionAtLoss: projAtLoss,
       projectionAfterAttemptedInput: obsAfterLoss?.currentProjection as SimulationProjection,
-      inputAdapterAttachedBeforeLoss: obsBeforeLoss?.isInputAttached ?? true,
-      inputAdapterAttachedAfterLoss: obsAfterLoss?.isInputAttached ?? false,
-      inputGateOpenBeforeLoss: true,
-      inputGateOpenAfterLoss: false,
-      commandBeforeLoss: true,
-      commandAfterLoss: false,
-      inputGateClosedAfterLoss: true,
-      projectionUnchangedAfterLoss: true,
+      inputAdapterAttachedBeforeLoss: obsBeforeLoss?.isInputAttached === true,
+      inputAdapterAttachedAfterLoss: obsAfterLoss?.isInputAttached === true,
+      inputGateOpenBeforeLoss: obsBeforeLoss?.acceptsGameplayInput === true,
+      inputGateOpenAfterLoss: obsAfterLoss?.acceptsGameplayInput === true,
+      commandBeforeLoss: (obsBeforeLoss?.submittedCommandsCount ?? 0) > 0,
+      commandAfterLoss:
+        (obsAfterLoss?.submittedCommandsCount ?? 0) >
+        (obsBeforeLoss?.submittedCommandsCount ?? 0),
+      inputGateClosedAfterLoss: !(obsAfterLoss?.acceptsGameplayInput ?? true),
+      projectionUnchangedAfterLoss: projectionsEqual(
+        projAtLoss,
+        obsAfterLoss?.currentProjection as SimulationProjection,
+      ),
     },
     deliveryState: 'Ready',
   }

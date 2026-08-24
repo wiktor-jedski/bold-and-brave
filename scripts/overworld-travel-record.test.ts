@@ -495,6 +495,18 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           pausedProjection: {
             ...PAUSED_PROJECTION,
+            tick: PAUSED_PROJECTION.tick + 1,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...PAUSED_PROJECTION,
             provisions: 9.8,
           },
         },
@@ -503,6 +515,18 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
   })
 
   it('rejects mismatched final projections between clean runs', () => {
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          finalProjection: {
+            ...FINAL_PROJECTION,
+            tick: FINAL_PROJECTION.tick + 1,
+          },
+        },
+      ]
+    })
     expectRecordRejected((record) => {
       record.runs = [
         makeValidRunTrace(),

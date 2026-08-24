@@ -60,8 +60,8 @@ export function createBrowserRuntime(
   /** Timestamp of the last rendered frame, or `null` before the first frame. */
   let previousTimestamp: number | null = null
   let frameHandle: number | null = null
+  const startCallbacks: Array<() => void> = []
   const stopCallbacks: Array<() => void> = []
-  /** One rendered frame: accumulate elapsed time, dispatch due ticks, and present. */
   function frame(timestamp: number): void {
     // A callback the environment already handed out can still run after a
     // stop or terminal stop; the guard makes such an already-held callback
@@ -120,6 +120,11 @@ export function createBrowserRuntime(
       accumulatedTicks = 0
       previousTimestamp = null
       frameHandle = scheduler.requestFrame(frame)
+      for (const cb of startCallbacks) {
+        try {
+          cb()
+        } catch {}
+      }
     },
     stop(): void {
       if (!running) {
@@ -164,6 +169,9 @@ export function createBrowserRuntime(
       // stop keeps `running` false forever and blocks every later `start`,
       // so the gate stays closed permanently (REQ-138, ARCH-007).
       return running && !terminal
+    },
+    onStart(callback: () => void): void {
+      startCallbacks.push(callback)
     },
     onStop(callback: () => void): void {
       stopCallbacks.push(callback)

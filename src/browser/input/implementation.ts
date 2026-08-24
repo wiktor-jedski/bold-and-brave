@@ -47,8 +47,9 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
   const defaultTarget = typeof window !== 'undefined' ? window : null
   const pointerTarget = options.target !== undefined ? options.target : defaultTarget
   const keyboardTarget = options.keyboardTarget !== undefined ? options.keyboardTarget : defaultTarget
-
   let attached = false
+  let wasAttached = false
+  let submittedCommandsCount = 0
   let isSecondaryDragging = false
   let lastDragX = 0
   let lastDragY = 0
@@ -56,7 +57,6 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
   let lastHandledClickTimestamp = 0
   let lastHandledClickX = 0
   let lastHandledClickY = 0
-
   function handlePrimaryClick(event: PointerEvent | MouseEvent): void {
     const clientX = event.clientX
     const clientY = event.clientY
@@ -121,6 +121,7 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
 
     // 6. Submit command to the Simulation (ARCH-002, REQ-119)
     simulation.submitCommand(command)
+    submittedCommandsCount += 1
 
     lastHandledClickTimestamp = now
     lastHandledClickX = clientX
@@ -271,8 +272,8 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
       if (!runtime.acceptsGameplayInput()) {
         return
       }
-
       simulation.submitCommand(command)
+      submittedCommandsCount += 1
     }
   }
 
@@ -282,6 +283,7 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
         return
       }
       attached = true
+      wasAttached = true
 
       if (pointerTarget !== null && typeof pointerTarget.addEventListener === 'function') {
         pointerTarget.addEventListener('pointerdown', handlePointerDown as EventListener)
@@ -312,6 +314,7 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
         return
       }
       attached = false
+      wasAttached = false
       isSecondaryDragging = false
 
       if (pointerTarget !== null && typeof pointerTarget.removeEventListener === 'function') {
@@ -342,7 +345,12 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
       return attached
     },
 
+    getSubmittedCommandsCount(): number {
+      return submittedCommandsCount
+    },
+
     dispose(): void {
+      wasAttached = false
       this.detach()
     },
   }
@@ -350,7 +358,17 @@ export function createInputAdapter(options: InputAdapterOptions): InputAdapter {
   // Detach automatically on ordinary stop or terminal stop (ARCH-006, ARCH-007)
   if (typeof runtime.onStop === 'function') {
     runtime.onStop(() => {
+      const previouslyAttached = attached
       adapter.detach()
+      wasAttached = previouslyAttached
+    })
+  }
+  // Reattach automatically on ordinary restart if previously attached (ARCH-006, ARCH-007)
+  if (typeof runtime.onStart === 'function') {
+    runtime.onStart(() => {
+      if (wasAttached && !adapter.isAttached()) {
+        adapter.attach()
+      }
     })
   }
 

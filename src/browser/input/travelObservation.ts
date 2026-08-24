@@ -24,6 +24,10 @@ export interface TravelObservation {
   readonly cameraState: PresentedCameraState | null
   /** Whether the browser Input Adapter is currently attached to its event targets. */
   readonly isInputAttached: boolean
+  /** Whether the Browser Runtime currently accepts gameplay input (ARCH-006, REQ-138). */
+  readonly acceptsGameplayInput: boolean
+  /** Total count of gameplay commands submitted to the Simulation through the Input Adapter. */
+  readonly submittedCommandsCount: number
 }
 
 declare global {

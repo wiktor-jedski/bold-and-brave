@@ -32,8 +32,11 @@ import {
 /** The required delivery state when travel is exercised. */
 export const REQUIRED_TRAVEL_DELIVERY_STATE = 'Ready'
 
-/** Position tolerance for floating-point comparisons (within settlement boundary radius 0.25). */
-const EPSILON = 0.05
+/** Tolerance for exact mathematical values and authored constants. */
+const EXACT_TOLERANCE = 1e-6
+
+/** Position and timing tolerance for arrival at the settlement entry boundary (radius 0.25). */
+const SETTLEMENT_BOUNDARY_TOLERANCE = 0.05
 
 /**
  * Trace of one clean campaign travel run.
@@ -203,33 +206,12 @@ export function projectionsEqual(
 }
 
 /**
- * Check if two Simulation projections are equal in all authoritative gameplay fields.
- */
-export function gameplayProjectionEqual(
-  left: SimulationProjection,
-  right: SimulationProjection,
-): boolean {
-  return (
-    left.scene === right.scene &&
-    positionsEqual(left.bandPawnPosition, right.bandPawnPosition) &&
-    positionsEqual(left.destination, right.destination) &&
-    left.movementState === right.movementState &&
-    left.paused === right.paused &&
-    Math.abs(left.elapsedCampaignTime - right.elapsedCampaignTime) <= EPSILON &&
-    Math.abs(left.provisions - right.provisions) <= EPSILON &&
-    Math.abs(left.consumptionRemainder - right.consumptionRemainder) <= EPSILON &&
-    left.coin === right.coin &&
-    deepEqual(left.agents, right.agents) &&
-    deepEqual(left.band, right.band)
-  )
-}
-/**
  * Check if two WorldPositions are approximately equal.
  */
 function positionsEqual(
   left: WorldPosition | null | undefined,
   right: WorldPosition | null | undefined,
-  tolerance = EPSILON,
+  tolerance = EXACT_TOLERANCE,
 ): boolean {
   if (!left || !right) {
     return left === right
@@ -267,7 +249,7 @@ export function validateOverworldTravelEvidenceRecord(
       `Initial Scene "${record.initialState.scene}" does not match authored Scene "${OVERWORLD.id}".`,
     )
   }
-  if (!positionsEqual(record.initialState.startPosition, OVERWORLD.startPosition)) {
+  if (!positionsEqual(record.initialState.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)) {
     rejections.push(
       `Initial start position (${record.initialState.startPosition?.x}, ${record.initialState.startPosition?.y}, ${record.initialState.startPosition?.z}) does not match authored start (${OVERWORLD.startPosition.x}, ${OVERWORLD.startPosition.y}, ${OVERWORLD.startPosition.z}).`,
     )
@@ -285,36 +267,36 @@ export function validateOverworldTravelEvidenceRecord(
   if (record.initialState.paused !== false) {
     rejections.push(`Initial paused state must be false; received ${record.initialState.paused}.`)
   }
-  if (record.initialState.elapsedCampaignTime !== 0) {
+  if (Math.abs(record.initialState.elapsedCampaignTime - 0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial elapsedCampaignTime must be 0; received ${record.initialState.elapsedCampaignTime}.`,
     )
   }
-  if (record.initialState.provisions !== 10.0) {
+  if (Math.abs(record.initialState.provisions - 10.0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial provisions must be 10.0; received ${record.initialState.provisions}.`,
     )
   }
-  if (record.initialState.consumptionRemainder !== 0) {
+  if (Math.abs(record.initialState.consumptionRemainder - 0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial consumptionRemainder must be 0; received ${record.initialState.consumptionRemainder}.`,
     )
   }
 
   // 3. Route validation (REQ-017, REQ-018, REQ-035)
-  if (!positionsEqual(record.route.startPosition, OVERWORLD.startPosition)) {
+  if (!positionsEqual(record.route.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)) {
     rejections.push('Route startPosition does not match authored start position.')
   }
   const settlementPos = OVERWORLD.destinations[0]?.position ?? { x: 0, y: 0, z: 0 }
-  if (!positionsEqual(record.route.destinationPosition, settlementPos)) {
+  if (!positionsEqual(record.route.destinationPosition, settlementPos, EXACT_TOLERANCE)) {
     rejections.push(
       'Route destinationPosition does not match authored settlement boundary position.',
     )
   }
-  if (Math.abs(record.route.distance - 1.5) > EPSILON) {
+  if (Math.abs(record.route.distance - 1.5) > EXACT_TOLERANCE) {
     rejections.push(`Route distance must be 1.5; received ${record.route.distance}.`)
   }
-  if (record.route.scale !== 1.0 && record.route.scale !== 1) {
+  if (Math.abs(record.route.scale - 1.0) > EXACT_TOLERANCE) {
     rejections.push(`Production scale must be 1.0; received ${record.route.scale}.`)
   }
 
@@ -325,28 +307,28 @@ export function validateOverworldTravelEvidenceRecord(
     rejections.push('Camera bounds object is missing.')
   } else {
     if (
-      Math.abs(bounds.minPitch - canonicalBounds.minPitch) > EPSILON ||
-      Math.abs(bounds.maxPitch - canonicalBounds.maxPitch) > EPSILON ||
-      Math.abs(bounds.minDistance - canonicalBounds.minDistance) > EPSILON ||
-      Math.abs(bounds.maxDistance - canonicalBounds.maxDistance) > EPSILON ||
-      Math.abs(bounds.defaultPitch - canonicalBounds.defaultPitch) > EPSILON ||
-      Math.abs(bounds.defaultDistance - canonicalBounds.defaultDistance) > EPSILON
+      Math.abs(bounds.minPitch - canonicalBounds.minPitch) > EXACT_TOLERANCE ||
+      Math.abs(bounds.maxPitch - canonicalBounds.maxPitch) > EXACT_TOLERANCE ||
+      Math.abs(bounds.minDistance - canonicalBounds.minDistance) > EXACT_TOLERANCE ||
+      Math.abs(bounds.maxDistance - canonicalBounds.maxDistance) > EXACT_TOLERANCE ||
+      Math.abs(bounds.defaultPitch - canonicalBounds.defaultPitch) > EXACT_TOLERANCE ||
+      Math.abs(bounds.defaultDistance - canonicalBounds.defaultDistance) > EXACT_TOLERANCE
     ) {
       rejections.push('Camera bounds do not match canonical authored catalog OVERWORLD_CAMERA_BOUNDS.')
     }
   }
 
   if (
-    record.camera.pitch < canonicalBounds.minPitch - EPSILON ||
-    record.camera.pitch > canonicalBounds.maxPitch + EPSILON
+    record.camera.pitch < canonicalBounds.minPitch - EXACT_TOLERANCE ||
+    record.camera.pitch > canonicalBounds.maxPitch + EXACT_TOLERANCE
   ) {
     rejections.push(
       `Camera pitch ${record.camera.pitch} is outside authored bounds [${canonicalBounds.minPitch}, ${canonicalBounds.maxPitch}].`,
     )
   }
   if (
-    record.camera.distance < canonicalBounds.minDistance - EPSILON ||
-    record.camera.distance > canonicalBounds.maxDistance + EPSILON
+    record.camera.distance < canonicalBounds.minDistance - EXACT_TOLERANCE ||
+    record.camera.distance > canonicalBounds.maxDistance + EXACT_TOLERANCE
   ) {
     rejections.push(
       `Camera distance ${record.camera.distance} is outside authored bounds [${canonicalBounds.minDistance}, ${canonicalBounds.maxDistance}].`,
@@ -366,24 +348,24 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
-    record.pauseMidRoute.pausedPosition.z < -EPSILON ||
-    record.pauseMidRoute.pausedPosition.z > 1.5 + EPSILON
+    record.pauseMidRoute.pausedPosition.z <= settlementPos.z ||
+    record.pauseMidRoute.pausedPosition.z >= OVERWORLD.startPosition.z
   ) {
     rejections.push(
-      `pauseMidRoute position z=${record.pauseMidRoute.pausedPosition.z} is outside route [0, 1.5].`,
+      `pauseMidRoute position z=${record.pauseMidRoute.pausedPosition.z} is outside route range (0, 1.5).`,
     )
   }
   if (
     record.pauseMidRoute.pausedTime <= 0 ||
-    record.pauseMidRoute.pausedTime >= 0.5 + EPSILON
+    record.pauseMidRoute.pausedTime >= 0.5
   ) {
     rejections.push(
       `pauseMidRoute pausedTime=${record.pauseMidRoute.pausedTime} is outside valid range (0, 0.5).`,
     )
   }
   if (
-    record.pauseMidRoute.pausedProvisions < 9.8 - EPSILON ||
-    record.pauseMidRoute.pausedProvisions > 10.0 + EPSILON
+    record.pauseMidRoute.pausedProvisions < 9.8 - EXACT_TOLERANCE ||
+    record.pauseMidRoute.pausedProvisions > 10.0 + EXACT_TOLERANCE
   ) {
     rejections.push(
       `pauseMidRoute pausedProvisions=${record.pauseMidRoute.pausedProvisions} is outside valid range [9.8, 10.0].`,
@@ -391,7 +373,7 @@ export function validateOverworldTravelEvidenceRecord(
   }
 
   // 6. Final state validation and destination-null invariant (REQ-017, REQ-018, REQ-082, REQ-083)
-  if (!positionsEqual(record.finalState.finalPosition, settlementPos)) {
+  if (!positionsEqual(record.finalState.finalPosition, settlementPos, SETTLEMENT_BOUNDARY_TOLERANCE)) {
     rejections.push(
       `Final position (${record.finalState.finalPosition?.x}, ${record.finalState.finalPosition?.y}, ${record.finalState.finalPosition?.z}) does not match settlement boundary (${settlementPos.x}, ${settlementPos.y}, ${settlementPos.z}).`,
     )
@@ -409,12 +391,12 @@ export function validateOverworldTravelEvidenceRecord(
   if (record.finalState.paused !== false) {
     rejections.push(`Final paused state must be false; received ${record.finalState.paused}.`)
   }
-  if (Math.abs(record.finalState.elapsedCampaignTime - 0.5) > EPSILON) {
+  if (Math.abs(record.finalState.elapsedCampaignTime - 0.5) > SETTLEMENT_BOUNDARY_TOLERANCE) {
     rejections.push(
       `Final elapsedCampaignTime must be 0.5; received ${record.finalState.elapsedCampaignTime}.`,
     )
   }
-  if (Math.abs(record.finalState.provisions - 9.8) > EPSILON) {
+  if (Math.abs(record.finalState.provisions - 9.8) > EXACT_TOLERANCE) {
     rejections.push(
       `Final provisions must be 9.8; received ${record.finalState.provisions}.`,
     )
@@ -440,23 +422,23 @@ export function validateOverworldTravelEvidenceRecord(
     if (!projectionsEqual(run1.startProjection, run2.startProjection)) {
       rejections.push('Run 1 and Run 2 complete start projections do not match.')
     }
-    if (!gameplayProjectionEqual(run1.pausedProjection, run2.pausedProjection)) {
-      rejections.push('Run 1 and Run 2 paused projections do not match.')
+    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection)) {
+      rejections.push('Run 1 and Run 2 complete paused projections do not match.')
     }
-    if (!gameplayProjectionEqual(run1.finalProjection, run2.finalProjection)) {
-      rejections.push('Run 1 and Run 2 final projections do not match.')
+    if (!projectionsEqual(run1.finalProjection, run2.finalProjection)) {
+      rejections.push('Run 1 and Run 2 complete final projections do not match.')
     }
 
     // Cross-check top-level record states against run projections
     if (
       record.initialState.scene !== run1.startProjection.scene ||
-      !positionsEqual(record.initialState.startPosition, run1.startProjection.bandPawnPosition) ||
+      !positionsEqual(record.initialState.startPosition, run1.startProjection.bandPawnPosition, EXACT_TOLERANCE) ||
       record.initialState.destination !== run1.startProjection.destination ||
       record.initialState.movementState !== run1.startProjection.movementState ||
       record.initialState.paused !== run1.startProjection.paused ||
-      record.initialState.elapsedCampaignTime !== run1.startProjection.elapsedCampaignTime ||
-      record.initialState.provisions !== run1.startProjection.provisions ||
-      record.initialState.consumptionRemainder !== run1.startProjection.consumptionRemainder
+      Math.abs(record.initialState.elapsedCampaignTime - run1.startProjection.elapsedCampaignTime) > EXACT_TOLERANCE ||
+      Math.abs(record.initialState.provisions - run1.startProjection.provisions) > EXACT_TOLERANCE ||
+      Math.abs(record.initialState.consumptionRemainder - run1.startProjection.consumptionRemainder) > EXACT_TOLERANCE
     ) {
       rejections.push('Top-level initialState does not match Run 1 startProjection.')
     }
@@ -464,21 +446,21 @@ export function validateOverworldTravelEvidenceRecord(
     if (
       record.pauseMidRoute.paused !== run1.pausedProjection.paused ||
       record.pauseMidRoute.movementState !== run1.pausedProjection.movementState ||
-      !positionsEqual(record.pauseMidRoute.pausedPosition, run1.pausedProjection.bandPawnPosition) ||
-      Math.abs(record.pauseMidRoute.pausedTime - run1.pausedProjection.elapsedCampaignTime) > EPSILON ||
-      Math.abs(record.pauseMidRoute.pausedProvisions - run1.pausedProjection.provisions) > EPSILON
+      !positionsEqual(record.pauseMidRoute.pausedPosition, run1.pausedProjection.bandPawnPosition, EXACT_TOLERANCE) ||
+      Math.abs(record.pauseMidRoute.pausedTime - run1.pausedProjection.elapsedCampaignTime) > EXACT_TOLERANCE ||
+      Math.abs(record.pauseMidRoute.pausedProvisions - run1.pausedProjection.provisions) > EXACT_TOLERANCE
     ) {
       rejections.push('Top-level pauseMidRoute does not match Run 1 pausedProjection.')
     }
 
     if (
-      !positionsEqual(record.finalState.finalPosition, run1.finalProjection.bandPawnPosition) ||
+      !positionsEqual(record.finalState.finalPosition, run1.finalProjection.bandPawnPosition, EXACT_TOLERANCE) ||
       record.finalState.destination !== run1.finalProjection.destination ||
       record.finalState.movementState !== run1.finalProjection.movementState ||
       record.finalState.paused !== run1.finalProjection.paused ||
-      Math.abs(record.finalState.elapsedCampaignTime - run1.finalProjection.elapsedCampaignTime) > EPSILON ||
-      Math.abs(record.finalState.provisions - run1.finalProjection.provisions) > EPSILON ||
-      Math.abs(record.finalState.consumptionRemainder - run1.finalProjection.consumptionRemainder) > EPSILON
+      Math.abs(record.finalState.elapsedCampaignTime - run1.finalProjection.elapsedCampaignTime) > EXACT_TOLERANCE ||
+      Math.abs(record.finalState.provisions - run1.finalProjection.provisions) > EXACT_TOLERANCE ||
+      Math.abs(record.finalState.consumptionRemainder - run1.finalProjection.consumptionRemainder) > EXACT_TOLERANCE
     ) {
       rejections.push('Top-level finalState does not match Run 1 finalProjection.')
     }
