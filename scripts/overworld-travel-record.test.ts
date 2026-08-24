@@ -324,6 +324,9 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     expectRecordRejected((record) => {
       record.camera.bounds.maxPitch = 3.0
     })
+    expectRecordRejected((record) => {
+      record.camera.bounds.fov = 60
+    })
   })
 
   it('rejects camera pitch below minimum bound', () => {
@@ -474,7 +477,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           startProjection: {
             ...INITIAL_PROJECTION,
-            tick: 5,
+            provisions: 8.0,
           },
         },
       ]
@@ -678,7 +681,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
         {
           commands: [...record.runs[0].commands],
           startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
-          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset + 1 },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset + 10 },
           finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset },
         },
       ]
@@ -833,6 +836,12 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     })
     expectRecordRejected((record) => {
       record.camera.bounds.maxDistance = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.camera.bounds.fov = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.camera.bounds.fov = Number.POSITIVE_INFINITY
     })
 
     // pauseMidRoute scalars

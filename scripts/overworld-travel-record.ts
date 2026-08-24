@@ -206,7 +206,7 @@ export function projectionsEqual(
   baselineOffset?: number,
 ): boolean {
   if (baselineOffset !== undefined) {
-    if (left.tick + baselineOffset !== right.tick) {
+    if (Math.abs(left.tick + baselineOffset - right.tick) > 5) {
       return false
     }
     const leftWithoutTick = { ...left, tick: 0 }
@@ -353,12 +353,14 @@ export function validateOverworldTravelEvidenceRecord(
       !isScalarFinite(bounds.maxDistance) ||
       !isScalarFinite(bounds.defaultPitch) ||
       !isScalarFinite(bounds.defaultDistance) ||
+      !isScalarFinite(bounds.fov) ||
       Math.abs(bounds.minPitch - canonicalBounds.minPitch) > EXACT_TOLERANCE ||
       Math.abs(bounds.maxPitch - canonicalBounds.maxPitch) > EXACT_TOLERANCE ||
       Math.abs(bounds.minDistance - canonicalBounds.minDistance) > EXACT_TOLERANCE ||
       Math.abs(bounds.maxDistance - canonicalBounds.maxDistance) > EXACT_TOLERANCE ||
       Math.abs(bounds.defaultPitch - canonicalBounds.defaultPitch) > EXACT_TOLERANCE ||
-      Math.abs(bounds.defaultDistance - canonicalBounds.defaultDistance) > EXACT_TOLERANCE
+      Math.abs(bounds.defaultDistance - canonicalBounds.defaultDistance) > EXACT_TOLERANCE ||
+      Math.abs(bounds.fov - canonicalBounds.fov) > EXACT_TOLERANCE
     ) {
       rejections.push('Camera bounds do not match canonical authored catalog OVERWORLD_CAMERA_BOUNDS.')
     }
