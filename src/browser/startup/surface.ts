@@ -271,23 +271,17 @@ export function createSceneLoadingHandoff(
           }
           // REQ-018, REQ-170).
           if (simulation !== undefined) {
-            const startupSchedulingTick = simulation.readProjection().tick
             const publisher =
               publishTravelObservation ?? productionTravelObservationPublisher.publish
-            publisher(() => {
-              const raw = simulation.readProjection()
-              const normalizedProjection = Object.freeze({
-                ...raw,
-                tick: raw.tick - startupSchedulingTick,
-              })
-              return Object.freeze({
-                currentProjection: normalizedProjection,
+            publisher(() =>
+              Object.freeze({
+                currentProjection: simulation.readProjection(),
                 cameraState: presenter.readCameraState?.() ?? null,
                 isInputAttached: inputAdapter?.isAttached() ?? false,
                 acceptsGameplayInput: runtime?.acceptsGameplayInput() ?? false,
                 submittedCommandsCount: inputAdapter?.getSubmittedCommandsCount() ?? 0,
-              })
-            })
+              }),
+            )
           }
           // Enter `Ready` only after the real load passes (REQ-136,
           // PVS-WEB-001).
