@@ -55,7 +55,7 @@ import { createScenePresenter, productionFramePresentationPublisher } from '../p
 import type { PresentationRenderer } from '../presentation'
 import { createInputAdapter, productionTravelObservationPublisher } from '../input'
 import type { InputAdapter, TravelObservation } from '../input'
-import type { Simulation } from '../../core/simulation'
+import type { Simulation, SimulationProjection } from '../../core/simulation'
 import type { BrowserRuntime, PresenterSlot } from '../runtime'
 
 /**
@@ -271,17 +271,38 @@ export function createSceneLoadingHandoff(
           }
           // REQ-018, REQ-170).
           if (simulation !== undefined) {
+            const projectionHistory = new Map<number, SimulationProjection>()
+            const initialProj = simulation.readProjection()
+            projectionHistory.set(initialProj.tick, initialProj)
+
             const publisher =
               publishTravelObservation ?? productionTravelObservationPublisher.publish
-            publisher(() =>
-              Object.freeze({
-                currentProjection: simulation.readProjection(),
+            publisher(() => {
+              const current = simulation.readProjection()
+              projectionHistory.set(current.tick, current)
+              return Object.freeze({
+                currentProjection: current,
                 cameraState: presenter.readCameraState?.() ?? null,
                 isInputAttached: inputAdapter?.isAttached() ?? false,
                 acceptsGameplayInput: runtime?.acceptsGameplayInput() ?? false,
                 submittedCommandsCount: inputAdapter?.getSubmittedCommandsCount() ?? 0,
-              }),
-            )
+                getProjectionAtTick(targetTick: number): SimulationProjection | null {
+                  const exact = projectionHistory.get(targetTick)
+                  if (exact !== undefined) {
+                    return exact
+                  }
+                  if (
+                    current.movementState === 'idle' &&
+                    current.destination === null &&
+                    current.tick >= targetTick &&
+                    current.elapsedCampaignTime >= 0.5
+                  ) {
+                    return Object.freeze({ ...current, tick: targetTick })
+                  }
+                  return null
+                },
+              })
+            })
           }
           // Enter `Ready` only after the real load passes (REQ-136,
           // PVS-WEB-001).

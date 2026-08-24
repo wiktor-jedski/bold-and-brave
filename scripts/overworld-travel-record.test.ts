@@ -673,7 +673,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     expect(rejections).toEqual([])
   })
 
-  it('rejects clean runs if paused tick offset deviates from start baseline offset', () => {
+  it('rejects clean runs if paused tick offset deviates by even 1 tick from start baseline offset', () => {
     expectRecordRejected((record) => {
       const offset = 5
       record.runs = [
@@ -681,8 +681,47 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
         {
           commands: [...record.runs[0].commands],
           startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
-          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset + 10 },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset + 1 },
           finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      const offset = 5
+      record.runs = [
+        record.runs[0],
+        {
+          commands: [...record.runs[0].commands],
+          startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset - 1 },
+          finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset },
+        },
+      ]
+    })
+  })
+
+  it('rejects clean runs if final tick offset deviates by even 1 tick from start baseline offset', () => {
+    expectRecordRejected((record) => {
+      const offset = 5
+      record.runs = [
+        record.runs[0],
+        {
+          commands: [...record.runs[0].commands],
+          startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset },
+          finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset + 1 },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      const offset = 5
+      record.runs = [
+        record.runs[0],
+        {
+          commands: [...record.runs[0].commands],
+          startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset },
+          finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset - 1 },
         },
       ]
     })

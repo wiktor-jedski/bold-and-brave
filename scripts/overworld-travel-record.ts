@@ -206,7 +206,7 @@ export function projectionsEqual(
   baselineOffset?: number,
 ): boolean {
   if (baselineOffset !== undefined) {
-    if (Math.abs(left.tick + baselineOffset - right.tick) > 5) {
+    if (left.tick + baselineOffset !== right.tick) {
       return false
     }
     const leftWithoutTick = { ...left, tick: 0 }
