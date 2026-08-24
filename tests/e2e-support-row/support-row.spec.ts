@@ -1466,6 +1466,20 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
           resolve(obs.currentProjection)
           return
         }
+        // The exact arrival tick must be observable; if the runtime tick has
+        // already moved past it without the bounded history recording the
+        // exact tick, the run skipped the arrival milestone and must fail
+        // deterministically rather than poll until the test timeout (REQ-018,
+        // ARCH-005) — the acceptance requires the exact arrival target tick
+        // in both clean runs.
+        if (obs.currentProjection.tick > targetArrivalTick) {
+          reject(
+            new Error(
+              `Skipped target arrival tick ${targetArrivalTick}; observed tick ${obs.currentProjection.tick}.`,
+            ),
+          )
+          return
+        }
         requestAnimationFrame(check)
       }
       requestAnimationFrame(check)
@@ -1669,6 +1683,20 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
             return
           }
           resolve(obs.currentProjection)
+          return
+        }
+        // The exact arrival tick must be observable; if the runtime tick has
+        // already moved past it without the bounded history recording the
+        // exact tick, the run skipped the arrival milestone and must fail
+        // deterministically rather than poll until the test timeout (REQ-018,
+        // ARCH-005) — the acceptance requires the exact arrival target tick
+        // in both clean runs.
+        if (obs.currentProjection.tick > targetArrivalTick) {
+          reject(
+            new Error(
+              `Skipped target arrival tick ${targetArrivalTick}; observed tick ${obs.currentProjection.tick}.`,
+            ),
+          )
           return
         }
         requestAnimationFrame(check)
