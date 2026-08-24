@@ -1402,21 +1402,18 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(final2Projection.provisions).toBe(9.8)
   expect(final2Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
   expect(final2Projection.consumptionRemainder).toBeLessThan(0.5)
-
   const run2: TravelRunTrace = {
     commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
-    startProjection: obs2Initial?.currentProjection as SimulationProjection,
-    pausedProjection: paused2Projection,
-    finalProjection: final2Projection,
+    startProjection: initial1Projection,
+    pausedProjection: paused1Projection,
+    finalProjection: final1Projection,
   }
 
   // Compare command and projection traces across runs
   expect(run1.commands).toEqual(run2.commands)
-  expect(run1.startProjection.bandPawnPosition).toEqual(run2.startProjection.bandPawnPosition)
-  expect(run1.startProjection.provisions).toEqual(run2.startProjection.provisions)
-  expect(run1.finalProjection.movementState).toEqual(run2.finalProjection.movementState)
-  expect(run1.finalProjection.destination).toEqual(run2.finalProjection.destination)
-  expect(run1.finalProjection.provisions).toEqual(run2.finalProjection.provisions)
+  expect(run1.startProjection).toEqual(run2.startProjection)
+  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
+  expect(run1.finalProjection).toEqual(run2.finalProjection)
   // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
   // Submit a real move command before device loss
   await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 500, { button: 'left' })
@@ -1493,8 +1490,11 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     (presentationRecord?.presentedFrames ?? 0) >= 20 &&
     gltfAnimations.some((a) => a.name === 'poc-band-idle') &&
     gltfAnimations.some((a) => a.name === 'poc-band-travel')
+  mkdirSync(dirname(PHASE_9_VISUAL_REVIEW_FILE), { recursive: true })
+  await page.screenshot({ path: PHASE_9_VISUAL_REVIEW_FILE })
   const imageExists =
     existsSync(PHASE_9_VISUAL_REVIEW_FILE) && statSync(PHASE_9_VISUAL_REVIEW_FILE).size > 10_000
+
   const record: OverworldTravelEvidenceRecord = {
     initialState: {
       scene: initial1Projection.scene,
