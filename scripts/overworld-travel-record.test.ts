@@ -654,6 +654,36 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     expect(rejections).toContain('Run 1 and Run 2 complete paused projections do not match.')
   })
 
+  it('accepts clean runs with consistent deterministic baseline tick offset', () => {
+    const valid = makeValidRecord()
+    const offset = 5
+    valid.runs = [
+      valid.runs[0],
+      {
+        commands: [...valid.runs[0].commands],
+        startProjection: { ...valid.runs[0].startProjection, tick: valid.runs[0].startProjection.tick + offset },
+        pausedProjection: { ...valid.runs[0].pausedProjection, tick: valid.runs[0].pausedProjection.tick + offset },
+        finalProjection: { ...valid.runs[0].finalProjection, tick: valid.runs[0].finalProjection.tick + offset },
+      },
+    ]
+    const rejections = validateOverworldTravelEvidenceRecord(valid, ['poc-band-pawn'])
+    expect(rejections).toEqual([])
+  })
+
+  it('rejects clean runs if paused tick offset deviates from start baseline offset', () => {
+    expectRecordRejected((record) => {
+      const offset = 5
+      record.runs = [
+        record.runs[0],
+        {
+          commands: [...record.runs[0].commands],
+          startProjection: { ...record.runs[0].startProjection, tick: record.runs[0].startProjection.tick + offset },
+          pausedProjection: { ...record.runs[0].pausedProjection, tick: record.runs[0].pausedProjection.tick + offset + 1 },
+          finalProjection: { ...record.runs[0].finalProjection, tick: record.runs[0].finalProjection.tick + offset },
+        },
+      ]
+    })
+  })
   it('rejects top-level initialState mismatch with Run 1 startProjection', () => {
     expectRecordRejected((record) => {
       record.initialState.provisions = 9.0

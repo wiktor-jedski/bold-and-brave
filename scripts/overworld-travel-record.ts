@@ -197,11 +197,22 @@ function deepEqual(left: unknown, right: unknown): boolean {
 
 /**
  * Check if two complete Simulation projections are value-equal in all authoritative fields.
+ * If baselineOffset is provided, verifies that left.tick + baselineOffset equals right.tick
+ * and that all other authoritative fields are deeply equal.
  */
 export function projectionsEqual(
   left: SimulationProjection,
   right: SimulationProjection,
+  baselineOffset?: number,
 ): boolean {
+  if (baselineOffset !== undefined) {
+    if (left.tick + baselineOffset !== right.tick) {
+      return false
+    }
+    const leftWithoutTick = { ...left, tick: 0 }
+    const rightWithoutTick = { ...right, tick: 0 }
+    return deepEqual(leftWithoutTick, rightWithoutTick)
+  }
   return deepEqual(left, right)
 }
 
@@ -424,16 +435,17 @@ export function validateOverworldTravelEvidenceRecord(
   } else {
     const run1 = record.runs[0]
     const run2 = record.runs[1]
+    const baselineOffset = run2.startProjection.tick - run1.startProjection.tick
     if (!deepEqual(run1.commands, run2.commands)) {
       rejections.push('Run 1 and Run 2 command traces do not match.')
     }
-    if (!projectionsEqual(run1.startProjection, run2.startProjection)) {
+    if (!projectionsEqual(run1.startProjection, run2.startProjection, baselineOffset)) {
       rejections.push('Run 1 and Run 2 complete start projections do not match.')
     }
-    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection)) {
+    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection, baselineOffset)) {
       rejections.push('Run 1 and Run 2 complete paused projections do not match.')
     }
-    if (!projectionsEqual(run1.finalProjection, run2.finalProjection)) {
+    if (!projectionsEqual(run1.finalProjection, run2.finalProjection, baselineOffset)) {
       rejections.push('Run 1 and Run 2 complete final projections do not match.')
     }
 

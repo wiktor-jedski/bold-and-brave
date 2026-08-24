@@ -174,8 +174,10 @@ describe('Three.js Overworld presenter integration with the real startup Scene (
       'presentedFrames',
       'animationTime',
       'hasLighting',
+      'activeAnimation',
     ])
     expect(record.hasLighting).toBe(true)
+    expect(record.activeAnimation).toBe('idle')
     expect(Object.isFrozen(record)).toBe(true)
     expect(Object.isFrozen(record.presentedNodes)).toBe(true)
   })

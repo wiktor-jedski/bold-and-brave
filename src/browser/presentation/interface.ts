@@ -151,6 +151,8 @@ export interface FramePresentationRecord {
   readonly animationTime: number
   /** Whether authored frontier lighting (ambient and directional) is present in the Scene. */
   readonly hasLighting?: boolean
+  /** Active animation state ('idle' or 'travel') switching from projected movementState. */
+  readonly activeAnimation?: 'idle' | 'travel'
 }
 
 /**

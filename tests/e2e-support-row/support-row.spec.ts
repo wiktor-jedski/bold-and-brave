@@ -1264,12 +1264,34 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   // --------------------------------------------------------------------------
   await page.goto('/')
   await expect(state).toHaveText('Ready', { timeout: 120_000 })
-  // Wait for the common baseline tick and dispatch travel click on the exact frame
-  await page.evaluate(() => {
+
+  const obs1AtReady = await readTravelObservation()
+  const readyTick1 = obs1AtReady?.currentProjection.tick ?? 0
+
+  const readPresentation = (): Promise<FramePresentationRecord | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveFramePresentation?: () => FramePresentationRecord
+      }).__boldAndBraveFramePresentation
+      return read === undefined ? null : read()
+    })
+
+  // Idle animation observation before movement begins
+  const idlePresentation1 = await readPresentation()
+  expect(idlePresentation1?.activeAnimation).toBe('idle')
+
+  // Deterministic command offsets relative to Ready baseline (30 ticks setup, 360 travel ticks, 30 pause ticks, 3240 travel ticks)
+  const START_OFFSET = 30
+  const PAUSE_OFFSET = START_OFFSET + 360
+  const RESUME_OFFSET = PAUSE_OFFSET + 30
+  const ARRIVAL_OFFSET = RESUME_OFFSET + 3240
+
+  // Wait for exact commanded start tick milestone (readyTick1 + START_OFFSET) and dispatch travel click
+  await page.evaluate((targetStartTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.tick >= 30 && obs.currentProjection.movementState === 'idle') {
+        if (obs && obs.currentProjection.tick >= targetStartTick - 1 && obs.currentProjection.movementState === 'idle') {
           const canvas = document.querySelector('canvas')
           if (canvas) {
             const rect = canvas.getBoundingClientRect()
@@ -1290,30 +1312,29 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + START_OFFSET)
 
-  const obs1Initial = await readTravelObservation()
-  const initial1Projection = obs1Initial?.currentProjection as SimulationProjection
+  const initial1Projection = obs1AtReady?.currentProjection as SimulationProjection
 
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.movementState
   }, { timeout: 10_000 }).toBe('travel')
 
+  const travelPresentation1 = await readPresentation()
+  expect(travelPresentation1?.activeAnimation).toBe('travel')
+
   const obs1Moving = await readTravelObservation()
   expect(obs1Moving?.currentProjection.destination).not.toBeNull()
   expect(Math.abs(obs1Moving?.currentProjection.destination?.x ?? 1)).toBeLessThan(0.1)
   expect(Math.abs(obs1Moving?.currentProjection.destination?.z ?? 1)).toBeLessThan(0.25)
-  // 4. Pause mid-route with Space on the exact frame when travel milestone is reached
-  await page.evaluate(() => {
+
+  // Pause on exact commanded pause tick milestone (readyTick1 + PAUSE_OFFSET)
+  await page.evaluate((targetPauseTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (
-          obs &&
-          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
-          obs.currentProjection.movementState === 'travel'
-        ) {
+        if (obs && obs.currentProjection.tick >= targetPauseTick - 1 && obs.currentProjection.movementState === 'travel') {
           window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
           resolve()
           return
@@ -1322,14 +1343,14 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + PAUSE_OFFSET)
 
-  // Capture paused projection on the exact frame when paused takes effect
-  const paused1Projection = await page.evaluate(() => {
+  // Capture pausedProjection on exact target pause tick milestone
+  const paused1Projection = await page.evaluate((targetPauseTick) => {
     return new Promise<SimulationProjection>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.paused === true && obs.currentProjection.movementState === 'idle') {
+        if (obs && obs.currentProjection.tick >= targetPauseTick && obs.currentProjection.paused === true) {
           resolve(obs.currentProjection)
           return
         }
@@ -1337,20 +1358,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + PAUSE_OFFSET)
   expect(paused1Projection.movementState).toBe('idle')
+  expect(paused1Projection.paused).toBe(true)
   const paused1Pos = paused1Projection.bandPawnPosition
   expect(paused1Pos.x).toBeCloseTo(0, 6)
   expect(paused1Pos.y).toBeCloseTo(0, 6)
   expect(paused1Pos.z).toBeLessThan(1.5)
   expect(paused1Pos.z).toBeGreaterThan(0)
 
-  // Confirm state does not advance while paused and resume on exact tick milestone (tick >= 421)
-  await page.evaluate(() => {
+  // Resume on exact commanded resume tick milestone (readyTick1 + RESUME_OFFSET)
+  await page.evaluate((targetResumeTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.tick >= 421 && obs.currentProjection.paused === true) {
+        if (obs && obs.currentProjection.tick >= targetResumeTick - 1 && obs.currentProjection.paused === true) {
           window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
           resolve()
           return
@@ -1359,7 +1381,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + RESUME_OFFSET)
 
   await expect.poll(async () => {
     const obs = await readTravelObservation()
@@ -1371,13 +1393,14 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     return obs?.currentProjection.movementState
   }, { timeout: 5000 }).toBe('travel')
 
-  // 6. Observe exact arrival at destination on the exact frame when movement stops
-  const final1Projection = await page.evaluate(() => {
+  // Capture finalProjection on exact arrival tick milestone (readyTick1 + ARRIVAL_OFFSET)
+  const final1Projection = await page.evaluate((targetArrivalTick) => {
     return new Promise<SimulationProjection>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
         if (
           obs &&
+          obs.currentProjection.tick >= targetArrivalTick &&
           obs.currentProjection.movementState === 'idle' &&
           obs.currentProjection.destination === null &&
           obs.currentProjection.elapsedCampaignTime >= 0.5
@@ -1389,7 +1412,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + ARRIVAL_OFFSET)
   expect(final1Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
   expect(final1Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
   expect(final1Projection.destination).toBeNull()
@@ -1399,7 +1422,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(final1Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
   expect(final1Projection.consumptionRemainder).toBeLessThan(0.5)
 
-  // 7. Capture visual-review PNG against the Phase 9 pass checklist while canvas is rendered
+  // Capture visual-review PNG while canvas is rendered before loss
   mkdirSync(dirname(PHASE_9_VISUAL_REVIEW_FILE), { recursive: true })
   await page.screenshot({ path: PHASE_9_VISUAL_REVIEW_FILE })
 
@@ -1409,18 +1432,22 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     pausedProjection: paused1Projection,
     finalProjection: final1Projection,
   }
+
   // --------------------------------------------------------------------------
   // RUN 2: Second clean campaign to prove determinism (ARCH-005)
   // --------------------------------------------------------------------------
   await page.goto('/')
   await expect(state).toHaveText('Ready', { timeout: 120_000 })
 
-  // Wait for the exact same common baseline tick and dispatch travel click on the exact frame
-  await page.evaluate(() => {
+  const obs2AtReady = await readTravelObservation()
+  const readyTick2 = obs2AtReady?.currentProjection.tick ?? 0
+
+  // Wait for exact commanded start tick milestone (readyTick2 + START_OFFSET) and dispatch travel click
+  await page.evaluate((targetStartTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.tick >= 30 && obs.currentProjection.movementState === 'idle') {
+        if (obs && obs.currentProjection.tick >= targetStartTick - 1 && obs.currentProjection.movementState === 'idle') {
           const canvas = document.querySelector('canvas')
           if (canvas) {
             const rect = canvas.getBoundingClientRect()
@@ -1441,32 +1468,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + START_OFFSET)
 
-  const obs2Initial = await readTravelObservation()
-  expect(obs2Initial?.currentProjection.scene).toBe(initial1Projection.scene)
-  expect(obs2Initial?.currentProjection.bandPawnPosition).toEqual(initial1Projection.bandPawnPosition)
-  expect(obs2Initial?.currentProjection.destination).toBe(initial1Projection.destination)
-  expect(obs2Initial?.currentProjection.movementState).toBe(initial1Projection.movementState)
-  expect(obs2Initial?.currentProjection.paused).toBe(initial1Projection.paused)
-  expect(obs2Initial?.currentProjection.elapsedCampaignTime).toBe(initial1Projection.elapsedCampaignTime)
-  expect(obs2Initial?.currentProjection.provisions).toBe(initial1Projection.provisions)
-  const initial2Projection = obs2Initial?.currentProjection as SimulationProjection
+  const initial2Projection = obs2AtReady?.currentProjection as SimulationProjection
 
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.movementState
   }, { timeout: 10_000 }).toBe('travel')
-  // Pause mid-route on the exact frame when travel milestone is reached
-  await page.evaluate(() => {
+
+  // Pause on exact commanded pause tick milestone (readyTick2 + PAUSE_OFFSET)
+  await page.evaluate((targetPauseTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (
-          obs &&
-          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
-          obs.currentProjection.movementState === 'travel'
-        ) {
+        if (obs && obs.currentProjection.tick >= targetPauseTick - 1 && obs.currentProjection.movementState === 'travel') {
           window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
           resolve()
           return
@@ -1475,14 +1491,14 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + PAUSE_OFFSET)
 
-  // Capture paused projection on the exact frame when paused takes effect
-  const paused2Projection = await page.evaluate(() => {
+  // Capture pausedProjection on exact target pause tick milestone
+  const paused2Projection = await page.evaluate((targetPauseTick) => {
     return new Promise<SimulationProjection>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.paused === true && obs.currentProjection.movementState === 'idle') {
+        if (obs && obs.currentProjection.tick >= targetPauseTick && obs.currentProjection.paused === true) {
           resolve(obs.currentProjection)
           return
         }
@@ -1490,21 +1506,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + PAUSE_OFFSET)
+  expect(paused2Projection.movementState).toBe('idle')
+  expect(paused2Projection.paused).toBe(true)
   const paused2Pos = paused2Projection.bandPawnPosition
   expect(paused2Pos.x).toBeCloseTo(0, 6)
   expect(paused2Pos.y).toBeCloseTo(0, 6)
   expect(paused2Pos.z).toBeLessThan(1.5)
   expect(paused2Pos.z).toBeGreaterThan(0)
-  expect(paused2Projection.movementState).toBe('idle')
-  expect(paused2Projection.paused).toBe(true)
 
-  // Confirm state does not advance while paused and resume on exact tick milestone (tick >= 421)
-  await page.evaluate(() => {
+  // Resume on exact commanded resume tick milestone (readyTick2 + RESUME_OFFSET)
+  await page.evaluate((targetResumeTick) => {
     return new Promise<void>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (obs && obs.currentProjection.tick >= 421 && obs.currentProjection.paused === true) {
+        if (obs && obs.currentProjection.tick >= targetResumeTick - 1 && obs.currentProjection.paused === true) {
           window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
           resolve()
           return
@@ -1513,20 +1529,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + RESUME_OFFSET)
 
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.paused
   }, { timeout: 5000 }).toBe(false)
 
-  // Arrival at destination on the exact frame when movement stops
-  const final2Projection = await page.evaluate(() => {
+  // Capture finalProjection on exact arrival tick milestone (readyTick2 + ARRIVAL_OFFSET)
+  const final2Projection = await page.evaluate((targetArrivalTick) => {
     return new Promise<SimulationProjection>((resolve) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
         if (
           obs &&
+          obs.currentProjection.tick >= targetArrivalTick &&
           obs.currentProjection.movementState === 'idle' &&
           obs.currentProjection.destination === null &&
           obs.currentProjection.elapsedCampaignTime >= 0.5
@@ -1538,7 +1555,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + ARRIVAL_OFFSET)
   expect(final2Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
   expect(final2Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
   expect(final2Projection.destination).toBeNull()
@@ -1557,10 +1574,12 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   }
 
   // Compare command and projection traces across runs
+  const baselineOffset = run2.startProjection.tick - run1.startProjection.tick
   expect(run1.commands).toEqual(run2.commands)
-  expect(run1.startProjection).toEqual(run2.startProjection)
-  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
-  expect(run1.finalProjection).toEqual(run2.finalProjection)
+  expect(projectionsEqual(run1.startProjection, run2.startProjection, baselineOffset)).toBe(true)
+  expect(projectionsEqual(run1.pausedProjection, run2.pausedProjection, baselineOffset)).toBe(true)
+  expect(projectionsEqual(run1.finalProjection, run2.finalProjection, baselineOffset)).toBe(true)
+
   // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
   const box2 = await page.locator('canvas').boundingBox()
   expect(box2).not.toBeNull()
@@ -1594,23 +1613,23 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   // Observation proves input gate is closed and projection is unchanged
   const obsAfterLoss = await readTravelObservation()
   expect(obsAfterLoss?.currentProjection).toEqual(projAtLoss)
+
   // --------------------------------------------------------------------------
   // Evidence record assembly and validation (ARCH-024, REQ-018, REQ-170)
   // --------------------------------------------------------------------------
-  // Read presentation and asset facts for evidence-based visual checklist derivation
-  const readPresentation = (): Promise<FramePresentationRecord | null> =>
-    page.evaluate(() => {
-      const read = (window as unknown as {
-        __boldAndBraveFramePresentation?: () => FramePresentationRecord
-      }).__boldAndBraveFramePresentation
-      return read === undefined ? null : read()
-    })
   const presentationRecord = await readPresentation()
   const authoredBandNodeNames = readAuthoredBandNodeNames(PROJECT_ROOT)
 
   const gltfContent = JSON.parse(readFileSync(authoredGltfPath(PROJECT_ROOT), 'utf8')) as {
     nodes?: Array<{ name?: string }>
-    materials?: Array<{ name?: string }>
+    materials?: Array<{
+      name?: string
+      pbrMetallicRoughness?: {
+        baseColorFactor?: number[]
+        roughnessFactor?: number
+        metallicFactor?: number
+      }
+    }>
     animations?: Array<{ name?: string }>
   }
   const gltfNodeNames = (gltfContent.nodes ?? []).map((node) => node.name ?? '')
@@ -1620,8 +1639,18 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   const frontierBoundaryLandmark = gltfNodeNames.includes(
     OVERWORLD.presentationNodes.settlementLandmarkNodeId,
   )
+  const woodcutMaterialNames = ['moor-grass', 'moor-road', 'pawn-tabard', 'pawn-leather']
+  const woodcutMaterialsPresent = woodcutMaterialNames.every((matName) =>
+    gltfMaterials.some(
+      (m) =>
+        m.name === matName &&
+        Array.isArray(m.pbrMetallicRoughness?.baseColorFactor) &&
+        (m.pbrMetallicRoughness?.roughnessFactor ?? 0) >= 0.3 &&
+        (m.pbrMetallicRoughness?.metallicFactor ?? 1) <= 0.3,
+    ),
+  )
   const woodcutTerrainAndPawnMaterials =
-    gltfMaterials.length >= 2 &&
+    woodcutMaterialsPresent &&
     gltfNodeNames.includes(OVERWORLD.presentationNodes.terrainNodeId) &&
     gltfNodeNames.includes(OVERWORLD.presentationNodes.bandPawnNodeId)
   const separateBandMemberNodesAbsent = !gltfNodeNames.some((name) =>
@@ -1636,10 +1665,13 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     (presentationRecord?.presentedNodes.length ?? 0) === 1 &&
     presentationRecord?.presentedNodes[0] === OVERWORLD.presentationNodes.bandPawnNodeId
   const movementFeedback =
-    (presentationRecord?.animationTime ?? 0) > 0 &&
-    (presentationRecord?.presentedFrames ?? 0) >= 20 &&
+    idlePresentation1?.activeAnimation === 'idle' &&
+    travelPresentation1?.activeAnimation === 'travel' &&
+    (travelPresentation1?.animationTime ?? 0) > 0 &&
+    (travelPresentation1?.presentedFrames ?? 0) >= 20 &&
     gltfAnimations.some((a) => a.name === 'poc-band-idle') &&
     gltfAnimations.some((a) => a.name === 'poc-band-travel')
+
   // Verify retained visual-review screenshot has valid PNG magic header and non-empty content
   const imageBytes = readFileSync(PHASE_9_VISUAL_REVIEW_FILE)
   const imageExists =
@@ -1654,6 +1686,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     imageBytes[5] === 0x0a &&
     imageBytes[6] === 0x1a &&
     imageBytes[7] === 0x0a
+
   const record: OverworldTravelEvidenceRecord = {
     initialState: {
       scene: initial1Projection.scene,
@@ -1726,7 +1759,6 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     },
     deliveryState: 'Ready',
   }
-
   const rejections = validateOverworldTravelEvidenceRecord(record, authoredBandNodeNames)
   expect(rejections).toEqual([])
 

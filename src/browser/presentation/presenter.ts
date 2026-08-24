@@ -398,6 +398,7 @@ export function createScenePresenter(
         presentedFrames,
         animationTime,
         hasLighting: hasDir && hasAmb,
+        activeAnimation: currentActionKind,
       })
     },
 
