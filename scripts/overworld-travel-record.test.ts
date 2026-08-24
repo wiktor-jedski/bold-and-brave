@@ -726,6 +726,22 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
       ]
     })
   })
+
+  it('rejects skipped arrival tick in clean run trace', () => {
+    expectRecordRejected((record) => {
+      record.runs = [
+        record.runs[0],
+        {
+          ...record.runs[0],
+          finalProjection: {
+            ...record.runs[0].finalProjection,
+            tick: record.runs[0].finalProjection.tick + 2,
+          },
+        },
+      ]
+    })
+  })
+
   it('rejects top-level initialState mismatch with Run 1 startProjection', () => {
     expectRecordRejected((record) => {
       record.initialState.provisions = 9.0

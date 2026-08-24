@@ -1280,12 +1280,11 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   const idlePresentation1 = await readPresentation()
   expect(idlePresentation1?.activeAnimation).toBe('idle')
 
-  // Deterministic command offsets relative to Ready baseline (30 ticks setup, 360 travel ticks, 30 pause ticks, 3240 travel ticks)
+  // Deterministic command offsets relative to Ready baseline (30 ticks setup, 360 travel ticks, 30 pause ticks, 3270 travel ticks)
   const START_OFFSET = 30
   const PAUSE_OFFSET = START_OFFSET + 360
   const RESUME_OFFSET = PAUSE_OFFSET + 30
-  const ARRIVAL_OFFSET = RESUME_OFFSET + 3240
-
+  const ARRIVAL_OFFSET = RESUME_OFFSET + 3270
   // Wait for exact commanded start tick milestone (readyTick1 + START_OFFSET) and dispatch travel click
   await page.evaluate((targetStartTick) => {
     return new Promise<void>((resolve, reject) => {
@@ -1429,17 +1428,41 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     return obs?.currentProjection.movementState
   }, { timeout: 5000 }).toBe('travel')
 
-  // 6. Observe exact arrival at destination on the exact frame when movement arrives and stops
-  const final1Projection = await page.evaluate(() => {
-    return new Promise<SimulationProjection>((resolve) => {
+  // 6. Capture finalProjection on exact arrival tick milestone (readyTick1 + ARRIVAL_OFFSET)
+  const final1Projection = await page.evaluate((targetArrivalTick) => {
+    return new Promise<SimulationProjection>((resolve, reject) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (
-          obs &&
-          obs.currentProjection.movementState === 'idle' &&
-          obs.currentProjection.destination === null &&
-          obs.currentProjection.elapsedCampaignTime >= 0.5
-        ) {
+        if (!obs) {
+          requestAnimationFrame(check)
+          return
+        }
+        const atTarget = obs.getProjectionAtTick?.(targetArrivalTick)
+        if (atTarget) {
+          if (
+            atTarget.movementState !== 'idle' ||
+            atTarget.destination !== null ||
+            atTarget.elapsedCampaignTime < 0.5
+          ) {
+            reject(new Error(`Target arrival tick ${targetArrivalTick} state: ${JSON.stringify(atTarget)}`))
+            return
+          }
+          resolve(atTarget)
+          return
+        }
+        if (obs.currentProjection.tick === targetArrivalTick) {
+          if (
+            obs.currentProjection.movementState !== 'idle' ||
+            obs.currentProjection.destination !== null ||
+            obs.currentProjection.elapsedCampaignTime < 0.5
+          ) {
+            reject(
+              new Error(
+                `Target arrival tick ${targetArrivalTick} reached but arrival state is invalid.`,
+              ),
+            )
+            return
+          }
           resolve(obs.currentProjection)
           return
         }
@@ -1447,7 +1470,8 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick1 + ARRIVAL_OFFSET)
+  expect(final1Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
   expect(final1Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
   expect(final1Projection.destination).toBeNull()
   expect(final1Projection.movementState).toBe('idle')
@@ -1455,7 +1479,6 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(final1Projection.provisions).toBe(9.8)
   expect(final1Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
   expect(final1Projection.consumptionRemainder).toBeLessThan(0.5)
-
   // Capture visual-review PNG while canvas is rendered before loss
   mkdirSync(dirname(PHASE_9_VISUAL_REVIEW_FILE), { recursive: true })
   await page.screenshot({ path: PHASE_9_VISUAL_REVIEW_FILE })
@@ -1606,17 +1629,45 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     return obs?.currentProjection.paused
   }, { timeout: 5000 }).toBe(false)
 
-  // Arrival at destination on the exact frame when movement arrives and stops
-  const final2Projection = await page.evaluate(() => {
-    return new Promise<SimulationProjection>((resolve) => {
+  // Capture finalProjection on exact arrival tick milestone (readyTick2 + ARRIVAL_OFFSET)
+  const final2Projection = await page.evaluate((targetArrivalTick) => {
+    return new Promise<SimulationProjection>((resolve, reject) => {
       const check = () => {
         const obs = window.__boldAndBraveTravelObservation?.()
-        if (
-          obs &&
-          obs.currentProjection.movementState === 'idle' &&
-          obs.currentProjection.destination === null &&
-          obs.currentProjection.elapsedCampaignTime >= 0.5
-        ) {
+        if (!obs) {
+          requestAnimationFrame(check)
+          return
+        }
+        const atTarget = obs.getProjectionAtTick?.(targetArrivalTick)
+        if (atTarget) {
+          if (
+            atTarget.movementState !== 'idle' ||
+            atTarget.destination !== null ||
+            atTarget.elapsedCampaignTime < 0.5
+          ) {
+            reject(
+              new Error(
+                `Target arrival tick ${targetArrivalTick} reached but arrival state is invalid.`,
+              ),
+            )
+            return
+          }
+          resolve(atTarget)
+          return
+        }
+        if (obs.currentProjection.tick === targetArrivalTick) {
+          if (
+            obs.currentProjection.movementState !== 'idle' ||
+            obs.currentProjection.destination !== null ||
+            obs.currentProjection.elapsedCampaignTime < 0.5
+          ) {
+            reject(
+              new Error(
+                `Target arrival tick ${targetArrivalTick} reached but arrival state is invalid.`,
+              ),
+            )
+            return
+          }
           resolve(obs.currentProjection)
           return
         }
@@ -1624,7 +1675,8 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
       }
       requestAnimationFrame(check)
     })
-  })
+  }, readyTick2 + ARRIVAL_OFFSET)
+  expect(final2Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
   expect(final2Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
   expect(final2Projection.destination).toBeNull()
   expect(final2Projection.movementState).toBe('idle')

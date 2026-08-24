@@ -28,7 +28,7 @@ export interface TravelObservation {
   readonly acceptsGameplayInput: boolean
   /** Total count of gameplay commands submitted to the Simulation through the Input Adapter. */
   readonly submittedCommandsCount: number
-  /** Get the authoritative immutable projection at an exact target tick, if recorded. */
+  /** Get the authoritative immutable projection at an exact target tick from bounded history, or null if unrecorded. */
   readonly getProjectionAtTick?: (tick: number) => SimulationProjection | null
 }
 
