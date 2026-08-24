@@ -197,33 +197,11 @@ function deepEqual(left: unknown, right: unknown): boolean {
 
 /**
  * Check if two complete Simulation projections are value-equal in all authoritative fields.
- * When allowStartupTickOffset is true, startup scheduling tick differences are excluded,
- * while preserving all gameplay state, positions, route, destination, time, provisions,
- * consumption remainder, coin, agents, and band semantics.
  */
 export function projectionsEqual(
   left: SimulationProjection,
   right: SimulationProjection,
-  options?: { allowStartupTickOffset?: boolean },
 ): boolean {
-  if (options?.allowStartupTickOffset) {
-    if (
-      left.scene !== right.scene ||
-      left.movementState !== right.movementState ||
-      left.paused !== right.paused ||
-      Math.abs(left.provisions - right.provisions) > EXACT_TOLERANCE ||
-      left.coin !== right.coin ||
-      !deepEqual(left.destination, right.destination) ||
-      !positionsEqual(left.bandPawnPosition, right.bandPawnPosition, SETTLEMENT_BOUNDARY_TOLERANCE) ||
-      Math.abs(left.elapsedCampaignTime - right.elapsedCampaignTime) > SETTLEMENT_BOUNDARY_TOLERANCE ||
-      Math.abs(left.consumptionRemainder - right.consumptionRemainder) > SETTLEMENT_BOUNDARY_TOLERANCE ||
-      !deepEqual(left.agents, right.agents) ||
-      !deepEqual(left.band, right.band)
-    ) {
-      return false
-    }
-    return true
-  }
   return deepEqual(left, right)
 }
 
@@ -449,13 +427,13 @@ export function validateOverworldTravelEvidenceRecord(
     if (!deepEqual(run1.commands, run2.commands)) {
       rejections.push('Run 1 and Run 2 command traces do not match.')
     }
-    if (!projectionsEqual(run1.startProjection, run2.startProjection, { allowStartupTickOffset: true })) {
+    if (!projectionsEqual(run1.startProjection, run2.startProjection)) {
       rejections.push('Run 1 and Run 2 complete start projections do not match.')
     }
-    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection, { allowStartupTickOffset: true })) {
+    if (!projectionsEqual(run1.pausedProjection, run2.pausedProjection)) {
       rejections.push('Run 1 and Run 2 complete paused projections do not match.')
     }
-    if (!projectionsEqual(run1.finalProjection, run2.finalProjection, { allowStartupTickOffset: true })) {
+    if (!projectionsEqual(run1.finalProjection, run2.finalProjection)) {
       rejections.push('Run 1 and Run 2 complete final projections do not match.')
     }
 

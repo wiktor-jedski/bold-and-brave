@@ -474,6 +474,18 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           startProjection: {
             ...INITIAL_PROJECTION,
+            tick: 5,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          startProjection: {
+            ...INITIAL_PROJECTION,
             coin: 50,
           },
         },
@@ -518,6 +530,42 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
         },
       ]
     })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...PAUSED_PROJECTION,
+            bandPawnPosition: { x: 0, y: 0, z: 1.34 },
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...PAUSED_PROJECTION,
+            elapsedCampaignTime: 0.06,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...PAUSED_PROJECTION,
+            consumptionRemainder: 0.15,
+          },
+        },
+      ]
+    })
   })
 
   it('rejects mismatched final projections between clean runs', () => {
@@ -541,6 +589,42 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           finalProjection: {
             ...FINAL_PROJECTION,
             provisions: 8.5,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          finalProjection: {
+            ...FINAL_PROJECTION,
+            bandPawnPosition: { x: 0.01, y: 0, z: 0 },
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          finalProjection: {
+            ...FINAL_PROJECTION,
+            elapsedCampaignTime: 0.51,
+          },
+        },
+      ]
+    })
+    expectRecordRejected((record) => {
+      record.runs = [
+        makeValidRunTrace(),
+        {
+          ...makeValidRunTrace(),
+          finalProjection: {
+            ...FINAL_PROJECTION,
+            consumptionRemainder: 0.2,
           },
         },
       ]

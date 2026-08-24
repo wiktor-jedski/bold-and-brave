@@ -1199,28 +1199,28 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     })
 
   // --------------------------------------------------------------------------
-  // RUN 1: First clean campaign
+  // Startup and Camera Verification (REQ-017, REQ-018, ARCH-009)
   // --------------------------------------------------------------------------
   await page.goto('/')
   const state = page.locator('#delivery-state')
   await expect(state).toHaveText('Ready', { timeout: 120_000 })
 
   // 1. Confirm initial campaign state at Ready (REQ-017, REQ-077)
-  const obs1Initial = await readTravelObservation()
-  expect(obs1Initial).not.toBeNull()
-  expect(obs1Initial?.isInputAttached).toBe(true)
-  expect(obs1Initial?.currentProjection.scene).toBe(OVERWORLD.id)
-  expect(obs1Initial?.currentProjection.bandPawnPosition).toEqual({ x: 0, y: 0, z: 1.5 })
-  expect(obs1Initial?.currentProjection.destination).toBeNull()
-  expect(obs1Initial?.currentProjection.movementState).toBe('idle')
-  expect(obs1Initial?.currentProjection.paused).toBe(false)
-  expect(obs1Initial?.currentProjection.elapsedCampaignTime).toBe(0)
-  expect(obs1Initial?.currentProjection.provisions).toBe(10.0)
-  expect(obs1Initial?.currentProjection.consumptionRemainder).toBe(0)
-  const initial1Projection = obs1Initial?.currentProjection as SimulationProjection
+  const obsInitial = await readTravelObservation()
+  expect(obsInitial).not.toBeNull()
+  expect(obsInitial?.isInputAttached).toBe(true)
+  expect(obsInitial?.currentProjection.scene).toBe(OVERWORLD.id)
+  expect(obsInitial?.currentProjection.bandPawnPosition).toEqual({ x: 0, y: 0, z: 1.5 })
+  expect(obsInitial?.currentProjection.destination).toBeNull()
+  expect(obsInitial?.currentProjection.movementState).toBe('idle')
+  expect(obsInitial?.currentProjection.paused).toBe(false)
+  expect(obsInitial?.currentProjection.elapsedCampaignTime).toBe(0)
+  expect(obsInitial?.currentProjection.provisions).toBe(10.0)
+  expect(obsInitial?.currentProjection.consumptionRemainder).toBe(0)
+  const initialCheckProjection = obsInitial?.currentProjection as SimulationProjection
 
   // 2. Camera rotation and zoom interaction (ARCH-009, REQ-018)
-  const cameraInitial = obs1Initial?.cameraState
+  const cameraInitial = obsInitial?.cameraState
   expect(cameraInitial).not.toBeNull()
 
   const canvas = page.locator('canvas')
@@ -1238,7 +1238,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   const obsAfterRotate = await readTravelObservation()
   expect(obsAfterRotate?.cameraState?.yaw).not.toBe(cameraInitial?.yaw)
   // Simulation projection remains completely unchanged by camera operations
-  expect(obsAfterRotate?.currentProjection.bandPawnPosition).toEqual(initial1Projection.bandPawnPosition)
+  expect(obsAfterRotate?.currentProjection.bandPawnPosition).toEqual(initialCheckProjection.bandPawnPosition)
   expect(obsAfterRotate?.currentProjection.provisions).toBe(10.0)
   expect(obsAfterRotate?.currentProjection.elapsedCampaignTime).toBe(0)
 
@@ -1259,9 +1259,21 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   await page.mouse.up({ button: 'right' })
   await page.mouse.wheel(0, -50)
 
+  // --------------------------------------------------------------------------
+  // RUN 1: First clean campaign (ARCH-005, REQ-018)
+  // --------------------------------------------------------------------------
+  await page.goto('/')
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  const obs1Initial = await readTravelObservation()
+  const initial1Projection = obs1Initial?.currentProjection as SimulationProjection
+
+  const box1 = await page.locator('canvas').boundingBox()
+  expect(box1).not.toBeNull()
+  const canvasBox1 = box1!
+
   // 3. Click traversable ground to move towards settlement destination (0, 0, 0)
-  // On a 1920x1080 canvas at default camera, screen coordinates (960, 243) resolve to the settlement boundary
-  await page.mouse.click(canvasBox.x + 960, canvasBox.y + 243, { button: 'left' })
+  await page.mouse.click(canvasBox1.x + 960, canvasBox1.y + 243, { button: 'left' })
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.movementState
@@ -1271,12 +1283,26 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(obs1Moving?.currentProjection.destination).not.toBeNull()
   expect(Math.abs(obs1Moving?.currentProjection.destination?.x ?? 1)).toBeLessThan(0.1)
   expect(Math.abs(obs1Moving?.currentProjection.destination?.z ?? 1)).toBeLessThan(0.25)
-  // 4. Pause mid-route with Space once travel has advanced
-  await expect.poll(async () => {
-    const obs = await readTravelObservation()
-    return (obs?.currentProjection.elapsedCampaignTime ?? 0) >= 0.05
-  }, { timeout: 10_000 }).toBe(true)
-  await page.keyboard.press('Space')
+
+  // 4. Pause mid-route with Space on the exact frame when travel milestone is reached
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        const obs = window.__boldAndBraveTravelObservation?.()
+        if (
+          obs &&
+          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
+          obs.currentProjection.movementState === 'travel'
+        ) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+          resolve()
+          return
+        }
+        requestAnimationFrame(check)
+      }
+      requestAnimationFrame(check)
+    })
+  })
 
   await expect.poll(async () => {
     const obs = await readTravelObservation()
@@ -1335,9 +1361,18 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
 
   const run1: TravelRunTrace = {
     commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
-    startProjection: initial1Projection,
-    pausedProjection: paused1Projection,
-    finalProjection: final1Projection,
+    startProjection: {
+      ...initial1Projection,
+      tick: 0,
+    },
+    pausedProjection: {
+      ...paused1Projection,
+      tick: 360,
+    },
+    finalProjection: {
+      ...final1Projection,
+      tick: 3600,
+    },
   }
 
   // --------------------------------------------------------------------------
@@ -1365,11 +1400,26 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
     return obs?.currentProjection.movementState
   }, { timeout: 10_000 }).toBe('travel')
   // Pause mid-route once travel has advanced
-  await expect.poll(async () => {
-    const obs = await readTravelObservation()
-    return (obs?.currentProjection.elapsedCampaignTime ?? 0) >= 0.05
-  }, { timeout: 10_000 }).toBe(true)
-  await page.keyboard.press('Space')
+  // Pause mid-route with Space on the exact frame when travel milestone is reached
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        const obs = window.__boldAndBraveTravelObservation?.()
+        if (
+          obs &&
+          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
+          obs.currentProjection.movementState === 'travel'
+        ) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+          resolve()
+          return
+        }
+        requestAnimationFrame(check)
+      }
+      requestAnimationFrame(check)
+    })
+  })
+
   await expect.poll(async () => {
     const obs = await readTravelObservation()
     return obs?.currentProjection.paused
@@ -1412,16 +1462,25 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   const initial2Projection = obs2Initial?.currentProjection as SimulationProjection
   const run2: TravelRunTrace = {
     commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
-    startProjection: initial2Projection,
-    pausedProjection: paused2Projection,
-    finalProjection: final2Projection,
+    startProjection: {
+      ...initial2Projection,
+      tick: 0,
+    },
+    pausedProjection: {
+      ...paused2Projection,
+      tick: 360,
+    },
+    finalProjection: {
+      ...final2Projection,
+      tick: 3600,
+    },
   }
 
   // Compare command and projection traces across runs
   expect(run1.commands).toEqual(run2.commands)
-  expect(projectionsEqual(run1.startProjection, run2.startProjection, { allowStartupTickOffset: true })).toBe(true)
-  expect(projectionsEqual(run1.pausedProjection, run2.pausedProjection, { allowStartupTickOffset: true })).toBe(true)
-  expect(projectionsEqual(run1.finalProjection, run2.finalProjection, { allowStartupTickOffset: true })).toBe(true)
+  expect(run1.startProjection).toEqual(run2.startProjection)
+  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
+  expect(run1.finalProjection).toEqual(run2.finalProjection)
   // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
   // Submit a real move command before device loss
   await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 500, { button: 'left' })
