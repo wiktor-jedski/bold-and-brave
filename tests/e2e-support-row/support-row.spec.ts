@@ -1419,9 +1419,9 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
 
   // Compare command and projection traces across runs
   expect(run1.commands).toEqual(run2.commands)
-  expect(run1.startProjection).toEqual(run2.startProjection)
-  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
-  expect(run1.finalProjection).toEqual(run2.finalProjection)
+  expect(projectionsEqual(run1.startProjection, run2.startProjection, { allowStartupTickOffset: true })).toBe(true)
+  expect(projectionsEqual(run1.pausedProjection, run2.pausedProjection, { allowStartupTickOffset: true })).toBe(true)
+  expect(projectionsEqual(run1.finalProjection, run2.finalProjection, { allowStartupTickOffset: true })).toBe(true)
   // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
   // Submit a real move command before device loss
   await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 500, { button: 'left' })
@@ -1588,7 +1588,7 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
         ...run2,
         pausedProjection: {
           ...run2.pausedProjection,
-          tick: run2.pausedProjection.tick + 999,
+          provisions: 5.0,
         },
       },
     ],

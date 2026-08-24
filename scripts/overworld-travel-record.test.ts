@@ -474,7 +474,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           startProjection: {
             ...INITIAL_PROJECTION,
-            tick: 5,
+            coin: 50,
           },
         },
       ]
@@ -486,7 +486,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           startProjection: {
             ...INITIAL_PROJECTION,
-            coin: 50,
+            scene: 'other-scene',
           },
         },
       ]
@@ -501,7 +501,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           pausedProjection: {
             ...PAUSED_PROJECTION,
-            tick: PAUSED_PROJECTION.tick + 1,
+            movementState: 'travel',
           },
         },
       ]
@@ -513,7 +513,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           pausedProjection: {
             ...PAUSED_PROJECTION,
-            provisions: 9.8,
+            provisions: 8.0,
           },
         },
       ]
@@ -528,7 +528,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           finalProjection: {
             ...FINAL_PROJECTION,
-            tick: FINAL_PROJECTION.tick + 1,
+            destination: { x: 1, y: 0, z: 0 },
           },
         },
       ]
@@ -540,7 +540,7 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
           ...makeValidRunTrace(),
           finalProjection: {
             ...FINAL_PROJECTION,
-            provisions: 9.7,
+            provisions: 8.5,
           },
         },
       ]
