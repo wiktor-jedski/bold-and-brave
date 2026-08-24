@@ -551,4 +551,76 @@ describe('Browser Input Adapter integration (ARCH-007, ARCH-002, ARCH-006, ARCH-
     )
     expect(presenter.readCameraState?.()?.yaw).toBe(yawAfterButtonCheck)
   })
+
+  it('tracks submittedCommandsCount across mouse clicks and keyboard commands', async () => {
+    const { simulation, runtime, presenter, canvas } = await createTestRig()
+    const inputAdapter = createInputAdapter({
+      simulation,
+      runtime,
+      presenter,
+      target: canvas,
+      keyboardTarget: window,
+    })
+
+    expect(inputAdapter.getSubmittedCommandsCount()).toBe(0)
+    runtime.start()
+    inputAdapter.attach()
+
+    // Primary click on traversable ground increments count
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: 960, clientY: 540, button: 0, bubbles: true }),
+    )
+    canvas.dispatchEvent(
+      new PointerEvent('pointerup', { clientX: 960, clientY: 540, button: 0, bubbles: true }),
+    )
+    canvas.dispatchEvent(
+      new MouseEvent('click', { clientX: 960, clientY: 540, button: 0, bubbles: true }),
+    )
+    expect(inputAdapter.getSubmittedCommandsCount()).toBe(1)
+
+    // Space key increments count
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+    expect(inputAdapter.getSubmittedCommandsCount()).toBe(2)
+  })
+
+  it('detaches on ordinary stop, reattaches on ordinary restart, and stays detached on terminal stop', async () => {
+    const { simulation, runtime, presenter, canvas } = await createTestRig()
+    const inputAdapter = createInputAdapter({
+      simulation,
+      runtime,
+      presenter,
+      target: canvas,
+      keyboardTarget: window,
+    })
+
+    runtime.start()
+    inputAdapter.attach()
+    expect(inputAdapter.isAttached()).toBe(true)
+
+    // Ordinary stop automatically detaches the adapter
+    runtime.stop()
+    expect(inputAdapter.isAttached()).toBe(false)
+
+    // Ordinary restart automatically reattaches the adapter
+    runtime.start()
+    expect(inputAdapter.isAttached()).toBe(true)
+
+    // Explicit detach is respected across later stop and start cycles
+    inputAdapter.detach()
+    expect(inputAdapter.isAttached()).toBe(false)
+    runtime.stop()
+    runtime.start()
+    expect(inputAdapter.isAttached()).toBe(false)
+
+    // Re-attach explicitly
+    inputAdapter.attach()
+    expect(inputAdapter.isAttached()).toBe(true)
+    // Terminal stop permanently detaches the adapter
+    runtime.terminalStop()
+    expect(inputAdapter.isAttached()).toBe(false)
+
+    // Later start attempt does not reattach
+    runtime.start()
+    expect(inputAdapter.isAttached()).toBe(false)
+  })
 })

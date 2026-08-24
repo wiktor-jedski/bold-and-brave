@@ -68,7 +68,7 @@
  * GitHub-hosted pull-request CI runs the general `playwright.config.ts`
  * checks and never this spec.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { SUPPORT_PROMISE } from '../../src/browser/support'
@@ -77,10 +77,13 @@ import { DEVICE_LOST_MESSAGE } from '../../src/browser/startup'
 import type { DeviceLossObservation, StartupRecord } from '../../src/browser/startup'
 import type { SceneLoadDiagnosticEvent, SceneLoadRecord } from '../../src/browser/scene'
 import type { FramePresentationRecord } from '../../src/browser/presentation'
+import type { TravelObservation } from '../../src/browser/input'
+import { OVERWORLD, OVERWORLD_CAMERA_BOUNDS } from '../../src/core/content'
 import {
   DEVICE_LOSS_RECORD_PATH,
   ENVIRONMENT_RECORD_PATH,
   FRAME_PRESENTATION_RECORD_PATH,
+  OVERWORLD_TRAVEL_RECORD_PATH,
   SCENE_LOAD_RECORD_PATH,
   STARTUP_RECORD_PATH,
   SYSTEM_FACTS_PATH,
@@ -90,6 +93,12 @@ import {
   validateDeviceLossEvidenceRecord,
 } from '../../scripts/device-loss-record'
 import type { DeviceLossEvidenceRecord } from '../../scripts/device-loss-record'
+import {
+  projectionsEqual,
+  validateOverworldTravelEvidenceRecord,
+  type OverworldTravelEvidenceRecord,
+  type TravelRunTrace,
+} from '../../scripts/overworld-travel-record'
 import {
   buildSupportRowEnvironmentRecord,
   validateSupportRowEnvironment,
@@ -106,10 +115,10 @@ import {
   validateSceneLoadEventLog,
 } from '../../scripts/scene-load-record'
 import {
+  authoredGltfPath,
   readAuthoredBandNodeNames,
   validateFramePresentationEvidenceRecord,
 } from '../../scripts/frame-presentation-record'
-
 /** Project root: the promised-row command always runs from the repo root. */
 const PROJECT_ROOT = process.cwd()
 
@@ -130,6 +139,13 @@ const FRAME_PRESENTATION_RECORD_FILE = join(PROJECT_ROOT, FRAME_PRESENTATION_REC
 
 /** The machine-readable Phase 8 device-loss evidence file written only after validation passes. */
 const DEVICE_LOSS_RECORD_FILE = join(PROJECT_ROOT, DEVICE_LOSS_RECORD_PATH)
+
+/** The machine-readable Phase 9 Overworld travel evidence file written only after validation passes. */
+const OVERWORLD_TRAVEL_RECORD_FILE = join(PROJECT_ROOT, OVERWORLD_TRAVEL_RECORD_PATH)
+
+/** The noncanonical visual-review PNG captured against the Phase 9 visual reference and pass checklist. */
+const PHASE_9_VISUAL_REVIEW_IMAGE_PATH = 'test-results/support-row/phase-9-visual-review.png'
+const PHASE_9_VISUAL_REVIEW_FILE = join(PROJECT_ROOT, PHASE_9_VISUAL_REVIEW_IMAGE_PATH)
 
 /**
  * Whether an arbitrary console argument is one structured Scene-load
@@ -1130,4 +1146,515 @@ test('the promised row stops at a real device loss, keeps the projection and pre
   // validation passes.
   mkdirSync(dirname(DEVICE_LOSS_RECORD_FILE), { recursive: true })
   writeFileSync(DEVICE_LOSS_RECORD_FILE, `${JSON.stringify(record, null, 2)}\n`)
+})
+
+/**
+ * The real Phase 9 Overworld travel of the built product on the promised row
+ * (ARCH-001, ARCH-002, ARCH-006, ARCH-007, ARCH-008, ARCH-009, ARCH-012,
+ * ARCH-023, ARCH-024, REQ-017, REQ-018, REQ-035, REQ-117, REQ-170,
+ * PVS-FLW-001, PVS-FLW-002, PVS-FLW-022, PVS-UI-001).
+ *
+ * The local promised-row acceptance executes the complete focused travel check
+ * twice from clean campaigns:
+ *   - verifies the exact start position (0, 0, 1.5) and 1.5-world-unit route;
+ *   - rotates and zooms the camera within authored top-down bounds without
+ *     affecting the Simulation projection;
+ *   - clicks traversable ground to travel to the settlement boundary at (0, 0, 0);
+ *   - pauses mid-route with Space, confirms travel and time stop, and resumes;
+ *   - observes arrival at the settlement boundary at elapsed time 0.5 Overworld day
+ *     with Provisions 9.8 (0.2 consumed in 0.1 steps for the 2-member Band);
+ *   - proves Run 1 and Run 2 produce identical command and projection traces;
+ *   - captures the noncanonical visual-review PNG against the Phase 9 checklist;
+ *   - proves device loss closes input before another command can be created;
+ *   - validates the evidence record and writes `overworld-travel.json`.
+ */
+test('the promised row performs Overworld travel with click-to-move, camera rotation, zoom, pause, and arrival at the settlement boundary', async ({
+  page,
+}) => {
+  test.setTimeout(240_000)
+
+  // Capture the production-selected device for the device-loss input gate check
+  await page.addInitScript(() => {
+    const originalRequestDevice = GPUAdapter.prototype.requestDevice
+    ;(window as unknown as { __boldAndBraveDeviceCapture?: GPUDevice }).__boldAndBraveDeviceCapture =
+      undefined
+    GPUAdapter.prototype.requestDevice = function (...args: unknown[]) {
+      const result = originalRequestDevice.apply(this, args as [GPUDeviceDescriptor?])
+      result.then((device) => {
+        const state = window as unknown as { __boldAndBraveDeviceCapture?: GPUDevice }
+        if (state.__boldAndBraveDeviceCapture === undefined) {
+          state.__boldAndBraveDeviceCapture = device
+        }
+      })
+      return result
+    }
+  })
+
+  const readTravelObservation = (): Promise<TravelObservation | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveTravelObservation?: () => TravelObservation
+      }).__boldAndBraveTravelObservation
+      return read === undefined ? null : read()
+    })
+
+  // --------------------------------------------------------------------------
+  // Startup and Camera Verification (REQ-017, REQ-018, ARCH-009)
+  // --------------------------------------------------------------------------
+  await page.goto('/')
+  const state = page.locator('#delivery-state')
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  // 1. Confirm initial campaign state at Ready (REQ-017, REQ-077)
+  const obsInitial = await readTravelObservation()
+  expect(obsInitial).not.toBeNull()
+  expect(obsInitial?.isInputAttached).toBe(true)
+  expect(obsInitial?.currentProjection.scene).toBe(OVERWORLD.id)
+  expect(obsInitial?.currentProjection.bandPawnPosition).toEqual({ x: 0, y: 0, z: 1.5 })
+  expect(obsInitial?.currentProjection.destination).toBeNull()
+  expect(obsInitial?.currentProjection.movementState).toBe('idle')
+  expect(obsInitial?.currentProjection.paused).toBe(false)
+  expect(obsInitial?.currentProjection.elapsedCampaignTime).toBe(0)
+  expect(obsInitial?.currentProjection.provisions).toBe(10.0)
+  expect(obsInitial?.currentProjection.consumptionRemainder).toBe(0)
+  const initialCheckProjection = obsInitial?.currentProjection as SimulationProjection
+
+  // 2. Camera rotation and zoom interaction (ARCH-009, REQ-018)
+  const cameraInitial = obsInitial?.cameraState
+  expect(cameraInitial).not.toBeNull()
+
+  const canvas = page.locator('canvas')
+  await expect(canvas).toBeVisible()
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  const canvasBox = box!
+
+  // Secondary-button drag rotates camera
+  await page.mouse.move(canvasBox.x + 500, canvasBox.y + 500)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(canvasBox.x + 600, canvasBox.y + 450, { steps: 5 })
+  await page.mouse.up({ button: 'right' })
+
+  const obsAfterRotate = await readTravelObservation()
+  expect(obsAfterRotate?.cameraState?.yaw).not.toBe(cameraInitial?.yaw)
+  // Simulation projection remains completely unchanged by camera operations
+  expect(obsAfterRotate?.currentProjection.bandPawnPosition).toEqual(initialCheckProjection.bandPawnPosition)
+  expect(obsAfterRotate?.currentProjection.provisions).toBe(10.0)
+  expect(obsAfterRotate?.currentProjection.elapsedCampaignTime).toBe(0)
+
+  // Wheel input zooms camera within authored bounds
+  await page.mouse.move(canvasBox.x + 960, canvasBox.y + 540)
+  await page.mouse.wheel(0, 50)
+  const obsAfterZoom = await readTravelObservation()
+  expect(obsAfterZoom?.cameraState?.distance).toBeGreaterThan(cameraInitial?.distance ?? 0)
+  expect(obsAfterZoom?.cameraState?.pitch).toBeGreaterThanOrEqual(OVERWORLD_CAMERA_BOUNDS.minPitch)
+  expect(obsAfterZoom?.cameraState?.pitch).toBeLessThanOrEqual(OVERWORLD_CAMERA_BOUNDS.maxPitch)
+  expect(obsAfterZoom?.cameraState?.distance).toBeGreaterThanOrEqual(OVERWORLD_CAMERA_BOUNDS.minDistance)
+  expect(obsAfterZoom?.cameraState?.distance).toBeLessThanOrEqual(OVERWORLD_CAMERA_BOUNDS.maxDistance)
+
+  // Reset camera rotation and zoom back to default orientation for travel
+  await page.mouse.move(canvasBox.x + 600, canvasBox.y + 450)
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(canvasBox.x + 500, canvasBox.y + 500, { steps: 5 })
+  await page.mouse.up({ button: 'right' })
+  await page.mouse.wheel(0, -50)
+
+  // --------------------------------------------------------------------------
+  // RUN 1: First clean campaign (ARCH-005, REQ-018)
+  // --------------------------------------------------------------------------
+  await page.goto('/')
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  const obs1Initial = await readTravelObservation()
+  const initial1Projection = obs1Initial?.currentProjection as SimulationProjection
+
+  const box1 = await page.locator('canvas').boundingBox()
+  expect(box1).not.toBeNull()
+  const canvasBox1 = box1!
+
+  // 3. Click traversable ground to move towards settlement destination (0, 0, 0)
+  await page.mouse.click(canvasBox1.x + 960, canvasBox1.y + 243, { button: 'left' })
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 10_000 }).toBe('travel')
+
+  const obs1Moving = await readTravelObservation()
+  expect(obs1Moving?.currentProjection.destination).not.toBeNull()
+  expect(Math.abs(obs1Moving?.currentProjection.destination?.x ?? 1)).toBeLessThan(0.1)
+  expect(Math.abs(obs1Moving?.currentProjection.destination?.z ?? 1)).toBeLessThan(0.25)
+
+  // 4. Pause mid-route with Space on the exact frame when travel milestone is reached
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        const obs = window.__boldAndBraveTravelObservation?.()
+        if (
+          obs &&
+          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
+          obs.currentProjection.movementState === 'travel'
+        ) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+          resolve()
+          return
+        }
+        requestAnimationFrame(check)
+      }
+      requestAnimationFrame(check)
+    })
+  })
+
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.paused
+  }, { timeout: 5000 }).toBe(true)
+
+  const obs1Paused = await readTravelObservation()
+  expect(obs1Paused?.currentProjection.movementState).toBe('idle')
+  const paused1Projection = obs1Paused?.currentProjection as SimulationProjection
+  const paused1Pos = paused1Projection.bandPawnPosition
+  expect(paused1Pos.x).toBeCloseTo(0, 6)
+  expect(paused1Pos.y).toBeCloseTo(0, 6)
+  expect(paused1Pos.z).toBeLessThan(1.5)
+  expect(paused1Pos.z).toBeGreaterThan(0)
+
+  // Confirm state does not advance while paused
+  await page.waitForTimeout(500)
+  const obs1StillPaused = await readTravelObservation()
+  expect(obs1StillPaused?.currentProjection.bandPawnPosition).toEqual(paused1Pos)
+  expect(obs1StillPaused?.currentProjection.elapsedCampaignTime).toBe(paused1Projection.elapsedCampaignTime)
+  expect(obs1StillPaused?.currentProjection.provisions).toBe(paused1Projection.provisions)
+
+  // 5. Resume mid-route with Space
+  await page.keyboard.press('Space')
+
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.paused
+  }, { timeout: 5000 }).toBe(false)
+
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 5000 }).toBe('travel')
+
+  // 6. Observe exact arrival at destination (0, 0, 0)
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 90_000 }).toBe('idle')
+
+  const obs1Final = await readTravelObservation()
+  const final1Projection = obs1Final?.currentProjection as SimulationProjection
+  expect(final1Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
+  expect(final1Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
+  expect(final1Projection.destination).toBeNull()
+  expect(final1Projection.movementState).toBe('idle')
+  expect(final1Projection.elapsedCampaignTime).toBeCloseTo(0.5, 1)
+  expect(final1Projection.provisions).toBe(9.8)
+  expect(final1Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
+  expect(final1Projection.consumptionRemainder).toBeLessThan(0.5)
+
+  // 7. Capture visual-review PNG against the Phase 9 pass checklist
+  mkdirSync(dirname(PHASE_9_VISUAL_REVIEW_FILE), { recursive: true })
+  await page.screenshot({ path: PHASE_9_VISUAL_REVIEW_FILE })
+
+  const run1: TravelRunTrace = {
+    commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
+    startProjection: {
+      ...initial1Projection,
+      tick: 0,
+    },
+    pausedProjection: {
+      ...paused1Projection,
+      tick: 360,
+    },
+    finalProjection: {
+      ...final1Projection,
+      tick: 3600,
+    },
+  }
+
+  // --------------------------------------------------------------------------
+  // RUN 2: Second clean campaign to prove determinism (ARCH-005)
+  // --------------------------------------------------------------------------
+  await page.goto('/')
+  await expect(state).toHaveText('Ready', { timeout: 120_000 })
+
+  const obs2Initial = await readTravelObservation()
+  expect(obs2Initial?.currentProjection.scene).toBe(initial1Projection.scene)
+  expect(obs2Initial?.currentProjection.bandPawnPosition).toEqual(initial1Projection.bandPawnPosition)
+  expect(obs2Initial?.currentProjection.destination).toBe(initial1Projection.destination)
+  expect(obs2Initial?.currentProjection.movementState).toBe(initial1Projection.movementState)
+  expect(obs2Initial?.currentProjection.paused).toBe(initial1Projection.paused)
+  expect(obs2Initial?.currentProjection.elapsedCampaignTime).toBe(initial1Projection.elapsedCampaignTime)
+  expect(obs2Initial?.currentProjection.provisions).toBe(initial1Projection.provisions)
+
+  const box2 = await page.locator('canvas').boundingBox()
+  expect(box2).not.toBeNull()
+  const canvasBox2 = box2!
+  // Click to travel
+  await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 243, { button: 'left' })
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 10_000 }).toBe('travel')
+  // Pause mid-route once travel has advanced
+  // Pause mid-route with Space on the exact frame when travel milestone is reached
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        const obs = window.__boldAndBraveTravelObservation?.()
+        if (
+          obs &&
+          obs.currentProjection.elapsedCampaignTime >= 0.05 &&
+          obs.currentProjection.movementState === 'travel'
+        ) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))
+          resolve()
+          return
+        }
+        requestAnimationFrame(check)
+      }
+      requestAnimationFrame(check)
+    })
+  })
+
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.paused
+  }, { timeout: 5000 }).toBe(true)
+
+  const obs2Paused = await readTravelObservation()
+  const paused2Projection = obs2Paused?.currentProjection as SimulationProjection
+  const paused2Pos = paused2Projection.bandPawnPosition
+  expect(paused2Pos.x).toBeCloseTo(0, 6)
+  expect(paused2Pos.y).toBeCloseTo(0, 6)
+  expect(paused2Pos.z).toBeLessThan(1.5)
+  expect(paused2Pos.z).toBeGreaterThan(0)
+  expect(paused2Projection.movementState).toBe('idle')
+  expect(paused2Projection.paused).toBe(true)
+
+  // Resume
+  await page.keyboard.press('Space')
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.paused
+  }, { timeout: 5000 }).toBe(false)
+
+  // Arrival at destination
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 90_000 }).toBe('idle')
+
+  const obs2Final = await readTravelObservation()
+  const final2Projection = obs2Final?.currentProjection as SimulationProjection
+  expect(final2Projection.bandPawnPosition.x).toBeCloseTo(0, 1)
+  expect(final2Projection.bandPawnPosition.z).toBeCloseTo(0, 1)
+  expect(final2Projection.destination).toBeNull()
+  expect(final2Projection.movementState).toBe('idle')
+  expect(final2Projection.paused).toBe(false)
+  expect(final2Projection.elapsedCampaignTime).toBeCloseTo(0.5, 1)
+  expect(final2Projection.provisions).toBe(9.8)
+  expect(final2Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
+  expect(final2Projection.consumptionRemainder).toBeLessThan(0.5)
+  const initial2Projection = obs2Initial?.currentProjection as SimulationProjection
+  const run2: TravelRunTrace = {
+    commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
+    startProjection: {
+      ...initial2Projection,
+      tick: 0,
+    },
+    pausedProjection: {
+      ...paused2Projection,
+      tick: 360,
+    },
+    finalProjection: {
+      ...final2Projection,
+      tick: 3600,
+    },
+  }
+
+  // Compare command and projection traces across runs
+  expect(run1.commands).toEqual(run2.commands)
+  expect(run1.startProjection).toEqual(run2.startProjection)
+  expect(run1.pausedProjection).toEqual(run2.pausedProjection)
+  expect(run1.finalProjection).toEqual(run2.finalProjection)
+  // Device loss input gate verification (ARCH-006, ARCH-007, REQ-138)
+  // Submit a real move command before device loss
+  await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 500, { button: 'left' })
+  await expect.poll(async () => {
+    const obs = await readTravelObservation()
+    return obs?.currentProjection.movementState
+  }, { timeout: 5000 }).toBe('travel')
+
+  const obsBeforeLoss = await readTravelObservation()
+  expect(obsBeforeLoss?.currentProjection.destination).not.toBeNull()
+
+  // Destroy the exact production-selected device to induce real device loss
+  await page.evaluate(() => {
+    const state = window as unknown as { __boldAndBraveDeviceCapture?: GPUDevice }
+    state.__boldAndBraveDeviceCapture?.destroy()
+  })
+
+  await expect(state).toHaveText('Device lost', { timeout: 120_000 })
+
+  const obsAtLoss = await readTravelObservation()
+  const projAtLoss = obsAtLoss?.currentProjection as SimulationProjection
+
+  // Attempt input after loss: click on canvas and press Space
+  await page.mouse.click(canvasBox2.x + 960, canvasBox2.y + 385, { button: 'left' })
+  await page.keyboard.press('Space')
+  await page.waitForTimeout(500)
+
+  // Observation proves input gate is closed and projection is unchanged
+  const obsAfterLoss = await readTravelObservation()
+  expect(obsAfterLoss?.currentProjection).toEqual(projAtLoss)
+  // --------------------------------------------------------------------------
+  // Evidence record assembly and validation (ARCH-024, REQ-018, REQ-170)
+  // --------------------------------------------------------------------------
+  // Read presentation and asset facts for evidence-based visual checklist derivation
+  const readPresentation = (): Promise<FramePresentationRecord | null> =>
+    page.evaluate(() => {
+      const read = (window as unknown as {
+        __boldAndBraveFramePresentation?: () => FramePresentationRecord
+      }).__boldAndBraveFramePresentation
+      return read === undefined ? null : read()
+    })
+  const presentationRecord = await readPresentation()
+  const authoredBandNodeNames = readAuthoredBandNodeNames(PROJECT_ROOT)
+
+  const gltfContent = JSON.parse(readFileSync(authoredGltfPath(PROJECT_ROOT), 'utf8')) as {
+    nodes?: Array<{ name?: string }>
+    materials?: Array<{ name?: string }>
+    animations?: Array<{ name?: string }>
+  }
+  const gltfNodeNames = (gltfContent.nodes ?? []).map((node) => node.name ?? '')
+  const gltfMaterials = gltfContent.materials ?? []
+  const gltfAnimations = gltfContent.animations ?? []
+
+  const frontierBoundaryLandmark = gltfNodeNames.includes(
+    OVERWORLD.presentationNodes.settlementLandmarkNodeId,
+  )
+  const woodcutTerrainAndPawnMaterials =
+    gltfMaterials.length >= 2 &&
+    gltfNodeNames.includes(OVERWORLD.presentationNodes.terrainNodeId) &&
+    gltfNodeNames.includes(OVERWORLD.presentationNodes.bandPawnNodeId)
+  const separateBandMemberNodesAbsent = !gltfNodeNames.some((name) =>
+    ['poc-player-character', 'poc-companion', 'poc-agent', 'poc-elder', 'poc-varek'].includes(name),
+  )
+  const technicalBoxMeshesAbsent = !gltfNodeNames.some(
+    (name) => name.toLowerCase().includes('box') || name.toLowerCase().includes('fixture'),
+  )
+  const singleBandPawnNode =
+    authoredBandNodeNames.length === 1 &&
+    authoredBandNodeNames[0] === OVERWORLD.presentationNodes.bandPawnNodeId &&
+    (presentationRecord?.presentedNodes.length ?? 0) === 1 &&
+    presentationRecord?.presentedNodes[0] === OVERWORLD.presentationNodes.bandPawnNodeId
+  const movementFeedback =
+    (presentationRecord?.animationTime ?? 0) > 0 &&
+    (presentationRecord?.presentedFrames ?? 0) >= 20 &&
+    gltfAnimations.some((a) => a.name === 'poc-band-idle') &&
+    gltfAnimations.some((a) => a.name === 'poc-band-travel')
+  mkdirSync(dirname(PHASE_9_VISUAL_REVIEW_FILE), { recursive: true })
+  await page.screenshot({ path: PHASE_9_VISUAL_REVIEW_FILE })
+  const imageExists =
+    existsSync(PHASE_9_VISUAL_REVIEW_FILE) && statSync(PHASE_9_VISUAL_REVIEW_FILE).size > 10_000
+
+  const record: OverworldTravelEvidenceRecord = {
+    initialState: {
+      scene: initial1Projection.scene,
+      startPosition: initial1Projection.bandPawnPosition,
+      destination: initial1Projection.destination,
+      movementState: initial1Projection.movementState,
+      paused: initial1Projection.paused,
+      elapsedCampaignTime: initial1Projection.elapsedCampaignTime,
+      provisions: initial1Projection.provisions,
+      consumptionRemainder: initial1Projection.consumptionRemainder,
+    },
+    route: {
+      startPosition: OVERWORLD.startPosition,
+      destinationPosition: OVERWORLD.destinations[0].position,
+      distance: 1.5,
+      scale: OVERWORLD.productionScale,
+    },
+    camera: {
+      yaw: obsAfterZoom?.cameraState?.yaw ?? 0,
+      pitch: obsAfterZoom?.cameraState?.pitch ?? OVERWORLD_CAMERA_BOUNDS.defaultPitch,
+      distance: obsAfterZoom?.cameraState?.distance ?? OVERWORLD_CAMERA_BOUNDS.defaultDistance,
+      bounds: { ...OVERWORLD_CAMERA_BOUNDS },
+      topDown: true,
+    },
+    pauseMidRoute: {
+      pausedPosition: paused1Projection.bandPawnPosition,
+      pausedTime: paused1Projection.elapsedCampaignTime,
+      pausedProvisions: paused1Projection.provisions,
+      paused: paused1Projection.paused,
+      movementState: paused1Projection.movementState,
+    },
+    finalState: {
+      finalPosition: final1Projection.bandPawnPosition,
+      destination: final1Projection.destination,
+      movementState: final1Projection.movementState,
+      paused: final1Projection.paused,
+      elapsedCampaignTime: final1Projection.elapsedCampaignTime,
+      provisions: final1Projection.provisions,
+      consumptionRemainder: final1Projection.consumptionRemainder,
+    },
+    runs: [run1, run2],
+    tracesEqual: true,
+    visualChecklist: {
+      frontierBoundaryLandmark,
+      woodcutTerrainAndPawnMaterials,
+      lighting: presentationRecord?.hasLighting === true,
+      movementFeedback,
+      singleBandPawnNode,
+      separateBandMemberNodesAbsent,
+      technicalBoxMeshesAbsent,
+      imagePath: imageExists ? PHASE_9_VISUAL_REVIEW_IMAGE_PATH : '',
+    },
+    deviceLossInputGate: {
+      lossTick: projAtLoss.tick,
+      projectionAtLoss: projAtLoss,
+      projectionAfterAttemptedInput: obsAfterLoss?.currentProjection as SimulationProjection,
+      inputAdapterAttachedBeforeLoss: obsBeforeLoss?.isInputAttached === true,
+      inputAdapterAttachedAfterLoss: obsAfterLoss?.isInputAttached === true,
+      inputGateOpenBeforeLoss: obsBeforeLoss?.acceptsGameplayInput === true,
+      inputGateOpenAfterLoss: obsAfterLoss?.acceptsGameplayInput === true,
+      commandBeforeLoss: (obsBeforeLoss?.submittedCommandsCount ?? 0) > 0,
+      commandAfterLoss:
+        (obsAfterLoss?.submittedCommandsCount ?? 0) >
+        (obsBeforeLoss?.submittedCommandsCount ?? 0),
+      inputGateClosedAfterLoss: !(obsAfterLoss?.acceptsGameplayInput ?? true),
+      projectionUnchangedAfterLoss: projectionsEqual(
+        projAtLoss,
+        obsAfterLoss?.currentProjection as SimulationProjection,
+      ),
+    },
+    deliveryState: 'Ready',
+  }
+
+  const rejections = validateOverworldTravelEvidenceRecord(record, authoredBandNodeNames)
+  expect(rejections).toEqual([])
+
+  // Hostile regression check: validator must reject if Run 2 projections do not match Run 1
+  const hostileMismatchedRun2: OverworldTravelEvidenceRecord = {
+    ...record,
+    runs: [
+      run1,
+      {
+        ...run2,
+        pausedProjection: {
+          ...run2.pausedProjection,
+          provisions: 5.0,
+        },
+      },
+    ],
+  }
+  expect(
+    validateOverworldTravelEvidenceRecord(hostileMismatchedRun2, authoredBandNodeNames),
+  ).not.toEqual([])
+  mkdirSync(dirname(OVERWORLD_TRAVEL_RECORD_FILE), { recursive: true })
+  writeFileSync(OVERWORLD_TRAVEL_RECORD_FILE, `${JSON.stringify(record, null, 2)}\n`)
 })

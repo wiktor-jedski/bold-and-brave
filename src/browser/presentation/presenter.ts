@@ -389,10 +389,15 @@ export function createScenePresenter(
     },
 
     readFramePresentation(): FramePresentationRecord {
+      const hasDir =
+        presentation.scene.getObjectByName('poc-frontier-directional-light') !== undefined
+      const hasAmb =
+        presentation.scene.getObjectByName('poc-frontier-ambient-light') !== undefined
       return Object.freeze({
         presentedNodes: Object.freeze([...presentedNodeIds]),
         presentedFrames,
         animationTime,
+        hasLighting: hasDir && hasAmb,
       })
     },
 

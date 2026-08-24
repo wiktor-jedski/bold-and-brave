@@ -59,10 +59,9 @@ export function createBrowserRuntime(
   let accumulatedTicks = 0
   /** Timestamp of the last rendered frame, or `null` before the first frame. */
   let previousTimestamp: number | null = null
-  /** Handle of the pending frame request, or `null` when none is pending. */
   let frameHandle: number | null = null
-
-  /** One rendered frame: accumulate elapsed time, dispatch due ticks, and present. */
+  const startCallbacks: Array<() => void> = []
+  const stopCallbacks: Array<() => void> = []
   function frame(timestamp: number): void {
     // A callback the environment already handed out can still run after a
     // stop or terminal stop; the guard makes such an already-held callback
@@ -121,6 +120,11 @@ export function createBrowserRuntime(
       accumulatedTicks = 0
       previousTimestamp = null
       frameHandle = scheduler.requestFrame(frame)
+      for (const cb of startCallbacks) {
+        try {
+          cb()
+        } catch {}
+      }
     },
     stop(): void {
       if (!running) {
@@ -130,6 +134,11 @@ export function createBrowserRuntime(
       if (frameHandle !== null) {
         scheduler.cancelFrame(frameHandle)
         frameHandle = null
+      }
+      for (const cb of stopCallbacks) {
+        try {
+          cb()
+        } catch {}
       }
     },
     terminalStop(): void {
@@ -149,12 +158,23 @@ export function createBrowserRuntime(
       previousTimestamp = null
       // Clear the presenter slot so no later presentation can occur.
       presenterSlot.presenter = null
+      for (const cb of stopCallbacks) {
+        try {
+          cb()
+        } catch {}
+      }
     },
     acceptsGameplayInput(): boolean {
       // The gate is open only while the normal runtime runs. The terminal
       // stop keeps `running` false forever and blocks every later `start`,
       // so the gate stays closed permanently (REQ-138, ARCH-007).
       return running && !terminal
+    },
+    onStart(callback: () => void): void {
+      startCallbacks.push(callback)
+    },
+    onStop(callback: () => void): void {
+      stopCallbacks.push(callback)
     },
   }
 }

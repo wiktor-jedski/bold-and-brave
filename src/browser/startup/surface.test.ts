@@ -586,4 +586,51 @@ describe('startup delivery-state surface (ARCH-010, ARCH-023, REQ-134, REQ-136, 
     expect(recorded).toEqual([])
     expect(application.runtime.presenterSlot.presenter).toBeNull()
   })
+
+  it('wires Overworld presenter, attaches Input Adapter, and publishes travel observation when reaching Ready', async () => {
+    const environment = createPassingEnvironment(Promise.resolve(createStableDevice()))
+    const factory = createPassingFactory()
+    const { host, surface } = composeProductSurface()
+    const application = createBrowserApplication(createSimulation)
+
+    let publishedObservation: (() => unknown) | null = null
+    const customPublish = (getObservation: () => unknown): void => {
+      publishedObservation = getObservation
+    }
+
+    const handoff = createSceneLoadingHandoff(
+      surface,
+      application.runtime.presenterSlot,
+      dependenciesWithCommittedAsset(),
+      undefined,
+      undefined,
+      undefined,
+      application.simulation,
+      application.runtime,
+      customPublish,
+    )
+
+    await runApplicationStartup(application, surface, { environment, factory, handoff })
+
+    const state = host.querySelector('#delivery-state')
+    await vi.waitFor(() => {
+      expect(state?.textContent).toBe('Ready')
+    })
+
+    expect(application.runtime.presenterSlot.presenter).not.toBeNull()
+    expect(publishedObservation).not.toBeNull()
+
+    const obs = (publishedObservation as unknown as () => {
+      currentProjection: unknown
+      cameraState: unknown
+      isInputAttached: boolean
+      acceptsGameplayInput: boolean
+      submittedCommandsCount: number
+    })()
+    expect(obs.isInputAttached).toBe(true)
+    expect(obs.acceptsGameplayInput).toBe(true)
+    expect(obs.submittedCommandsCount).toBe(0)
+    expect(obs.currentProjection).toEqual(application.simulation.readProjection())
+    expect(obs.cameraState).not.toBeNull()
+  })
 })

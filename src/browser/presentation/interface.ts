@@ -149,6 +149,8 @@ export interface FramePresentationRecord {
   readonly presentedFrames: number
   /** The animation time of the last presented frame, in Simulation seconds. */
   readonly animationTime: number
+  /** Whether authored frontier lighting (ambient and directional) is present in the Scene. */
+  readonly hasLighting?: boolean
 }
 
 /**

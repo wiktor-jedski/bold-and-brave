@@ -42,6 +42,7 @@ const system = JSON.parse(readFileSync(SYSTEM_FACTS_FILE, 'utf8')) as {
 
 export default defineConfig({
   testDir: './tests/e2e-support-row',
+  timeout: 300_000,
   projects: [
     {
       name: 'promised-row',

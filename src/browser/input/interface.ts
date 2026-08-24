@@ -68,6 +68,11 @@ export interface InputAdapter {
   isAttached(): boolean
 
   /**
+   * Read the total count of gameplay commands submitted through the adapter.
+   */
+  getSubmittedCommandsCount(): number
+
+  /**
    * Dispose the adapter and detach all listeners.
    */
   dispose(): void

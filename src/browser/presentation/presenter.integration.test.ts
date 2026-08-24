@@ -169,7 +169,13 @@ describe('Three.js Overworld presenter integration with the real startup Scene (
 
     // The record carries only presentation facts and is deeply frozen (PVS-ARC-008)
     const record = presenter.readFramePresentation()
-    expect(Object.keys(record)).toEqual(['presentedNodes', 'presentedFrames', 'animationTime'])
+    expect(Object.keys(record)).toEqual([
+      'presentedNodes',
+      'presentedFrames',
+      'animationTime',
+      'hasLighting',
+    ])
+    expect(record.hasLighting).toBe(true)
     expect(Object.isFrozen(record)).toBe(true)
     expect(Object.isFrozen(record.presentedNodes)).toBe(true)
   })
