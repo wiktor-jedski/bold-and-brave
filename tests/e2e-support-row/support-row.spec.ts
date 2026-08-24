@@ -1287,6 +1287,8 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(obs1Paused?.currentProjection.movementState).toBe('idle')
   const paused1Projection = obs1Paused?.currentProjection as SimulationProjection
   const paused1Pos = paused1Projection.bandPawnPosition
+  expect(paused1Pos.x).toBeCloseTo(0, 6)
+  expect(paused1Pos.y).toBeCloseTo(0, 6)
   expect(paused1Pos.z).toBeLessThan(1.5)
   expect(paused1Pos.z).toBeGreaterThan(0)
 
@@ -1375,6 +1377,11 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
 
   const obs2Paused = await readTravelObservation()
   const paused2Projection = obs2Paused?.currentProjection as SimulationProjection
+  const paused2Pos = paused2Projection.bandPawnPosition
+  expect(paused2Pos.x).toBeCloseTo(0, 6)
+  expect(paused2Pos.y).toBeCloseTo(0, 6)
+  expect(paused2Pos.z).toBeLessThan(1.5)
+  expect(paused2Pos.z).toBeGreaterThan(0)
   expect(paused2Projection.movementState).toBe('idle')
   expect(paused2Projection.paused).toBe(true)
 
@@ -1402,11 +1409,12 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   expect(final2Projection.provisions).toBe(9.8)
   expect(final2Projection.consumptionRemainder).toBeGreaterThanOrEqual(0)
   expect(final2Projection.consumptionRemainder).toBeLessThan(0.5)
+  const initial2Projection = obs2Initial?.currentProjection as SimulationProjection
   const run2: TravelRunTrace = {
     commands: ['set-destination:(0, 0, 0)', 'toggle-pause', 'toggle-pause'],
-    startProjection: initial1Projection,
-    pausedProjection: paused1Projection,
-    finalProjection: final1Projection,
+    startProjection: initial2Projection,
+    pausedProjection: paused2Projection,
+    finalProjection: final2Projection,
   }
 
   // Compare command and projection traces across runs
@@ -1571,6 +1579,23 @@ test('the promised row performs Overworld travel with click-to-move, camera rota
   const rejections = validateOverworldTravelEvidenceRecord(record, authoredBandNodeNames)
   expect(rejections).toEqual([])
 
+  // Hostile regression check: validator must reject if Run 2 projections do not match Run 1
+  const hostileMismatchedRun2: OverworldTravelEvidenceRecord = {
+    ...record,
+    runs: [
+      run1,
+      {
+        ...run2,
+        pausedProjection: {
+          ...run2.pausedProjection,
+          tick: run2.pausedProjection.tick + 999,
+        },
+      },
+    ],
+  }
+  expect(
+    validateOverworldTravelEvidenceRecord(hostileMismatchedRun2, authoredBandNodeNames),
+  ).not.toEqual([])
   mkdirSync(dirname(OVERWORLD_TRAVEL_RECORD_FILE), { recursive: true })
   writeFileSync(OVERWORLD_TRAVEL_RECORD_FILE, `${JSON.stringify(record, null, 2)}\n`)
 })

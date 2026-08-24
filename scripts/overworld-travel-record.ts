@@ -348,6 +348,14 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    Math.abs(record.pauseMidRoute.pausedPosition.x - OVERWORLD.startPosition.x) > EXACT_TOLERANCE ||
+    Math.abs(record.pauseMidRoute.pausedPosition.y - OVERWORLD.startPosition.y) > EXACT_TOLERANCE
+  ) {
+    rejections.push(
+      `pauseMidRoute position x=${record.pauseMidRoute.pausedPosition.x}, y=${record.pauseMidRoute.pausedPosition.y} deviated from route line (${OVERWORLD.startPosition.x}, ${OVERWORLD.startPosition.y}).`,
+    )
+  }
+  if (
     record.pauseMidRoute.pausedPosition.z <= settlementPos.z ||
     record.pauseMidRoute.pausedPosition.z >= OVERWORLD.startPosition.z
   ) {

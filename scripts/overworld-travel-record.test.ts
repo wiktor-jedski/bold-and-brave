@@ -368,9 +368,15 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
     })
   })
 
-  it('rejects pause mid-route with position outside route bounds', () => {
+  it('rejects pause mid-route with position outside route bounds or deviated from route line', () => {
     expectRecordRejected((record) => {
       record.pauseMidRoute.pausedPosition = { x: 0, y: 0, z: 5.0 }
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedPosition = { x: 0.1, y: 0, z: 0.75 }
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedPosition = { x: 0, y: 0.1, z: 0.75 }
     })
   })
 
@@ -539,6 +545,29 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
         },
       ]
     })
+  })
+
+  it('rejects hostile substitution of modified Run 1 projection into Run 2', () => {
+    const valid = makeValidRecord()
+    const run1 = valid.runs[0]
+    // When Run 2 is constructed from a modified or non-matching projection
+    const hostileRecord: OverworldTravelEvidenceRecord = {
+      ...valid,
+      runs: [
+        run1,
+        {
+          ...makeValidRunTrace(),
+          pausedProjection: {
+            ...run1.pausedProjection,
+            elapsedCampaignTime: 0.25,
+            bandPawnPosition: { x: 0, y: 0, z: 0.5 },
+          },
+        },
+      ],
+    }
+    const rejections = validateOverworldTravelEvidenceRecord(hostileRecord)
+    expect(rejections.length).toBeGreaterThan(0)
+    expect(rejections).toContain('Run 1 and Run 2 complete paused projections do not match.')
   })
 
   it('rejects top-level initialState mismatch with Run 1 startProjection', () => {
