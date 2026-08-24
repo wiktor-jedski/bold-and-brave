@@ -217,7 +217,7 @@ export function projectionsEqual(
 }
 
 /**
- * Check if two WorldPositions are approximately equal.
+ * Check if two WorldPositions are approximately equal and contain finite numbers.
  */
 function positionsEqual(
   left: WorldPosition | null | undefined,
@@ -227,11 +227,25 @@ function positionsEqual(
   if (!left || !right) {
     return left === right
   }
+  if (
+    !Number.isFinite(left.x) ||
+    !Number.isFinite(left.y) ||
+    !Number.isFinite(left.z) ||
+    !Number.isFinite(right.x) ||
+    !Number.isFinite(right.y) ||
+    !Number.isFinite(right.z)
+  ) {
+    return false
+  }
   return (
     Math.abs(left.x - right.x) <= tolerance &&
     Math.abs(left.y - right.y) <= tolerance &&
     Math.abs(left.z - right.z) <= tolerance
   )
+}
+
+function isScalarFinite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 /**
@@ -260,7 +274,12 @@ export function validateOverworldTravelEvidenceRecord(
       `Initial Scene "${record.initialState.scene}" does not match authored Scene "${OVERWORLD.id}".`,
     )
   }
-  if (!positionsEqual(record.initialState.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)) {
+  if (
+    !isScalarFinite(record.initialState.startPosition?.x) ||
+    !isScalarFinite(record.initialState.startPosition?.y) ||
+    !isScalarFinite(record.initialState.startPosition?.z) ||
+    !positionsEqual(record.initialState.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)
+  ) {
     rejections.push(
       `Initial start position (${record.initialState.startPosition?.x}, ${record.initialState.startPosition?.y}, ${record.initialState.startPosition?.z}) does not match authored start (${OVERWORLD.startPosition.x}, ${OVERWORLD.startPosition.y}, ${OVERWORLD.startPosition.z}).`,
     )
@@ -278,36 +297,46 @@ export function validateOverworldTravelEvidenceRecord(
   if (record.initialState.paused !== false) {
     rejections.push(`Initial paused state must be false; received ${record.initialState.paused}.`)
   }
-  if (Math.abs(record.initialState.elapsedCampaignTime - 0) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.initialState.elapsedCampaignTime) || Math.abs(record.initialState.elapsedCampaignTime - 0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial elapsedCampaignTime must be 0; received ${record.initialState.elapsedCampaignTime}.`,
     )
   }
-  if (Math.abs(record.initialState.provisions - 10.0) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.initialState.provisions) || Math.abs(record.initialState.provisions - 10.0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial provisions must be 10.0; received ${record.initialState.provisions}.`,
     )
   }
-  if (Math.abs(record.initialState.consumptionRemainder - 0) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.initialState.consumptionRemainder) || Math.abs(record.initialState.consumptionRemainder - 0) > EXACT_TOLERANCE) {
     rejections.push(
       `Initial consumptionRemainder must be 0; received ${record.initialState.consumptionRemainder}.`,
     )
   }
 
   // 3. Route validation (REQ-017, REQ-018, REQ-035)
-  if (!positionsEqual(record.route.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)) {
+  if (
+    !isScalarFinite(record.route.startPosition?.x) ||
+    !isScalarFinite(record.route.startPosition?.y) ||
+    !isScalarFinite(record.route.startPosition?.z) ||
+    !positionsEqual(record.route.startPosition, OVERWORLD.startPosition, EXACT_TOLERANCE)
+  ) {
     rejections.push('Route startPosition does not match authored start position.')
   }
   const settlementPos = OVERWORLD.destinations[0]?.position ?? { x: 0, y: 0, z: 0 }
-  if (!positionsEqual(record.route.destinationPosition, settlementPos, EXACT_TOLERANCE)) {
+  if (
+    !isScalarFinite(record.route.destinationPosition?.x) ||
+    !isScalarFinite(record.route.destinationPosition?.y) ||
+    !isScalarFinite(record.route.destinationPosition?.z) ||
+    !positionsEqual(record.route.destinationPosition, settlementPos, EXACT_TOLERANCE)
+  ) {
     rejections.push(
       'Route destinationPosition does not match authored settlement boundary position.',
     )
   }
-  if (Math.abs(record.route.distance - 1.5) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.route.distance) || Math.abs(record.route.distance - 1.5) > EXACT_TOLERANCE) {
     rejections.push(`Route distance must be 1.5; received ${record.route.distance}.`)
   }
-  if (Math.abs(record.route.scale - 1.0) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.route.scale) || Math.abs(record.route.scale - 1.0) > EXACT_TOLERANCE) {
     rejections.push(`Production scale must be 1.0; received ${record.route.scale}.`)
   }
 
@@ -318,6 +347,12 @@ export function validateOverworldTravelEvidenceRecord(
     rejections.push('Camera bounds object is missing.')
   } else {
     if (
+      !isScalarFinite(bounds.minPitch) ||
+      !isScalarFinite(bounds.maxPitch) ||
+      !isScalarFinite(bounds.minDistance) ||
+      !isScalarFinite(bounds.maxDistance) ||
+      !isScalarFinite(bounds.defaultPitch) ||
+      !isScalarFinite(bounds.defaultDistance) ||
       Math.abs(bounds.minPitch - canonicalBounds.minPitch) > EXACT_TOLERANCE ||
       Math.abs(bounds.maxPitch - canonicalBounds.maxPitch) > EXACT_TOLERANCE ||
       Math.abs(bounds.minDistance - canonicalBounds.minDistance) > EXACT_TOLERANCE ||
@@ -330,6 +365,12 @@ export function validateOverworldTravelEvidenceRecord(
   }
 
   if (
+    !isScalarFinite(record.camera.yaw)
+  ) {
+    rejections.push(`Camera yaw must be a finite number; received ${record.camera.yaw}.`)
+  }
+  if (
+    !isScalarFinite(record.camera.pitch) ||
     record.camera.pitch < canonicalBounds.minPitch - EXACT_TOLERANCE ||
     record.camera.pitch > canonicalBounds.maxPitch + EXACT_TOLERANCE
   ) {
@@ -338,6 +379,7 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    !isScalarFinite(record.camera.distance) ||
     record.camera.distance < canonicalBounds.minDistance - EXACT_TOLERANCE ||
     record.camera.distance > canonicalBounds.maxDistance + EXACT_TOLERANCE
   ) {
@@ -359,6 +401,9 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    !isScalarFinite(record.pauseMidRoute.pausedPosition?.x) ||
+    !isScalarFinite(record.pauseMidRoute.pausedPosition?.y) ||
+    !isScalarFinite(record.pauseMidRoute.pausedPosition?.z) ||
     Math.abs(record.pauseMidRoute.pausedPosition.x - OVERWORLD.startPosition.x) > EXACT_TOLERANCE ||
     Math.abs(record.pauseMidRoute.pausedPosition.y - OVERWORLD.startPosition.y) > EXACT_TOLERANCE
   ) {
@@ -367,6 +412,7 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    !isScalarFinite(record.pauseMidRoute.pausedPosition?.z) ||
     record.pauseMidRoute.pausedPosition.z <= settlementPos.z ||
     record.pauseMidRoute.pausedPosition.z >= OVERWORLD.startPosition.z
   ) {
@@ -375,6 +421,7 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    !isScalarFinite(record.pauseMidRoute.pausedTime) ||
     record.pauseMidRoute.pausedTime <= 0 ||
     record.pauseMidRoute.pausedTime >= 0.5
   ) {
@@ -383,6 +430,7 @@ export function validateOverworldTravelEvidenceRecord(
     )
   }
   if (
+    !isScalarFinite(record.pauseMidRoute.pausedProvisions) ||
     record.pauseMidRoute.pausedProvisions < 9.8 - EXACT_TOLERANCE ||
     record.pauseMidRoute.pausedProvisions > 10.0 + EXACT_TOLERANCE
   ) {
@@ -392,7 +440,12 @@ export function validateOverworldTravelEvidenceRecord(
   }
 
   // 6. Final state validation and destination-null invariant (REQ-017, REQ-018, REQ-082, REQ-083)
-  if (!positionsEqual(record.finalState.finalPosition, settlementPos, SETTLEMENT_BOUNDARY_TOLERANCE)) {
+  if (
+    !isScalarFinite(record.finalState.finalPosition?.x) ||
+    !isScalarFinite(record.finalState.finalPosition?.y) ||
+    !isScalarFinite(record.finalState.finalPosition?.z) ||
+    !positionsEqual(record.finalState.finalPosition, settlementPos, SETTLEMENT_BOUNDARY_TOLERANCE)
+  ) {
     rejections.push(
       `Final position (${record.finalState.finalPosition?.x}, ${record.finalState.finalPosition?.y}, ${record.finalState.finalPosition?.z}) does not match settlement boundary (${settlementPos.x}, ${settlementPos.y}, ${settlementPos.z}).`,
     )
@@ -410,17 +463,18 @@ export function validateOverworldTravelEvidenceRecord(
   if (record.finalState.paused !== false) {
     rejections.push(`Final paused state must be false; received ${record.finalState.paused}.`)
   }
-  if (Math.abs(record.finalState.elapsedCampaignTime - 0.5) > SETTLEMENT_BOUNDARY_TOLERANCE) {
+  if (!isScalarFinite(record.finalState.elapsedCampaignTime) || Math.abs(record.finalState.elapsedCampaignTime - 0.5) > SETTLEMENT_BOUNDARY_TOLERANCE) {
     rejections.push(
       `Final elapsedCampaignTime must be 0.5; received ${record.finalState.elapsedCampaignTime}.`,
     )
   }
-  if (Math.abs(record.finalState.provisions - 9.8) > EXACT_TOLERANCE) {
+  if (!isScalarFinite(record.finalState.provisions) || Math.abs(record.finalState.provisions - 9.8) > EXACT_TOLERANCE) {
     rejections.push(
       `Final provisions must be 9.8; received ${record.finalState.provisions}.`,
     )
   }
   if (
+    !isScalarFinite(record.finalState.consumptionRemainder) ||
     record.finalState.consumptionRemainder < 0 ||
     record.finalState.consumptionRemainder >= 0.5
   ) {
@@ -436,6 +490,15 @@ export function validateOverworldTravelEvidenceRecord(
     const run1 = record.runs[0]
     const run2 = record.runs[1]
     const baselineOffset = run2.startProjection.tick - run1.startProjection.tick
+    if (!isScalarFinite(run1.startProjection.tick) || !isScalarFinite(run2.startProjection.tick)) {
+      rejections.push('Run start projection tick must be a finite number.')
+    }
+    if (!isScalarFinite(run1.pausedProjection.tick) || !isScalarFinite(run2.pausedProjection.tick)) {
+      rejections.push('Run paused projection tick must be a finite number.')
+    }
+    if (!isScalarFinite(run1.finalProjection.tick) || !isScalarFinite(run2.finalProjection.tick)) {
+      rejections.push('Run final projection tick must be a finite number.')
+    }
     if (!deepEqual(run1.commands, run2.commands)) {
       rejections.push('Run 1 and Run 2 command traces do not match.')
     }
@@ -545,7 +608,7 @@ export function validateOverworldTravelEvidenceRecord(
   if (!lossGate) {
     rejections.push('deviceLossInputGate is missing.')
   } else {
-    if (lossGate.lossTick !== lossGate.projectionAtLoss?.tick) {
+    if (!isScalarFinite(lossGate.lossTick) || lossGate.lossTick !== lossGate.projectionAtLoss?.tick) {
       rejections.push(
         `lossTick ${lossGate.lossTick} does not match projectionAtLoss tick ${lossGate.projectionAtLoss?.tick}.`,
       )

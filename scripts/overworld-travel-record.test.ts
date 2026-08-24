@@ -782,4 +782,128 @@ describe('Overworld travel record validation (ARCH-024, REQ-018, REQ-170)', () =
       record.deviceLossInputGate.projectionUnchangedAfterLoss = false
     })
   })
+
+  it('rejects NaN and Infinity across all scalar evidence fields', () => {
+    // initialState scalars
+    expectRecordRejected((record) => {
+      record.initialState.elapsedCampaignTime = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.initialState.provisions = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.initialState.consumptionRemainder = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.initialState.startPosition = { x: Number.NaN, y: 0, z: 1.5 }
+    })
+
+    // route scalars
+    expectRecordRejected((record) => {
+      record.route.distance = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.route.distance = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.route.scale = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.route.startPosition = { x: 0, y: Number.POSITIVE_INFINITY, z: 1.5 }
+    })
+    expectRecordRejected((record) => {
+      record.route.destinationPosition = { x: Number.NaN, y: 0, z: 0 }
+    })
+
+    // camera scalars
+    expectRecordRejected((record) => {
+      record.camera.yaw = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.camera.yaw = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.camera.pitch = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.camera.distance = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.camera.bounds.minPitch = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.camera.bounds.maxDistance = Number.POSITIVE_INFINITY
+    })
+
+    // pauseMidRoute scalars
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedTime = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedTime = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedProvisions = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedPosition = { x: Number.NaN, y: 0, z: 0.75 }
+    })
+    expectRecordRejected((record) => {
+      record.pauseMidRoute.pausedPosition = { x: 0, y: 0, z: Number.POSITIVE_INFINITY }
+    })
+
+    // finalState scalars
+    expectRecordRejected((record) => {
+      record.finalState.elapsedCampaignTime = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.finalState.elapsedCampaignTime = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.finalState.provisions = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.finalState.consumptionRemainder = Number.POSITIVE_INFINITY
+    })
+    expectRecordRejected((record) => {
+      record.finalState.finalPosition = { x: Number.NaN, y: 0, z: 0 }
+    })
+
+    // deviceLossInputGate lossTick
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.lossTick = Number.NaN
+    })
+    expectRecordRejected((record) => {
+      record.deviceLossInputGate.lossTick = Number.POSITIVE_INFINITY
+    })
+
+    // run projection ticks
+    expectRecordRejected((record) => {
+      record.runs[0] = {
+        ...record.runs[0],
+        startProjection: {
+          ...record.runs[0].startProjection,
+          tick: Number.NaN,
+        },
+      }
+    })
+    expectRecordRejected((record) => {
+      record.runs[0] = {
+        ...record.runs[0],
+        pausedProjection: {
+          ...record.runs[0].pausedProjection,
+          tick: Number.POSITIVE_INFINITY,
+        },
+      }
+    })
+    expectRecordRejected((record) => {
+      record.runs[0] = {
+        ...record.runs[0],
+        finalProjection: {
+          ...record.runs[0].finalProjection,
+          tick: Number.NaN,
+        },
+      }
+    })
+  })
 })
