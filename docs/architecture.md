@@ -153,6 +153,8 @@ flowchart LR
 
 **Contract:** The adapter uses Three.js WebGPU for rendering. It owns the third-person camera, glTF loading, `AnimationMixer`, interpolation, lighting, visual effects, world markers, and canvas presentation. It consumes immutable projections and typed events. It stores no authoritative gameplay state and cannot decide combat, relationship, fate, or outcome results. A non-WebGPU Three.js backend cannot enter gameplay.
 
+**Player-feedback extension:** The renderer stages an Arena yard separately from the settlement landscape, using the Arena navigation bounds. The Scene transaction preserves the prior renderer state on failure. Arena presentation does not change the saved campaign Scene. Human geometry comes from the editable Blender asset and its exported GLB; the renderer keeps the named-joint and animation-clip contract. Normal mouse movement turns the camera and Player together; directional combat gestures and UI interaction suspend mouse look.
+
 ## ARCH-010 — DOM Interface Adapter
 
 | Attribute | Value |
@@ -376,7 +378,7 @@ flowchart LR
 | --- | --- |
 | Type | Module |
 | Status | Active |
-| Requirements | REQ-003, REQ-060, REQ-081, REQ-113, REQ-121–REQ-122, REQ-139–REQ-143, REQ-145–REQ-147, REQ-150 |
+| Requirements | REQ-081, REQ-113, REQ-121–REQ-122, REQ-139–REQ-143, REQ-145–REQ-147, REQ-150, REQ-167–REQ-168 |
 | Dependencies | ARCH-002, ARCH-016, ARCH-024, ARCH-026 |
 
 **Responsibility:** Run deterministic acceptance scenarios through the same gameplay seam as the browser.
@@ -406,7 +408,7 @@ flowchart LR
 | --- | --- |
 | Type | Collaboration |
 | Status | Active |
-| Requirements | REQ-003, REQ-060, REQ-081, REQ-122, REQ-139–REQ-140, REQ-142–REQ-147, REQ-149–REQ-151 |
+| Requirements | REQ-081, REQ-122, REQ-139–REQ-140, REQ-142–REQ-147, REQ-149–REQ-151, REQ-167–REQ-168 |
 | Dependencies | ARCH-002, ARCH-008, ARCH-009, ARCH-025, ARCH-026, Vitest, Playwright |
 
 **Responsibility:** Produce reproducible machine and visual evidence at architecture seams.
@@ -421,14 +423,14 @@ flowchart LR
 | --- | --- |
 | Type | Mechanism |
 | Status | Active |
-| Requirements | REQ-003, REQ-013, REQ-060, REQ-139–REQ-140 |
+| Requirements | REQ-013, REQ-139–REQ-140, REQ-167–REQ-168 |
 | Dependencies | ARCH-006, ARCH-008, ARCH-024, ARCH-025, ARCH-027 |
 
-**Responsibility:** Measure and enforce the specified frame, tick, and duration limits on the promised row.
+**Responsibility:** Enforce the specified frame and tick limits on the promised row, and record journey and battle durations without duration limits.
 
-**Behavior:** The browser runtime reports average and 95th-percentile frame time and detects continuous below-30-frames-per-second intervals. The Scenario Harness measures full-play and battle durations with the fixed acceptance seeds. The frame loop processes at most five catch-up ticks per rendered frame and preserves remaining ticks.
+**Behavior:** The browser runtime reports average and 95th-percentile frame time and detects continuous below-30-frames-per-second intervals. The Scenario Harness records complete-run elapsed real seconds, including pauses and intervening loading, and unpaused battle real seconds from battle entry through the natural terminal outcome. Battle measurements exclude setup and post-battle resolution. Each record states its measured boundaries, automated or human input, capture/recording overhead, and measurement limits. Simulation time does not substitute for elapsed real time. The frame loop processes at most five catch-up ticks per rendered frame and preserves remaining ticks.
 
-**Quality constraints:** The seeded bridge target is an average frame time no greater than 16.67 milliseconds and a 95th percentile no greater than 33.33 milliseconds. No below-30-frames-per-second interval can exceed 1.00 second. The full journey target is 45–60 minutes. Battle targets are 3–5 minutes at the bridge and 4–6 minutes at the settlement center.
+**Quality constraints:** The seeded bridge target is an average frame time no greater than 16.67 milliseconds and a 95th percentile no greater than 33.33 milliseconds. No below-30-frames-per-second interval can exceed 1.00 second. Journey and battle durations are record-only: no minimum, maximum, or forced delay applies. Automated timing is not competent-human pacing evidence. A watchdog timeout is a harness failure, not a duration-acceptance failure.
 
 ## Requirement coverage
 
@@ -436,7 +438,6 @@ flowchart LR
 | --- | --- | --- |
 | REQ-001 | Complete playable journey | ARCH-001, ARCH-003, ARCH-006, ARCH-009, ARCH-010, ARCH-011, ARCH-022, ARCH-024 |
 | REQ-002 | Representative-quality priorities | ARCH-001, ARCH-004, ARCH-009, ARCH-010, ARCH-011, ARCH-012 |
-| REQ-003 | First-playthrough duration | ARCH-025, ARCH-027, ARCH-028 |
 | REQ-004 | Deliberate scope simplicity | ARCH-001, ARCH-016 |
 | REQ-005 | Self-contained contract | No architecture impact — Document-governance requirement; it does not constrain runtime architecture. |
 | REQ-006 | Frontier setting and player magic | ARCH-009, ARCH-016 |
@@ -493,7 +494,6 @@ flowchart LR
 | REQ-057 | Inactive casualty state | ARCH-001, ARCH-003, ARCH-004, ARCH-009 |
 | REQ-058 | Post-victory casualty results | ARCH-001, ARCH-003, ARCH-004 |
 | REQ-059 | Settlement resident setup and behavior | ARCH-001, ARCH-003, ARCH-004, ARCH-016 |
-| REQ-060 | Battle completion time | ARCH-025, ARCH-027, ARCH-028 |
 | REQ-061 | Command group selection and orders | ARCH-001, ARCH-003, ARCH-004, ARCH-007, ARCH-009, ARCH-011 |
 | REQ-062 | Invalid Hold point | ARCH-001, ARCH-009, ARCH-011, ARCH-014, ARCH-015 |
 | REQ-063 | Group behavior after target loss | ARCH-001, ARCH-004, ARCH-014, ARCH-015 |
@@ -600,3 +600,5 @@ flowchart LR
 | REQ-164 | Explicit scope change | No architecture impact — Scope-governance requirement; architecture changes follow a later approved specification. |
 | REQ-165 | Specification completeness gate | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
 | REQ-166 | Specification audit lifecycle | No architecture impact — Document-governance requirement; it has no runtime architecture impact. |
+| REQ-167 | Complete-run elapsed-real-time evidence | ARCH-025, ARCH-027, ARCH-028 |
+| REQ-168 | Unpaused battle-duration evidence | ARCH-025, ARCH-027, ARCH-028 |

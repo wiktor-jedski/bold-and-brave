@@ -156,7 +156,7 @@ The **Acceptance link** gives the final catalog checkpoint for the behavior. Bef
 
 ### Phase 10 — Overworld time controls
 
-**Result:** `Space` pauses and resumes Overworld movement and time. Keys `1`, `2`, `3`, and `4` select the matching speed and resume a paused Overworld. One Overworld hour takes 5 real-time seconds at 1×. Speed changes movement, campaign time, and Provisions by the same multiplier and keeps the same distance result.
+**Result:** `Space` pauses and resumes Overworld movement and time. Keys `1`, `2`, `3`, and `4` select the matching speed and resume a paused Overworld. One Overworld hour takes 1.25 real-time seconds at 1×. Speed changes movement, campaign time, and Provisions by the same multiplier and keeps the same distance result.
 
 **Requirements closed:** REQ-019, REQ-020.
 

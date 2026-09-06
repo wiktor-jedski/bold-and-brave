@@ -1,0 +1,19 @@
+{
+  "name": "bold-and-brave",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "scripts": {
+    "dev": "bun scripts/audit-spec.mjs --update-checklist && vite --host 0.0.0.0",
+    "build": "bun scripts/audit-spec.mjs --update-checklist && tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "audit:spec": "bun scripts/audit-spec.mjs --self-check",
+    "audit:scope": "bun scripts/audit-scope.mjs",
+    "test:browser": "playwright test",
+    "scenarios": "bun scripts/run-scenarios.ts"
+  },
+  "dependencies": { "@dimforge/rapier3d-compat": "^0.19.0", "three": "^0.180.0" },
+  "devDependencies": { "@playwright/test": "^1.55.0", "@types/three": "^0.180.0", "@types/node": "^24.0.0", "fake-indexeddb": "^6.2.0", "typescript": "^5.9.2", "vite": "^7.1.7", "vitest": "^3.2.4" }
+}

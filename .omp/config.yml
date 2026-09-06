@@ -1,0 +1,10 @@
+task:
+  agentModelOverrides:
+    developer: openai-codex/gpt-6-astra:medium
+    scout: openai-codex/gpt-6-astra:medium
+  agentPrewalk:
+    developer: "off"
+    scout: "off"
+  agentAdvisor:
+    developer: "off"
+    scout: "off"

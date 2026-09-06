@@ -33,10 +33,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Quality (duration) |
-| Status | Active |
-| Verification | At `CP-SPEC-END-TO-END`, a timed competent first complete playthrough passes when its elapsed real time is from 45 through 60 minutes. |
+| Status | Deprecated |
+| Verification | Historical only; no longer an acceptance condition: at `CP-SPEC-END-TO-END`, a timed competent first complete playthrough passed when its elapsed real time was from 45 through 60 minutes. |
 
-**Notes:** Source: `PVS-PUR-003`.
+**Notes:** Historical source: `PVS-PUR-003`. Deprecated because the approved shorter, one-Local-Contract slice records actual duration instead of enforcing a playthrough-duration target. Replaced by `REQ-167`; the former bound is not active.
 
 ## REQ-004 — Deliberate scope simplicity
 
@@ -232,13 +232,13 @@ This document specifies the active product, delivery, evidence, and scope requir
 
 ## REQ-020 — Overworld time scaling
 
-**Statement:** At 1× speed, one Overworld hour shall pass in 5 real-time seconds, and the selected speed multiplier shall apply equally to movement, campaign time, and Provisions consumption without changing the distance-based result.
+**Statement:** At 1× speed, one Overworld hour shall pass in 1.25 real-time seconds, and the selected speed multiplier shall apply equally to movement, campaign time, and Provisions consumption without changing the distance-based result.
 
 | Attribute | Value |
 | --- | --- |
 | Type | Behavior |
 | Status | Active |
-| Verification | At `CP-FLOW-CONTRACT` and `CP-PREP-PROVISIONS`, confirm that 5 real-time seconds at 1× advances one Overworld hour, compare 1× through 4× travel over the same route, and confirm proportional movement, time, and Provisions rates with the same final distance-based Provisions result. |
+| Verification | At `CP-FLOW-CONTRACT` and `CP-PREP-PROVISIONS`, confirm that 1.25 real-time seconds at 1× advances one Overworld hour, compare 1× through 4× travel over the same route, and confirm proportional movement, time, and Provisions rates with the same final distance-based Provisions result. |
 
 **Notes:** Source: `PVS-FLW-004`.
 
@@ -648,7 +648,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Status | Active |
 | Verification | At `CP-COMBAT-DAMAGE`, `CP-COMBAT-CASUALTY`, and `CP-COMMAND-AI`, each role passes when its maximum health equals the listed value, one real-time second of unobstructed base movement covers the listed world-unit distance, and zero health produces the listed result, including the seeded draw for probabilistic rows. |
 
-**Notes:** Source: `PVS-COM-015`. Base values: Player character—100 health points, 3.5 world units/second, Downed; Companion—100, 3.4, Downed; Troop—70, 3.0, 20% Downed and 80% killed from the seeded draw; Enemy Agent—110, 2.8, Downed; Ordinary bandit—40, 2.6, 20% Downed and 80% killed from the seeded draw; Settlement resident—100, 2.0, killed.
+**Notes:** Source: `PVS-COM-015`. Base values: Player character—100 health points, 7.0 world units/second, Downed; Companion—100, 3.4, Downed; Troop—70, 3.0, 20% Downed and 80% killed from the seeded draw; Enemy Agent—110, 2.8, Downed; Ordinary bandit—40, 2.6, 20% Downed and 80% killed from the seeded draw; Settlement resident—100, 2.0, killed.
 
 ## REQ-055 — Engage pressure and enemy strikes
 
@@ -717,10 +717,10 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Attribute | Value |
 | --- | --- |
 | Type | Quality (performance) |
-| Status | Active |
-| Verification | At `CP-PERFORMANCE` and `CP-SPEC-END-TO-END`, representative competent-player runs pass when the player commands the Band and uses directional defense, the bridge battle completes within 3–5 minutes, and the settlement-center battle completes within 4–6 minutes, excluding paused time. |
+| Status | Deprecated |
+| Verification | Historical only; no longer an acceptance condition: at `CP-PERFORMANCE` and `CP-SPEC-END-TO-END`, representative competent-player runs passed when the player commanded the Band and used directional defense, the bridge battle completed within 3–5 minutes, and the settlement-center battle completed within 4–6 minutes, excluding paused time. |
 
-**Notes:** Source: `PVS-COM-021`.
+**Notes:** Historical source: `PVS-COM-021`. Deprecated because the approved shorter battles retain fixed combat and movement values and record actual duration instead of enforcing battle-duration targets. Replaced by `REQ-168`; the former bounds are not active.
 
 ## REQ-061 — Command group selection and orders
 
@@ -1815,7 +1815,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 
 | Checkpoint | Scenario and seed | Machine-readable pass condition | Visual-artifact rule |
 | --- | --- | --- | --- |
-| `CP-SPEC-END-TO-END` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-04-FULL-LATE-VICTORY`/1201, `SCN-05-BAND-DEFEAT`/1202 | The state trace follows only legal flow transitions; early victory ends Resolved/Safe, late victory ends Resolved/Damaged, and defeat ends Failed/Damaged. Each summary contains outcome, Band and resident casualties, applicable enemy survivor fates, Captive count, Settlement condition, and Local Contract state. A competent full run records 45–60 minutes. | Start and changed-settlement PNG screenshots; no full-run clip |
+| `CP-SPEC-END-TO-END` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-04-FULL-LATE-VICTORY`/1201, `SCN-05-BAND-DEFEAT`/1202 | The state trace follows only legal flow transitions; early victory ends Resolved/Safe, late victory ends Resolved/Damaged, and defeat ends Failed/Damaged. Each summary contains outcome, Band and resident casualties, applicable enemy survivor fates, Captive count, Settlement condition, and Local Contract state. Each complete run records elapsed real time and its unpaused battle real time in seconds, measured start/end boundaries, automated or human input, capture/recording overhead, and measurement limits under PVS-PUR-003 and PVS-COM-021. No minimum or maximum duration or forced delay applies; watchdog expiry is a harness failure, not duration acceptance. | Start and changed-settlement PNG screenshots; no full-run clip |
 | `CP-SUPPORT-GATE` | `SCN-15-WEBGPU-STARTUP-LOAD`/1801 | Each failed gate stops before asset loading; the promised row selects a physical core-WebGPU device and confirms the WebGPU backend at 1920 × 1080 CSS pixels and device-pixel ratio 1.0. | PNG for each distinct unsupported state and one ready state |
 | `CP-SUPPORT-LOAD` | `SCN-15-WEBGPU-STARTUP-LOAD`/1801 | Progress and console records contain download, decode, GPU upload, readiness, and first-error stop events with Scene and asset IDs; no automatic retry event exists. | WebM for one successful load and one first-error transition |
 | `CP-FLOW-CONTRACT` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-11-PREPARATION-TRAVEL`/1501 | Available has no deadline; Decline keeps Available; Accept sets exactly current time plus 12 Overworld hours; Wait adds 1 Overworld hour; keys and pause preserve distance, time, and Provisions equivalence. | PNG of offer and Journal; WebM of one pause/speed transition |
@@ -1843,7 +1843,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 | `CP-SAVE-RESTORE` | `SCN-13-SAVE-RESTORE`/1701 | All three manual slots and autosave remain separate; each listed field and random state restores exactly; runtime adapters rebuild; launch offers autosave recovery. | PNG of slot list and restored Journal; WebM of one Scene-transition autosave |
 | `CP-SAVE-FAILURE` | `SCN-14-SAVE-FAILURES`/1702 | Old and corrupt entries are unavailable without migration; denial and full storage keep in-memory play, disable actions, persist failure, and never emit success; Retry recovers; confirmed delete/reset affects only specified entries. | PNG for each failure state and confirmation state |
 | `CP-DELIVERY-DEVICE-LOSS` | `SCN-16-WEBGPU-DEVICE-LOSS`/1802 | The Simulation tick at loss equals every later tick before Reload; no gameplay event follows loss; visible state offers Reload; reload repeats startup gates. | WebM from active frame through device-loss settled state |
-| `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second; bridge battle lasts 3–5 active minutes. | `none`; metrics and state-only claim |
+| `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second. Record unpaused bridge-battle real time in seconds, measured start/end boundaries, automated or human input, capture/recording overhead, and measurement limits under PVS-COM-021. No minimum or maximum duration or forced delay applies; watchdog expiry is a harness failure, not duration acceptance. | `none`; metrics and state-only claim |
 | `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 11 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, scenario seeds, and exclusions are present; no in-scope unresolved marker exists. | `none`; document claim |
 
 ## REQ-150 — Acceptance scenario execution
@@ -2028,7 +2028,7 @@ This document specifies the active product, delivery, evidence, and scope requir
 
 ## REQ-165 — Specification completeness gate
 
-**Statement:** The specification shall not be handed to iterative phase planning unless every following item remains checked: (1) the purpose, destination, playable boundary, and 45–60-minute target are explicit; (2) the support row, WebGPU gate, viewport, device-pixel ratio, controls promise, loading behavior, and performance floor are explicit; (3) canonical terms agree with `CONTEXT.md`; (4) every top-level section contains purpose, authoritative state and data, inputs and commands, transitions, outputs and player-visible feedback, failure and edge behavior, fixed values or targets, and evidence checkpoints; (5) Local Contract, Agent fate, Settlement condition, save-safe boundary, and battle outcome transitions are complete state tables; (6) one end-to-end diagram covers early victory, late victory, Band defeat, resident loss, survivor decisions, Feat choice, and return; (7) every numeric gameplay, timing, distance, rate, resource, viewport, frame, and duration value has its unit or is explicitly a unitless count, ratio, key, seed, or version; (8) every in-scope normative acceptance claim has a stable requirement ID, class, named checkpoint, named scenario, seed policy, machine-readable assertion, and visual-artifact rule; (9) screenshots are limited to static visual claims, and short clips are limited to transition, timing, or audio claims; (10) failure checkpoints cover invalid commands, defeat priority, save boundaries, storage denial, corrupt data, loading failure, unsupported rendering, audio failure, and device loss; (11) future map fog and every explicit exclusion stay outside the normative playable scope; and (12) no unresolved in-scope decision or placeholder remains.
+**Statement:** The specification shall not be handed to iterative phase planning unless every following item remains checked: (1) the purpose, destination, one-Local-Contract playable boundary, and record-only complete-run and unpaused battle real-time measurements are explicit, with automated versus human input, capture/recording overhead, measurement limits, and no minimum, maximum, or forced delay; (2) the support row, WebGPU gate, viewport, device-pixel ratio, controls promise, loading behavior, and performance floor are explicit; (3) canonical terms agree with `CONTEXT.md`; (4) every top-level section contains purpose, authoritative state and data, inputs and commands, transitions, outputs and player-visible feedback, failure and edge behavior, fixed values or targets, and evidence checkpoints; (5) Local Contract, Agent fate, Settlement condition, save-safe boundary, and battle outcome transitions are complete state tables; (6) one end-to-end diagram covers early victory, late victory, Band defeat, resident loss, survivor decisions, Feat choice, and return; (7) every numeric gameplay, timing, distance, rate, resource, viewport, frame, and duration value has its unit or is explicitly a unitless count, ratio, key, seed, or version; (8) every in-scope normative acceptance claim has a stable requirement ID, class, named checkpoint, named scenario, seed policy, machine-readable assertion, and visual-artifact rule; (9) screenshots are limited to static visual claims, and short clips are limited to transition, timing, or audio claims; (10) failure checkpoints cover invalid commands, defeat priority, save boundaries, storage denial, corrupt data, loading failure, unsupported rendering, audio failure, and device loss; (11) future map fog and every explicit exclusion stay outside the normative playable scope; and (12) no unresolved in-scope decision or placeholder remains.
 
 | Attribute | Value |
 | --- | --- |
@@ -2049,3 +2049,27 @@ This document specifies the active product, delivery, evidence, and scope requir
 | Verification | At `CP-SPEC-AUDIT`, make a controlled normative edit that invalidates one item and pass when the rerun clears that item and blocks handoff; restore the source and pass when all valid items return, with no gameplay interface added by the checklist. |
 
 **Notes:** Source: `spec.md`, Section 11 transition and output contracts.
+
+## REQ-167 — Complete-run elapsed-real-time evidence
+
+**Statement:** For each complete acceptance run, the evidence harness shall record elapsed real time in seconds from new-campaign preparation through changed-settlement return, including pauses and intervening loading, with measured start/end boundaries, automated or human input provenance, capture/recording overhead, and measurement limits.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Constraint |
+| Status | Active |
+| Verification | At `CP-SPEC-END-TO-END`, a generated record passes when it reports the complete journey's measured elapsed seconds and boundaries, identifies automated versus human input, and states capture/recording overhead and measurement limits. No minimum or maximum duration or forced delay applies. Automated timing is not accepted as competent-human pacing evidence; a watchdog timeout is reported as a harness failure, not a duration-acceptance failure. |
+
+**Notes:** Source: `PVS-PUR-003`. Replaces deprecated `REQ-003`. Duration is record-only; retain one Local Contract and all fixed gameplay values. State whether capture overhead is included or excluded and whether its contribution is measured or unquantified. Simulation time does not substitute for elapsed real time.
+
+## REQ-168 — Unpaused battle-duration evidence
+
+**Statement:** For bridge and settlement-center acceptance runs, the evidence harness shall record unpaused battle real time in seconds from battle entry through the natural terminal outcome, excluding setup, paused time, and post-battle resolution, with measured start/end boundaries, automated or human input provenance, capture/recording overhead, and measurement limits.
+
+| Attribute | Value |
+| --- | --- |
+| Type | Constraint |
+| Status | Active |
+| Verification | At `CP-PERFORMANCE` and `CP-SPEC-END-TO-END`, generated records pass when they report measured unpaused battle seconds for the applicable bridge or settlement-center run, identify the boundaries and excluded phases, distinguish automated from human input, and state capture/recording overhead and measurement limits. No minimum or maximum duration or forced delay applies. Automated timing is not accepted as competent-human pacing evidence; a watchdog timeout is reported as a harness failure, not a duration-acceptance failure. |
+
+**Notes:** Source: `PVS-COM-021`. Replaces deprecated `REQ-060`. Duration is record-only; retain fixed combat and movement values and the frame targets and floor in `REQ-139` and `REQ-140`. State whether capture overhead is included or excluded and whether its contribution is measured or unquantified. Simulation time does not substitute for elapsed real time.

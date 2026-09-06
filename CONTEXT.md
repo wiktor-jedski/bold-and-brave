@@ -104,3 +104,12 @@ _Avoid_: Gold, credits, currency points
 **Provisions**:
 Consumable supplies needed to sustain the Band while travelling.
 _Avoid_: Food points, rations resource
+
+**Arena**:
+A place for repeatable combat practice, separate from campaign consequences.
+
+**Duel**:
+An Arena battle between the Player and one opponent.
+
+**Team battle**:
+An Arena battle between the Player's Band and an opposing group.

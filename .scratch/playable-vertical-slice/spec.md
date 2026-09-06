@@ -12,7 +12,7 @@ Status: decision-complete handoff contract
 | Transitions | The work moves from decision mapping to iterative phase planning only after the completeness gate passes. |
 | Outputs and player-visible feedback | The output is one self-contained contract. The section does not add player-visible feedback. |
 | Failure and edge behavior | An unresolved in-scope decision, an incomplete contract tuple, or an unverified acceptance claim blocks the handoff. |
-| Fixed values or targets | The complete playable journey targets 45–60 minutes of play. |
+| Fixed values or targets | Keep one Local Contract and all fixed combat and movement values. Record complete-run elapsed real time and unpaused battle real time; no minimum or maximum duration and no forced delay to meet a duration apply. Frame-time targets and the frame-rate floor remain unchanged. |
 | Evidence checkpoints | `CP-SPEC-END-TO-END`, `CP-SPEC-AUDIT` |
 
 ### Requirement classes
@@ -30,7 +30,7 @@ All requirement and state tables in this file are normative.
 | --- | --- | --- | --- |
 | PVS-PUR-001 | MUST | Deliver one offline-style, single-player browser journey that starts with frontier preparation, resolves one timed defense Local Contract, and ends in the changed settlement with persistent human and material consequences. | `CP-SPEC-END-TO-END` |
 | PVS-PUR-002 | MUST | Make directional melee, personal Band leadership, and a visible Agent relationship or Grievance consequence the representative-quality priorities. | `CP-SPEC-END-TO-END`, `CP-UI-FATE` |
-| PVS-PUR-003 | TARGET | A competent first complete playthrough takes 45–60 minutes of real time. | `CP-SPEC-END-TO-END` |
+| PVS-PUR-003 | MUST | Record complete-run elapsed real time in seconds from new-campaign preparation through changed-settlement return, including pauses and intervening loading. State measured start/end boundaries, whether input is automated or human, capture/recording overhead, and measurement limits; automated timing is not competent-human pacing evidence. Duration is record-only: no minimum or maximum duration and no forced delay to meet a duration. A watchdog timeout is a harness failure, not duration acceptance. | `CP-SPEC-END-TO-END` |
 | PVS-PUR-004 | SHOULD | Keep the Overworld, dialogue, settlement simulation, economy, and content volume deliberately simple when more detail does not improve a representative-quality priority. | `CP-SPEC-AUDIT` |
 | PVS-PUR-005 | MUST | Keep this contract self-contained. Do not require a phase planner to reopen a resolved domain, architecture, evidence, tuning, or support decision. | `CP-SPEC-AUDIT` |
 
@@ -95,6 +95,9 @@ All requirement and state tables in this file are normative.
 | Renown | The public recognition that the player character and Band accumulate. Renown has no active system in this slice. |
 | Coin | The Band's general-purpose money. |
 | Provisions | Supplies that the Band consumes during Overworld travel. |
+| Arena | A place for repeatable combat practice, separate from campaign consequences. It is a player-requested practice extension, not part of the Local Contract journey. |
+| Duel | An Arena battle between the Player and one opponent. |
+| Team battle | An Arena battle between the Player's Band and an opposing group. |
 
 ## 3. Campaign and Scene flow
 
@@ -146,7 +149,7 @@ flowchart TD
 | PVS-FLW-001 | MUST | Start a new campaign on the Overworld 1.5 world units, or 0.5 Overworld day at normal movement speed, outside the settlement entry boundary. | `CP-FLOW-CONTRACT` |
 | PVS-FLW-002 | MUST | Use direct click-to-move on traversable Overworld ground. Allow camera rotation and zoom. Advance campaign time only while the Band moves. Stop time and Provisions consumption while the Band is stationary or paused. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS` |
 | PVS-FLW-003 | MUST | Make `Space` pause or unpause Overworld movement and time. Make keys `1`, `2`, `3`, and `4` select 1×, 2×, 3×, and 4× time speed. A speed key also unpauses a paused Overworld. | `CP-FLOW-CONTRACT` |
-| PVS-FLW-004 | MUST | At 1× speed, advance one Overworld hour in 5 real-time seconds. Apply the selected multiplier to movement, campaign time, and Provisions consumption without changing the distance-based result. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS` |
+| PVS-FLW-004 | MUST | At 1× speed, advance one Overworld hour in 1.25 real-time seconds. Apply the selected multiplier to movement, campaign time, and Provisions consumption without changing the distance-based result. | `CP-FLOW-CONTRACT`, `CP-PREP-PROVISIONS` |
 | PVS-FLW-005 | MUST | Load the one settlement Scene automatically when the Band crosses its entry boundary. Keep the bridge and settlement center as areas in this same Scene. | `CP-FLOW-CONTRACT`, `CP-FLOW-LATE` |
 | PVS-FLW-006 | MUST | Provide `Talk`, `Wait`, `Journal`, and `Leave` as the settlement contextual actions. Use short text-only dialogue and no branching conversation tree. | `CP-FLOW-CONTRACT`, `CP-UI-HUD` |
 | PVS-FLW-007 | MUST | Make `Talk` with the contract-giver Agent the only route to the Local Contract offer. Show the objective, bridge, enemy Agent, five bandits, one-Feat victory reward, zero-Coin reward, settlement risk, and current Local Contract state before `Accept` or `Decline`. | `CP-FLOW-CONTRACT` |
@@ -262,7 +265,7 @@ PVS-COM-015 (`MUST`): use the following base values. Movement is measured in wor
 
 | Combatant role | Maximum health | Base movement | Zero-health result |
 | --- | ---: | ---: | --- |
-| Player character | 100 health points | 3.5 world units/second | Downed |
+| Player character | 100 health points | 7.0 world units/second | Downed |
 | Companion | 100 health points | 3.4 world units/second | Downed |
 | Troop | 70 health points | 3.0 world units/second | 20% Downed; 80% killed from the seeded draw |
 | Enemy Agent | 110 health points | 2.8 world units/second | Downed |
@@ -276,7 +279,7 @@ PVS-COM-015 (`MUST`): use the following base values. Movement is measured in wor
 | PVS-COM-018 | MUST | Remove Downed and killed Combatants from active combat immediately. Keep them non-targetable, invulnerable, and visually indistinguishable until post-battle resolution. Do not revive them during battle. | `CP-COMBAT-CASUALTY`, `CP-UI-FATE` |
 | PVS-COM-019 | MUST | After victory, restore a Downed player character or Companion to 25 health points. Keep a Downed Troop at 0 health points and unavailable. Remove a killed Troop from the Band. | `CP-COMBAT-CASUALTY` |
 | PVS-COM-020 | MUST | Place five residents in each battle setup: two armed and three unarmed. Armed residents defend above 20 health points and flee at or below 20 health points. Unarmed residents flee from the start. Keep all five valid raid targets. | `CP-FLOW-LATE`, `CP-COMMAND-AI` |
-| PVS-COM-021 | TARGET | A competent player who commands the Band and uses directional defense completes the bridge battle in 3–5 minutes and the settlement-center battle in 4–6 minutes of active real time. | `CP-PERFORMANCE`, `CP-SPEC-END-TO-END` |
+| PVS-COM-021 | MUST | Record unpaused battle real time in seconds for bridge and settlement-center runs from battle entry through the natural terminal outcome, excluding setup, paused time, and post-battle resolution. State measured start/end boundaries, whether input is automated or human, capture/recording overhead, and measurement limits; Simulation time is not elapsed real time, and automated timing is not competent-human pacing evidence. Duration is record-only: no minimum or maximum duration and no forced delay to meet a duration. Keep fixed combat and movement values unchanged. A watchdog timeout is a harness failure, not duration acceptance. | `CP-PERFORMANCE`, `CP-SPEC-END-TO-END` |
 
 ### Band orders and behavior
 
@@ -592,7 +595,7 @@ PVS-WEB-001 (`MUST`): follow these ordered delivery transitions. Evidence: `CP-S
 
 | Checkpoint | Scenario and seed | Machine-readable pass condition | Visual-artifact rule |
 | --- | --- | --- | --- |
-| `CP-SPEC-END-TO-END` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-04-FULL-LATE-VICTORY`/1201, `SCN-05-BAND-DEFEAT`/1202 | The state trace follows only legal flow transitions; early victory ends Resolved/Safe, late victory ends Resolved/Damaged, and defeat ends Failed/Damaged. Each summary contains outcome, Band and resident casualties, applicable enemy survivor fates, Captive count, Settlement condition, and Local Contract state. A competent full run records 45–60 minutes. | Start and changed-settlement PNG screenshots; no full-run clip |
+| `CP-SPEC-END-TO-END` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-04-FULL-LATE-VICTORY`/1201, `SCN-05-BAND-DEFEAT`/1202 | The state trace follows only legal flow transitions; early victory ends Resolved/Safe, late victory ends Resolved/Damaged, and defeat ends Failed/Damaged. Each summary contains outcome, Band and resident casualties, applicable enemy survivor fates, Captive count, Settlement condition, and Local Contract state. Each complete run records elapsed real time and its unpaused battle real time in seconds, measured start/end boundaries, automated or human input, capture/recording overhead, and measurement limits under PVS-PUR-003 and PVS-COM-021. No minimum or maximum duration or forced delay applies; watchdog expiry is a harness failure, not duration acceptance. | Start and changed-settlement PNG screenshots; no full-run clip |
 | `CP-SUPPORT-GATE` | `SCN-15-WEBGPU-STARTUP-LOAD`/1801 | Each failed gate stops before asset loading; the promised row selects a physical core-WebGPU device and confirms the WebGPU backend at 1920 × 1080 CSS pixels and device-pixel ratio 1.0. | PNG for each distinct unsupported state and one ready state |
 | `CP-SUPPORT-LOAD` | `SCN-15-WEBGPU-STARTUP-LOAD`/1801 | Progress and console records contain download, decode, GPU upload, readiness, and first-error stop events with Scene and asset IDs; no automatic retry event exists. | WebM for one successful load and one first-error transition |
 | `CP-FLOW-CONTRACT` | `SCN-01-FULL-EARLY-RELEASE`/1101, `SCN-11-PREPARATION-TRAVEL`/1501 | Available has no deadline; Decline keeps Available; Accept sets exactly current time plus 12 Overworld hours; Wait adds 1 Overworld hour; keys and pause preserve distance, time, and Provisions equivalence. | PNG of offer and Journal; WebM of one pause/speed transition |
@@ -620,7 +623,7 @@ PVS-WEB-001 (`MUST`): follow these ordered delivery transitions. Evidence: `CP-S
 | `CP-SAVE-RESTORE` | `SCN-13-SAVE-RESTORE`/1701 | All three manual slots and autosave remain separate; each listed field and random state restores exactly; runtime adapters rebuild; launch offers autosave recovery. | PNG of slot list and restored Journal; WebM of one Scene-transition autosave |
 | `CP-SAVE-FAILURE` | `SCN-14-SAVE-FAILURES`/1702 | Old and corrupt entries are unavailable without migration; denial and full storage keep in-memory play, disable actions, persist failure, and never emit success; Retry recovers; confirmed delete/reset affects only specified entries. | PNG for each failure state and confirmation state |
 | `CP-DELIVERY-DEVICE-LOSS` | `SCN-16-WEBGPU-DEVICE-LOSS`/1802 | The Simulation tick at loss equals every later tick before Reload; no gameplay event follows loss; visible state offers Reload; reload repeats startup gates. | WebM from active frame through device-loss settled state |
-| `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second; bridge battle lasts 3–5 active minutes. | `none`; metrics and state-only claim |
+| `CP-PERFORMANCE` | `SCN-17-PERFORMANCE-BRIDGE`/1803 | Manifest reports average and 95th-percentile frame time; average targets at most 16.67 milliseconds; 95th percentile targets at most 33.33 milliseconds; no below-30-frames/second interval exceeds 1.00 second. Record unpaused bridge-battle real time in seconds, measured start/end boundaries, automated or human input, capture/recording overhead, and measurement limits under PVS-COM-021. No minimum or maximum duration or forced delay applies; watchdog expiry is a harness failure, not duration acceptance. | `none`; metrics and state-only claim |
 | `CP-SPEC-AUDIT` | `SCN-20-SPEC-AUDIT`/0 | All 11 required top-level sections, eight contract-tuple fields per section, required state tables, one flow diagram, requirement classes, fixed-value units, checkpoint links, scenario seeds, and exclusions are present; no in-scope unresolved marker exists. | `none`; document claim |
 
 ## 10. Out-of-scope boundaries
@@ -667,7 +670,7 @@ The [decision map](map.md) keeps future map fog. In particular, the future Band 
 
 PVS-CMP-001 (`MUST`): do not hand this specification to iterative phase planning unless every item remains checked. Evidence: `CP-SPEC-AUDIT`.
 
-- [x] The purpose, destination, playable boundary, and 45–60-minute target are explicit.
+- [x] The purpose, destination, one-Local-Contract playable boundary, and record-only complete-run and unpaused battle real-time measurements are explicit, with automated versus human input, capture/recording overhead, measurement limits, and no minimum, maximum, or forced delay.
 - [x] The support row, WebGPU gate, viewport, device-pixel ratio, controls promise, loading behavior, and performance floor are explicit.
 - [x] Canonical terms agree with `CONTEXT.md`.
 - [x] Every top-level section contains purpose, authoritative state and data, inputs and commands, transitions, outputs and player-visible feedback, failure and edge behavior, fixed values or targets, and evidence checkpoints.
